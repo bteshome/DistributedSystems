@@ -1,0 +1,16 @@
+serviceName: keycloak
+
+replicaCount: 1
+
+image: bitnami/kafka:3.9
+
+ports:
+  - 8080
+
+service:
+  type: LoadBalancer
+  ports:
+    - 8080
+
+keycloak_server_enabled: true
+    

@@ -1,0 +1,18 @@
+services:
+  db:
+    container_name: db
+    image: postgres:14
+    restart: always
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: ds
+      POSTGRES_PASSWORD: password
+    ports:
+      - 5432:5432
+    networks:
+      - ds
+
+networks:
+  ds:
+    driver: "bridge"
+    name: ds

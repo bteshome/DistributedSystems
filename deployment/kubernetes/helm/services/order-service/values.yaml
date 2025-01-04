@@ -1,0 +1,22 @@
+serviceName: order-service
+appName: orders
+
+replicaCount: 1
+
+image: bteshome/order-service:latest
+
+ports:
+  - 83
+  - 8308
+
+service:
+  ports:
+    - 83
+    - 8308
+
+config_client_enabled: true
+discovery_client_enabled: true
+db_client_host: order-service-db
+kafka_client_enabled: true
+otel_enabled: true
+inventory_client_enabled: true

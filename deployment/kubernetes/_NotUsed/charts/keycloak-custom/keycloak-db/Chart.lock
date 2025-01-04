@@ -1,0 +1,6 @@
+dependencies:
+- name: ds-common
+  repository: file://../../../ds-common
+  version: 0.1.0
+digest: sha256:336d809e0341c1797d842311c8fbeed98d5a569eba1e4ceb5db9d6d742798d05
+generated: "2024-12-30T17:41:49.6827512-05:00"

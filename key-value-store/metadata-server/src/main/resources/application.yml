@@ -1,0 +1,44 @@
+debug: 'false'
+
+management:
+  server:
+    ssl:
+      enabled: 'false'
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+  info:
+    env:
+      enabled: 'true'
+  endpoint:
+    shutdown:
+      enabled: 'true'
+    health:
+      probes:
+        enabled: 'true'
+      show-details: always
+  health:
+    liveness-state:
+      enabled: 'true'
+    readiness-state:
+      enabled: 'true'
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+endpoints:
+  shutdown:
+    enabled: 'true'
+
+logging:
+  level:
+    com:
+      bteshome: DEBUG
+    root: ERROR
+    org:
+      apache:
+        ratis: INFO
+
+metadata-server:
+  group-id: d7d23a0d-26f1-46ce-b10b-af833738907e

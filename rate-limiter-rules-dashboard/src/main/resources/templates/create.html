@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" data-bs-theme="dark">
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1" name="viewport">
+    <title>Create Rule - Rate Limiter Rules Dashboard</title>
+    <link href="/public/bootstrap-5.3.3-dist/css/bootstrap.css" rel="stylesheet">
+    <link href="/public/styles.css" rel="stylesheet">
+</head>
+<body>
+
+<div class="container my-5">
+    <h3>Rate Limiter Rules Dashboard</h3>
+    <p>Create Rule</p>
+    <div class="col-lg-8 px-0">
+        <form class="row g-3" method="post" th:action="@{/create}" th:object="${rule}">
+            <div class="mb-3">
+                <label for="api" class="form-label">Api</label>
+                <input type="text" class="form-control" id="api" th:field="*{api}">
+            </div>
+            <div class="mb-3 ">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="true" id="isPerClient" th:field="*{perClient}">
+                    <label class="form-check-label" for="isPerClient">
+                        Is Per Client
+                    </label>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label for="granularity" class="form-label">Granularity</label>
+                <select class="form-select" aria-label="Granularity" th:field="*{granularity}" id="granularity">
+                    <option value="MINUTE" selected>Per Minute</option>
+                    <option value="SECOND">Per Second</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="threshold" class="form-label">Threshold</label>
+                <input type="text" class="form-control" id="threshold" th:field="*{threshold}">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary mb-3">Create</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="/public/bootstrap-5.3.3-dist/js/bootstrap.js"></script>
+<script src="/public/main.js"></script>
+</body>
+</html>

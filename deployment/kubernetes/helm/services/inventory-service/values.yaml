@@ -1,0 +1,21 @@
+serviceName: inventory-service
+appName: inventory
+
+replicaCount: 1
+
+image: bteshome/inventory-service:latest
+
+ports:
+  - 82
+  - 8208
+
+service:
+  type: LoadBalancer
+  ports:
+    - 82
+    - 8208
+
+config_client_enabled: true
+discovery_client_enabled: true
+db_client_host: inventory-service-db
+otel_enabled: true

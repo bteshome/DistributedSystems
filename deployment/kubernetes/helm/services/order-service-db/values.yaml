@@ -1,0 +1,14 @@
+serviceName: order-service-db
+
+replicaCount: 1
+
+image: mysql:latest
+
+ports:
+  - 3306
+
+service:
+  ports:
+    - 3306
+
+db_server_dbname: order_service

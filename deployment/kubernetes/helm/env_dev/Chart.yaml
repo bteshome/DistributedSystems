@@ -1,0 +1,68 @@
+apiVersion: v2
+name: env_dev
+description: A Helm chart for env_dev
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+dependencies:
+  - name: ds-common
+    version: "0.1.0"
+    repository: file://../ds-common
+  - name: config-server
+    version: "0.1.0"
+    repository: file://../services/config-server
+  - name: inventory-service
+    version: "0.1.0"
+    repository: file://../services/inventory-service
+  - name: inventory-service-db
+    version: "0.1.0"
+    repository: file://../services/inventory-service-db
+
+
+  - name: kafka
+    version: "0.1.0"
+    repository: file://../services/kafka
+  - name: order-service
+    version: "0.1.0"
+    repository: file://../services/order-service
+  - name: order-service-db
+    version: "0.1.0"
+    repository: file://../services/order-service-db
+  - name: notification-service
+    version: "0.1.0"
+    repository: file://../services/notification-service
+
+
+  # - name: rate-limiter-rules-db
+  #   version: "0.1.0"
+  #   repository: file://../services/rate-limiter-rules-db
+  # - name: rate-limiter-rules-dashboard
+  #   version: "0.1.0"
+  #   repository: file://../services/rate-limiter-rules-dashboard
+  - name: keycloak
+    version: "24.3.1"
+    repository: file://../services/keycloak
+  # - name: rate-limiter-cache-1
+  #   version: "0.1.0"
+  #   repository: file://../services/rate-limiter-cache-1
+  # - name: rate-limiter-cache-2
+  #   version: "0.1.0"
+  #   repository: file://../services/rate-limiter-cache-2
+  - name: api-gateway
+    version: "0.1.0"
+    repository: file://../services/api-gateway
+
+
+  # - name: grafana
+  #   version: "11.4.2"
+  #   repository: file://../observability/grafana
+  # - name: grafana-loki
+  #   version: "4.7.1"
+  #   repository: file://../observability/grafana-loki
+  # - name: tempo
+  #   version: "1.16.0"
+  #   repository: file://../observability/tempo
+  # - name: prometheus
+  #   version: "26.0.1"
+  #   repository: file://../observability/prometheus

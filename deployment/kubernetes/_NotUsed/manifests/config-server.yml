@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: config-server
+  labels:
+    app: config-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: config-server
+  template:
+    metadata:
+      labels:
+        app: config-server
+    spec:
+      containers:
+        - name: config-server
+          image: bteshome/config-server:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8071
+            - containerPort: 8078
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: config-server
+spec:
+  selector:
+    app: config-server
+  type: LoadBalancer
+  ports:
+    - name: main-port
+      protocol: TCP
+      port: 8071
+      targetPort: 8071
+    - name: actuator-port
+      protocol: TCP
+      port: 8078
+      targetPort: 8078

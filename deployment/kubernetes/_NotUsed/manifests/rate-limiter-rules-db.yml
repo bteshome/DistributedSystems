@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rate-limiter-rules-db
+  labels:
+    app: rate-limiter-rules-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rate-limiter-rules-db
+  template:
+    metadata:
+      labels:
+        app: rate-limiter-rules-db
+    spec:
+      containers:
+        - name: rate-limiter-rules-db
+          image: mysql:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: password
+            - name: MYSQL_DATABASE
+              value: rate_limiter_rules
+            - name: MYSQL_USER
+              value: ds
+            - name: MYSQL_PASSWORD
+              value: password
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: rate-limiter-rules-db
+spec:
+  selector:
+    app: rate-limiter-rules-db
+  ports:
+    - name: mysql-port
+      protocol: TCP
+      port: 3306
+      targetPort: 3306
+  type: LoadBalancer

@@ -1,0 +1,17 @@
+serviceName: config-server
+appName: configserver
+
+replicaCount: 1
+
+image: bteshome/config-server:latest
+
+ports:
+  - 8071
+  - 8078
+
+service:
+  type: LoadBalancer
+  ports:
+    - 8071
+    - 8078
+

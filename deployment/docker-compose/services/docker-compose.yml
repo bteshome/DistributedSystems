@@ -1,0 +1,244 @@
+services:
+  config-server:
+    image: bteshome/config-server:latest
+    ports:
+      - "8071:8071"
+      - "8078:8078"
+    healthcheck:
+      test: curl --fail --silent config-server:8078/actuator/health/readiness | grep UP || exit 1
+      interval: 1s
+      timeout: 6000s
+      retries: 10
+      start_period: 5s
+    networks:
+      - ds
+    deploy:
+      resources:
+        limits:
+          memory: 600m
+    environment:
+      SPRING_APPLICATION_NAME: "configserver"
+      #JAVA_TOOL_OPTIONS: "-javaagent:/app/libs/opentelemetry-javaagent-2.10.0.jar"
+      #OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4318"
+      #OTEL_METRICS_EXPORTER: none
+      #OTEL_SERVICE_NAME: "configserver"
+
+  discovery-server:
+    image: bteshome/discovery-server:latest
+    ports:
+      - "8761:8761"
+      - "8768:8768"
+    healthcheck:
+      test: curl --fail --silent localhost:8768/actuator/health/readiness | grep UP || exit 1
+      interval: 3s
+      timeout: 6000s
+      retries: 10
+      start_period: 5s
+    depends_on:
+      config-server:
+        condition: service_healthy
+    networks:
+      - ds
+    deploy:
+      resources:
+        limits:
+          memory: 600m
+    environment:
+      SPRING_APPLICATION_NAME: "discoveryserver"
+      SPRING_CONFIG_IMPORT: "configserver:http://config-server:8071/"
+      EUREKA_INSTANCE_HOSTNAME: "discovery-server"
+      #OTEL_SERVICE_NAME: "discoveryserver"
+      #JAVA_TOOL_OPTIONS: "-javaagent:/app/libs/opentelemetry-javaagent-2.10.0.jar"
+      #OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4318"
+      #OTEL_METRICS_EXPORTER: none
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    #command: "start"
+    #command: [ "start-dev", "--import-realm" ]
+    command: "start-dev"
+    #restart: unless-stopped
+    environment:
+      KC_DB: mysql
+      KC_DB_USERNAME: ds
+      KC_DB_PASSWORD: password
+      KC_DB_URL: jdbc:mysql://host.docker.internal:3306/keycloak
+      KC_METRICS_ENABLED: true
+      KC_HEALTH_ENABLED: true
+      KC_LOG_LEVEL: info
+      KC_REALM_NAME: realm1
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: 88
+      KC_HOSTNAME_STRICT: false
+      KC_HOSTNAME_STRICT_HTTPS: false
+    ports:
+      - 88:88
+    networks:
+      - ds
+
+  rate-limiter-db-1:
+    container_name: rate-limiter-db-1
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    networks:
+      - ds
+
+#  rate-limiter-db-2:
+#    container_name: rate-limiter-db-2
+#    image: redis:latest
+#    ports:
+#      - "6380:6379"
+#    networks:
+#      - ds
+
+  broker:
+    image: confluentinc/cp-kafka:7.6.1
+    hostname: broker
+    container_name: broker
+    ports:
+      - "9092:9092"
+      - "9101:9101"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@broker:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://broker:29092,CONTROLLER://broker:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    networks:
+      - ds
+
+  inventory-service:
+    image: bteshome/inventory-service:latest
+    ports:
+      - "82:82"
+      - "8208:8208"
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+    networks:
+      - ds
+    deploy:
+      resources:
+        limits:
+          memory: 600m
+    environment:
+      SPRING_APPLICATION_NAME: "inventory"
+      SPRING_CONFIG_IMPORT: "configserver:http://config-server:8071/"
+      DB_HOST: "host.docker.internal"
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://discovery-server:8761/eureka/"
+      #JAVA_TOOL_OPTIONS: "-javaagent:/app/libs/opentelemetry-javaagent-2.10.0.jar"
+      #OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4318"
+      #OTEL_METRICS_EXPORTER: none
+      #OTEL_SERVICE_NAME: "inventory"
+
+  order-service:
+    image: bteshome/order-service:latest
+    ports:
+      - "83:83"
+      - "8308:8308"
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      broker:
+        condition: service_started
+    networks:
+      - ds
+    deploy:
+      resources:
+        limits:
+          memory: 600m
+    environment:
+      SPRING_APPLICATION_NAME: "orders"
+      SPRING_CONFIG_IMPORT: "configserver:http://config-server:8071/"
+      DB_HOST: "host.docker.internal"
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://discovery-server:8761/eureka/"
+      #JAVA_TOOL_OPTIONS: "-javaagent:/app/libs/opentelemetry-javaagent-2.10.0.jar"
+      #OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4318"
+      #OTEL_METRICS_EXPORTER: none
+      #OTEL_SERVICE_NAME: "orders"
+      SPRING_CLOUD_STREAM_KAFKA_BINDER_BROKERS: "broker:29092"
+
+  api-gateway:
+    image: bteshome/api-gateway:latest
+    ports:
+      - "80:80"
+      - "8008:8008"
+    depends_on:
+      rate-limiter-db-1:
+        condition: service_started
+#      rate-limiter-db-2:
+#        condition: service_started
+      keycloak:
+        condition: service_started
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+    networks:
+      - ds
+    deploy:
+      resources:
+        limits:
+          memory: 600m
+    environment:
+      SPRING_APPLICATION_NAME: "apigateway"
+      SPRING_CONFIG_IMPORT: "configserver:http://config-server:8071/"
+      RATE_LIMITER_RULES_DB_HOST: "rate-limiter-rules-db-1"
+      rate-limiter-cache-servers: "redis://rate-limiter-db-1:6379"
+      #rate-limiter-cache-servers: "redis://rate-limiter-db-1:6379,redis://rate-limiter-db-2:6379"
+      KEYCLOAK_HOST: "keycloak"
+      KEYCLOAK_PORT: "8080"
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://discovery-server:8761/eureka/"
+      #JAVA_TOOL_OPTIONS: "-javaagent:/app/libs/opentelemetry-javaagent-2.10.0.jar"
+      #OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4318"
+      #OTEL_METRICS_EXPORTER: none
+      #OTEL_SERVICE_NAME: "apigateway"
+
+  notification-service:
+    image: bteshome/notification-service:latest
+    ports:
+      - "9001:9001"
+      - "9008:9008"
+    depends_on:
+      config-server:
+        condition: service_healthy
+      broker:
+        condition: service_started
+    networks:
+      - ds
+    deploy:
+      resources:
+        limits:
+          memory: 600m
+    environment:
+      SPRING_APPLICATION_NAME: "notification"
+      SPRING_CONFIG_IMPORT: "configserver:http://config-server:8071/"
+      #JAVA_TOOL_OPTIONS: "-javaagent:/app/libs/opentelemetry-javaagent-2.10.0.jar"
+      #OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4318"
+      #OTEL_METRICS_EXPORTER: none
+      #OTEL_SERVICE_NAME: "notification"
+      SPRING_CLOUD_STREAM_KAFKA_BINDER_BROKERS: "broker:29092"
+
+networks:
+  ds:
+    driver: "bridge"
+    name: ds
+    external: true

@@ -1,0 +1,33 @@
+dependencies:
+- name: ds-common
+  repository: file://../ds-common
+  version: 0.1.0
+- name: config-server
+  repository: file://../services/config-server
+  version: 0.1.0
+- name: inventory-service
+  repository: file://../services/inventory-service
+  version: 0.1.0
+- name: inventory-service-db
+  repository: file://../services/inventory-service-db
+  version: 0.1.0
+- name: kafka
+  repository: file://../services/kafka
+  version: 0.1.0
+- name: order-service
+  repository: file://../services/order-service
+  version: 0.1.0
+- name: order-service-db
+  repository: file://../services/order-service-db
+  version: 0.1.0
+- name: notification-service
+  repository: file://../services/notification-service
+  version: 0.1.0
+- name: keycloak
+  repository: file://../services/keycloak
+  version: 24.3.1
+- name: api-gateway
+  repository: file://../services/api-gateway
+  version: 0.1.0
+digest: sha256:a4fa0d824fe70c666114e6b60eb37c99c7e76f1cf53985501c263b393bb8e4cd
+generated: "2024-12-31T14:48:47.1151614-05:00"

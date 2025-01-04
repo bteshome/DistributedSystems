@@ -1,0 +1,10 @@
+apiVersion: v2
+name: rate-limiter-cache-1
+description: A Helm chart for rate-limiter-cache-1
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+dependencies:
+  - name: ds-common
+    version: "0.1.0"
+    repository: file://../../ds-common

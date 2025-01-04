@@ -1,0 +1,171 @@
+{{- define "ds-common.deployment" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.serviceName }}
+  labels:
+    app: {{ .Values.serviceName }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.serviceName }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.serviceName }}
+    spec:
+      containers:
+        - name: {{ .Values.serviceName }}
+          image: {{ .Values.image }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            {{- range .Values.ports }}
+            - containerPort: {{ . }}
+            {{- end }}   
+          env:
+            - name: POD_HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            {{- if .Values.appName }}
+            - name: SPRING_APPLICATION_NAME
+              value: {{ .Values.appName }}
+            {{- end }}
+            {{- if .Values.config_client_enabled }}
+            - name: SPRING_CONFIG_IMPORT
+              value: configserver:http://config-server:8071/
+            {{- end }}
+            {{- if .Values.discovery_server_enabled }}
+            - name: EUREKA_INSTANCE_HOSTNAME
+              value: ${POD_HOSTNAME}
+            - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+              value: http://localhost:8761/eureka/
+            {{- end }}
+            {{- if .Values.discovery_client_enabled }}
+            - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+              value: http://discovery-server:8761/eureka/
+            {{- end }}
+            {{- if .Values.TODO___otel_enabled }}
+            - name: JAVA_TOOL_OPTIONS
+              value: "-javaagent:/app/libs/opentelemetry-javaagent-2.10.0.jar"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              #value: "http://dev-grafana-tempo-distributor:4317"
+              #value: "http://dev-grafana-tempo-distributor:4318"
+              #value: "http://dev-grafana-tempo-distributor:3200"
+              #value: "http://dev-grafana-tempo-distributor:9095"
+              #value: "http://dev-grafana-tempo-distributor:14268"
+              #value: "http://dev-grafana-tempo-distributor:55680"
+              #value: "http://dev-tempo:4317"
+              value: "http://dev-tempo:4318"
+            - name: OTEL_METRICS_EXPORTER
+              value: "none"
+            - name: OTEL_LOGS_EXPORTER
+              value: "otlp"
+            - name: OTEL_SERVICE_NAME
+              value: {{ .Values.appName }}
+            {{- end }}
+            {{- if .Values.db_server_dbname }}
+            - name: MYSQL_ROOT_PASSWORD
+              value: password
+            - name: MYSQL_DATABASE
+              value: {{ .Values.db_server_dbname }}
+            - name: MYSQL_USER
+              value: ds
+            - name: MYSQL_PASSWORD
+              value: password
+            {{- end }}
+            {{- if .Values.db_client_host }}
+            - name: DB_HOST
+              value: {{ .Values.db_client_host }}
+            {{- end }}
+            {{- if .Values.kafka_client_enabled }}
+            - name: SPRING_CLOUD_STREAM_KAFKA_BINDER_BROKERS
+              #value: kafka:9092
+              value: kafka.default.svc.cluster.local:9092
+            {{- end }}
+            {{- if .Values.kafka_broker_enabled }}
+            - name: KAFKA_KRAFT_CLUSTER_ID
+              value: 'MkU3OEVBNTcwNTJENDM2Qk'
+            - name: KAFKA_CFG_NODE_ID
+              value: "1"
+            - name: KAFKA_CFG_PROCESS_ROLES
+              value: 'broker,controller'
+            - name: KAFKA_CFG_CONTROLLER_QUORUM_VOTERS
+              value: '1@localhost:9093'
+            - name: KAFKA_CFG_LISTENERS
+              value: PLAINTEXT://:9092,CONTROLLER://:9093
+            - name: KAFKA_CFG_ADVERTISED_LISTENERS
+              value: PLAINTEXT://kafka:9092
+            - name: KAFKA_CFG_INTER_BROKER_LISTENER_NAME
+              value: PLAINTEXT
+            - name: KAFKA_CFG_CONTROLLER_LISTENER_NAMES
+              value: CONTROLLER
+            - name: KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP
+              value: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+            {{- end }}
+            {{- if .Values.keycloak_server_enabled }}
+            - name: KC_DB
+              value: mysql
+            - name: KC_DB_USERNAME
+              value: ds
+            - name: KC_DB_PASSWORD
+              value: password
+            - name: KC_DB_URL
+              value: jdbc:mysql://keycloak-db:3306/keycloak
+            - name: KC_METRICS_ENABLED
+              value: "true"
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            - name: KC_LOG_LEVEL
+              value: info
+            - name: KC_REALM_NAME
+              value: realm1
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              value: admin
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              value: admin
+            - name: KC_HOSTNAME
+              value: ${POD_HOSTNAME}
+            - name: KC_HOSTNAME_PORT
+              value: "88"
+            - name: KC_HOSTNAME_STRICT
+              value: "false"
+            - name: KC_HOSTNAME_STRICT_HTTPS
+              value: "false"
+            {{- end }}
+            {{- if .Values.rate_limiter_enabled }}
+            - name: RATE_LIMITER_RULES_DB_HOST
+              value: rate-limiter-rules-db
+            - name: rate-limiter-cache-servers
+              #value: "redis://rate-limiter-cache-1:6379,redis://rate-limiter-cache-2:6379"
+              value: "redis://rate-limiter-cache-1:6379"
+            {{- end }}
+            {{- if .Values.oauth2_resource_server_enabled }}
+            - name: KEYCLOAK_HOST
+              #value: keycloak
+              value: dev-keycloak.default.svc.cluster.local
+            - name: KEYCLOAK_PORT
+              value: "88"
+            {{- end }}
+            {{- if .Values.api_gateway_enabled }}
+            - name: inventory-service-url
+              value: http://inventory-service:82
+            - name: order-service-url
+              value: http://order-service:83
+            - name: security-disabled
+              value: "true"
+            - name: rate-limiter-disabled
+              value: "true"
+            {{- end }}
+            {{- if .Values.inventory_client_enabled }}
+            - name: inventory-service-url
+              value: http://inventory-service:82
+            {{- end }}
+            {{- if .Values.additional_env_vars }}
+            {{- range .Values.additional_env_vars }}
+            - name: {{ .name }}
+              value: {{ .value }}
+            {{- end }}
+            {{- end }}            
+{{- end -}}

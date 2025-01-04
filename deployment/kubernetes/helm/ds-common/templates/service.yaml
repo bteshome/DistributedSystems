@@ -1,0 +1,23 @@
+{{- define "ds-common.service" -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.serviceName }}
+spec:
+  selector:
+    app:
+      {{ .Values.serviceName }}
+  {{- if .Values.service.type }}
+  type: {{ .Values.service.type }}
+  {{- end }}
+  {{- if .Values.service.clusterIP }}
+  clusterIP: {{ .Values.service.clusterIP }}
+  {{- end }}
+  ports:
+    {{- range .Values.service.ports }}
+    - name: port-{{ . }}
+      port: {{ . }}
+      targetPort: {{ . }}
+      protocol: TCP
+    {{- end }}
+{{- end -}}

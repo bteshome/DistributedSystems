@@ -1,0 +1,20 @@
+serviceName: rate-limiter-rules-dashboard
+appName: ratelimiterrulesdashboard
+
+replicaCount: 1
+
+image: bteshome/rate-limiter-rules-dashboard:latest
+
+ports:
+  - 92
+  - 9208
+
+service:
+  type: LoadBalancer
+  ports:
+    - 92
+    - 9208
+
+config_client_enabled: true
+db_client_host: rate-limiter-rules-db
+

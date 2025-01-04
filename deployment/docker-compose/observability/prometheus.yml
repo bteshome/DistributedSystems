@@ -1,0 +1,29 @@
+global:
+  scrape_interval:     5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: 'config-server'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: [ 'config-server:8078' ]
+  - job_name: 'discovery-server'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: [ 'discovery-server:8768' ]
+  - job_name: 'inventory-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: [ 'inventory-service:8208' ]
+  - job_name: 'order-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: [ 'order-service:8308' ]
+  - job_name: 'api-gateway'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: [ 'api-gateway:8008' ]
+  - job_name: 'notification-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: [ 'notification-service:9008' ]

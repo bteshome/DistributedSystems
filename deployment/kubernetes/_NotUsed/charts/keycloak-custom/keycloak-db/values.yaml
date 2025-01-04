@@ -1,0 +1,14 @@
+serviceName: keycloak-db
+
+replicaCount: 1
+
+image: mysql:latest
+
+ports:
+  - 3306
+
+service:
+  ports:
+    - 3306
+
+db_server_dbname: keycloak

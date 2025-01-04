@@ -1,0 +1,16 @@
+serviceName: kafka
+
+replicaCount: 1
+
+image: bitnami/kafka:3.9
+
+ports:
+  - 9092
+
+service:
+  clusterIP: None
+  ports:
+    - 9092
+
+kafka_broker_enabled: true
+    

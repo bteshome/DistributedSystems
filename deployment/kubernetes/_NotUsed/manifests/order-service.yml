@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  labels:
+    app: order-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+    spec:
+      containers:
+        - name: order-service
+          image: bteshome/order-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 83
+            - containerPort: 8308
+          env:
+            - name: SPRING_APPLICATION_NAME
+              value: orders
+            - name: SPRING_CONFIG_IMPORT
+              value: configserver:http://config-server:8071/
+            - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+              value: http://discovery-server:8761/eureka/
+            - name: DB_HOST
+              value: order-db
+            - name: SPRING_CLOUD_STREAM_KAFKA_BINDER_BROKERS
+              #value: kafka:9092
+              value: kafka.default.svc.cluster.local:9092
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+spec:
+  selector:
+    app: order-service
+  type: LoadBalancer
+  ports:
+    - name: main-port
+      protocol: TCP
+      port: 83
+      targetPort: 83
+    - name: actuator-port
+      protocol: TCP
+      port: 8308
+      targetPort: 8308      

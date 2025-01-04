@@ -1,0 +1,23 @@
+serviceName: api-gateway
+appName: apigateway
+
+replicaCount: 1
+
+image: bteshome/api-gateway:latest
+
+ports:
+  - 80
+  - 8008
+
+service:
+  type: LoadBalancer
+  ports:
+    - 80
+    - 8008
+
+config_client_enabled: true
+discovery_client_enabled: true
+rate_limiter_enabled: true
+oauth2_resource_server_enabled: true
+api_gateway_enabled: true
+otel_enabled: true

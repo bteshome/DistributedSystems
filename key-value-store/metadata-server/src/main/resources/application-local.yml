@@ -1,0 +1,33 @@
+server:
+  port: '9209'
+
+spring:
+  application:
+    name: keyvaluestore
+  cloud:
+    config:
+      import-check:
+        enabled: 'false'
+
+metadata-server:
+  node:
+    id: '0'
+    host: localhost
+    port: '9310'
+  peers:
+    - id: ${node.id}
+      host: ${node.host}
+      port: ${node.port}
+  storage-dir: raft-server-${node.id}
+
+info:
+  app:
+    name: 'Key Value Store - Controller Node 1'
+    version: '1.0'
+    description: 'Key Value Store - Controller Node 1'
+
+management:
+  server:
+    port: '9309'
+
+#spring.config.import=configserver:http://localhost:8071/
