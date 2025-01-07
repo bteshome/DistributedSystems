@@ -9,16 +9,12 @@
         <version>3.4.0</version>
         <relativePath/>
     </parent>
-    <groupId>com.bteshome</groupId>
+    <groupId>com.bteshome.key-value-store</groupId>
     <artifactId>key-value-store</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>key-value-store</name>
     <description>Key Value Store</description>
     <packaging>pom</packaging>
-
-    <modules>
-
-    </modules>
 
     <properties>
         <java.version>21</java.version>

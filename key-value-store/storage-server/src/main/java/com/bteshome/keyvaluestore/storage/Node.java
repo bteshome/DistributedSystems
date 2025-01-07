@@ -1,53 +1,47 @@
 package com.bteshome.keyvaluestore.storage;
 
+import com.bteshome.keyvaluestore.common.Client;
+import com.bteshome.keyvaluestore.common.ResponseStatus;
+import com.bteshome.keyvaluestore.common.requests.StorageNodeJoinRequest;
+import com.bteshome.keyvaluestore.common.responses.GenericResponse;
+import com.bteshome.keyvaluestore.storage.common.StorageSettings;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.client.RaftClient;
-import org.apache.ratis.conf.RaftProperties;
-import org.apache.ratis.netty.NettyFactory;
-import org.apache.ratis.netty.client.NettyClientRpc;
-import org.apache.ratis.protocol.*;
-import org.apache.ratis.util.JavaUtils;
+import org.apache.ratis.protocol.RaftClientReply;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
-import org.apache.ratis.conf.Parameters;
-import org.apache.ratis.grpc.GrpcFactory;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
+import java.nio.charset.StandardCharsets;
 
 @Component
 @Slf4j
 public class Node implements CommandLineRunner {
     @Autowired
-    AppSettings appSettings;
+    Client client;
 
     @Autowired
-    Utils utils;
+    StorageSettings storageSettings;
 
     @Override
-    public void run(String... args){
-        try (RaftClient client = utils.createRaftClient()) {
-            JoinNodeMessage message = new JoinNodeMessage(
-                    appSettings.getNodeId(),
-                    appSettings.getHost(),
-                    appSettings.getPort(),
-                    appSettings.getJmxPort(),
-                    appSettings.getRack()
-            );
-            log.info("Joining cluster: {}", message);
-            /*final RaftClientReply reply = client.io().send(message);
+    public void run(String... args) throws IOException {
+        try (RaftClient client = this.client.createRaftClient()) {
+            StorageNodeJoinRequest request = new StorageNodeJoinRequest(storageSettings.getNode());
+            log.info("Trying to join the cluster with node id: {}", request.getId());
+            final RaftClientReply reply = client.io().send(request);
             if (reply.isSuccess()) {
-                log.info("Joined cluster");
+                String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);
+                GenericResponse response = ResponseStatus.toGenericResponse(messageString);
+                if (response.getHttpStatusCode() == ResponseStatus.OK) {
+                    log.info(response.getMessage());
+                } else {
+                    log.error(response.getMessage());
+                }
             } else {
-                log.error("Error joining cluster: ", reply.getException());
-                throw new StorageServerException(reply.getException());
-            }*/
-        } catch (Exception e) {
-            log.error("Error occurred: ", e);
-            throw new StorageServerException(e);
+                log.error("Error joining the cluster: ", reply.getException());
+            }
         }
     }
 }

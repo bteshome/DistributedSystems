@@ -40,5 +40,5 @@ logging:
       apache:
         ratis: INFO
 
-metadata-server:
+metadata:
   group-id: d7d23a0d-26f1-46ce-b10b-af833738907e

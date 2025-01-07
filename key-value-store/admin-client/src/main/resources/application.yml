@@ -3,15 +3,17 @@ debug: 'false'
 #spring.config.import=configserver:http://localhost:8071/
 spring:
   application:
-    name: keyvaluestoreadminclient
+    name: kvadminclient
   cloud:
     config:
       import-check:
         enabled: 'false'
 
+server:
+  port: '9207'
 management:
   server:
-    port: '9507'
+    port: '9307'
     ssl:
       enabled: 'false'
   endpoints:
@@ -50,19 +52,24 @@ logging:
       apache:
         ratis: INFO
 
-server:
-  port: '9407'
+client:
+  client-id: 5a73f6ba-c728-4895-9acf-f20e919f0223
 
-admin-client:
-  client-id: 8f6bec7a-694c-42a3-b3f1-a978f98ac2d9
-
-metadata-server:
+metadata:
   group-id: d7d23a0d-26f1-46ce-b10b-af833738907e
   peers:
     - id: '1'
       #host: 0.0.0.0
       host: 127.0.0.1
       port: '9311'
+    - id: '2'
+      #host: 0.0.0.0
+      host: 127.0.0.1
+      port: '9312'
+  num-partitions-default: 1
+  num-partitions-min: 1
+  num-partitions-max: 10
+  replication-factor-default: 1
 
 info:
   app:

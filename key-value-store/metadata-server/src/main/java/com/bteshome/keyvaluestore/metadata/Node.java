@@ -1,6 +1,6 @@
 package com.bteshome.keyvaluestore.metadata;
 
-import com.bteshome.keyvaluestore.metadata.common.Settings;
+import com.bteshome.keyvaluestore.common.MetadataSettings;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.conf.RaftProperties;
 import org.apache.ratis.netty.NettyConfigKeys;
@@ -26,7 +26,7 @@ public class Node implements CommandLineRunner {
     private RaftServer server = null;
 
     @Autowired
-    Settings settings;
+    MetadataSettings settings;
 
     private RaftPeer buildPeer(Map<String, String> peerInfo) {
         String id = peerInfo.get("id");
@@ -89,6 +89,11 @@ public class Node implements CommandLineRunner {
             properties.set("ratis.server.replication.factor", "1");
             properties.set("raft.server.storage.dir", settings.getStorageDir());
             properties.set("raft.rpc.type", "NETTY");
+            properties.set("ratis.snapshot.auto.enable", "true");
+            //properties.set("raft.server.snapshot.trigger-when-stop.enabled", "true");
+            properties.set("raft.server.snapshot.auto.trigger.enabled ", "true");
+            properties.set("raft.server.snapshot.auto.trigger.interval", "5000");
+            properties.set("raft.server.snapshot.auto.trigger.threshold", "2");
 
             server = RaftServer.newBuilder()
                     .setProperties(properties)

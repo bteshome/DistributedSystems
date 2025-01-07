@@ -9,16 +9,16 @@ spring:
       import-check:
         enabled: 'false'
 
-metadata-server:
+metadata:
   node:
     id: '0'
     host: localhost
     port: '9310'
   peers:
-    - id: ${node.id}
-      host: ${node.host}
-      port: ${node.port}
-  storage-dir: raft-server-${node.id}
+    - id: ${metadata.node.id}
+      host: ${metadata.node.host}
+      port: ${metadata.node.port}
+  storage-dir: raft-server-0
 
 info:
   app:

@@ -9,17 +9,22 @@ spring:
       import-check:
         enabled: 'false'
 
-metadata-server:
+metadata:
   node:
     id: '1'
     #host: 0.0.0.0
     host: 127.0.0.1
     port: '9311'
   peers:
-    - id: ${metadata-server.node.id}
-      host: ${metadata-server.node.host}
-      port: ${metadata-server.node.port}
-  storage-dir: /tmp/raft-server-${node.id}
+    - id: ${metadata.node.id}
+      host: ${metadata.node.host}
+      port: ${metadata.node.port}
+  storage-dir: /tmp/raft-server-1
+  heartbeat-expect-interval-seconds: 5
+  num-partitions-default: 1
+  num-partitions-min: 1
+  num-partitions-max: 10
+  replication-factor-default: 1
 
 info:
   app:
