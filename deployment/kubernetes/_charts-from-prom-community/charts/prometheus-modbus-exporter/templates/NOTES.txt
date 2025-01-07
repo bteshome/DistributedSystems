@@ -1,3 +1,0 @@
-For any help, see:
-- https://github.com/RichiH/modbus_exporter
-- https://github.com/prometheus-community/helm-charts/issues
