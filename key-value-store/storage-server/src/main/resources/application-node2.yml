@@ -11,8 +11,6 @@ management:
 
 client:
   client-id: 42af847f-4921-48bb-bec5-fb4898d0a6eb
-
-metadata:
   group-id: d7d23a0d-26f1-46ce-b10b-af833738907e
   peers:
     - id: '1'
@@ -23,6 +21,7 @@ metadata:
       #host: 0.0.0.0
       host: 127.0.0.1
       port: '9312'
+  metadata-refresh-interval-ms: 10000
 
 storage:
   node:
@@ -33,5 +32,3 @@ storage:
     jmxPort: ${management.server.port}
     rack: ""
     storage-dir: /tmp/storage-server-2
-  heartbeat-send-interval-seconds: 30
-

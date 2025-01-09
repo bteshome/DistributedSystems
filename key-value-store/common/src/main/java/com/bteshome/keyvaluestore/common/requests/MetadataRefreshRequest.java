@@ -8,26 +8,28 @@ import org.apache.ratis.protocol.Message;
 import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 import org.apache.ratis.util.ProtoUtils;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.UUID;
 
 @Getter
 @Setter
-public class StorageNodeHeartbeatRequest implements Serializable, Message {
-    private String id;
-    private long lastFetchedMetadataVersion;
+public class MetadataRefreshRequest implements Serializable, Message {
+    private long lastFetchedVersion;
+    private UUID clientId;
+    @Serial
+    private static final long serialVersionUID = 1L;
 
-    public StorageNodeHeartbeatRequest(
-            Map<String, String> nodeInfo,
-            long lastFetchedMetadataVersion) {
-        this.id = Validator.notEmpty(nodeInfo.get("id"));
-        this.lastFetchedMetadataVersion = lastFetchedMetadataVersion;
+    public MetadataRefreshRequest(UUID clientId, long lastFetchedVersion) {
+        this.clientId = Validator.setDefault(clientId);
+        this.lastFetchedVersion = lastFetchedVersion;
     }
 
     @Override
     public ByteString getContent() {
-        final String message = RequestType.STORAGE_NODE_HEARTBEAT + " " + JavaSerDe.serialize(this);
+        final String message = RequestType.METADATA_REFRESH + " " + JavaSerDe.serialize(this);
         byte[] bytes = message.getBytes(StandardCharsets.UTF_8);
         return ProtoUtils.toByteString(bytes);
     }

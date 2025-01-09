@@ -25,7 +25,8 @@ public class StorageNode implements Serializable {
     private StorageNodeState state;
     private long lastHeartbeatReceivedTime;
     private Set<ReplicaAssignment> replicaAssignmentSet;
-    private String metadataVersion;
+    private long metadataVersion;
+    private long lastMetadataRefreshTime;
     @Serial
     private static final long serialVersionUID = 1L;
 
@@ -36,10 +37,11 @@ public class StorageNode implements Serializable {
                 request.getPort(),
                 request.getJmxPort(),
                 request.getRack(),
-                StorageNodeState.ACTIVE,
-                System.currentTimeMillis(),
+                StorageNodeState.INACTIVE,
+                0L,
                 new HashSet<>(),
-                ""
+                0L,
+                0L
         );
     }
 
@@ -57,7 +59,8 @@ public class StorageNode implements Serializable {
                 state,
                 lastHeartbeatReceivedTime,
                 replicaAssignmentSet,
-                metadataVersion
+                metadataVersion,
+                lastMetadataRefreshTime
         );
     }
 

@@ -1,7 +1,7 @@
 package com.bteshome.keyvaluestore.adminclient.service;
 
 import com.bteshome.keyvaluestore.adminclient.common.AdminClientException;
-import com.bteshome.keyvaluestore.common.Client;
+import com.bteshome.keyvaluestore.common.ClientBuilder;
 import com.bteshome.keyvaluestore.common.JavaSerDe;
 import com.bteshome.keyvaluestore.common.ResponseStatus;
 import com.bteshome.keyvaluestore.common.requests.StorageNodeGetRequest;
@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.client.RaftClient;
 import org.apache.ratis.protocol.RaftClientReply;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
@@ -22,14 +23,14 @@ import java.nio.charset.StandardCharsets;
 @Service
 public class NodeService {
     @Autowired
-    Client client;
+    ClientBuilder clientBuilder;
 
     public ResponseEntity<?> getNode(StorageNodeGetRequest request) {
-        try (RaftClient client = this.client.createRaftClient()) {
+        try (RaftClient client = this.clientBuilder.createRaftClient()) {
             final RaftClientReply reply = client.io().sendReadOnly(request);
             if (reply.isSuccess()) {
                 String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);
-                if (ResponseStatus.extractStatusCode(messageString) == ResponseStatus.OK) {
+                if (ResponseStatus.extractStatusCode(messageString) == HttpStatus.OK.value()) {
                     StorageNodeGetResponse response = JavaSerDe.deserialize(messageString.split(" ")[1]);
                     return ResponseEntity.ok(response.getStorageNodeCopy());
                 }
@@ -44,11 +45,11 @@ public class NodeService {
     }
 
     public ResponseEntity<?> list(StorageNodeListRequest request) {
-        try (RaftClient client = this.client.createRaftClient()) {
+        try (RaftClient client = this.clientBuilder.createRaftClient()) {
             final RaftClientReply reply = client.io().sendReadOnly(request);
             if (reply.isSuccess()) {
                 String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);
-                if (ResponseStatus.extractStatusCode(messageString) == ResponseStatus.OK) {
+                if (ResponseStatus.extractStatusCode(messageString) == HttpStatus.OK.value()) {
                     StorageNodeListResponse response = JavaSerDe.deserialize(messageString.split(" ")[1]);
                     return ResponseEntity.ok(response.getStorageNodeListCopy());
                 }

@@ -12,16 +12,13 @@ import java.util.List;
 import java.util.Map;
 
 @Component
-public class Client {
-    @Autowired
-    private MetadataSettings metadataSettings;
-
+public class ClientBuilder {
     @Autowired
     private ClientSettings clientSettings;
 
     public RaftClient createRaftClient() {
-        List<RaftPeer> peers = metadataSettings.getPeers().stream().map(this::buildPeer).toList();
-        RaftGroup group = RaftGroup.valueOf(RaftGroupId.valueOf(metadataSettings.getGroupId()), peers);
+        List<RaftPeer> peers =  clientSettings.getPeers().stream().map(this::buildPeer).toList();
+        RaftGroup group = RaftGroup.valueOf(RaftGroupId.valueOf(clientSettings.getGroupId()), peers);
         RaftProperties properties = new RaftProperties();
         ClientId clientId = ClientId.valueOf(clientSettings.getClientId());
 

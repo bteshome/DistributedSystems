@@ -1,4 +1,4 @@
-package com.bteshome.keyvaluestore.storage.common;
+package com.bteshome.keyvaluestore.storage;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -7,9 +7,7 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @Component
 @ConfigurationProperties(prefix = "storage")
@@ -19,5 +17,4 @@ import java.util.UUID;
 @AllArgsConstructor
 public class StorageSettings {
     private Map<String, String> node;
-    private int heartbeatSendIntervalSeconds;
 }

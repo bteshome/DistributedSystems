@@ -32,7 +32,7 @@ public class StorageNodeJoinRequest implements Serializable, Message {
 
     @Override
     public ByteString getContent() {
-        final String message = "STORAGE_NODE_JOIN " + JavaSerDe.serialize(this);
+        final String message = RequestType.STORAGE_NODE_JOIN + " " + JavaSerDe.serialize(this);
         byte[] bytes = message.getBytes(StandardCharsets.UTF_8);
         return ProtoUtils.toByteString(bytes);
     }

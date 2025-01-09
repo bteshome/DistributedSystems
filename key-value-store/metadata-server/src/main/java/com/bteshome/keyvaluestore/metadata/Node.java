@@ -1,6 +1,7 @@
 package com.bteshome.keyvaluestore.metadata;
 
-import com.bteshome.keyvaluestore.common.MetadataSettings;
+import com.bteshome.keyvaluestore.common.Utils;
+import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.conf.RaftProperties;
 import org.apache.ratis.netty.NettyConfigKeys;
@@ -15,8 +16,6 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.nio.file.*;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
 import java.util.Map;
 
@@ -26,7 +25,7 @@ public class Node implements CommandLineRunner {
     private RaftServer server = null;
 
     @Autowired
-    MetadataSettings settings;
+    MetadataSettings metadataSettings;
 
     private RaftPeer buildPeer(Map<String, String> peerInfo) {
         String id = peerInfo.get("id");
@@ -38,35 +37,12 @@ public class Node implements CommandLineRunner {
                 .build();
     }
 
-    private void deleteDirectoryIfItExists() {
-        Path directoryToDelete = Paths.get(settings.getStorageDir());
-
-        try {
-            Files.walkFileTree(directoryToDelete, new SimpleFileVisitor<Path>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    Files.delete(file);
-                    return FileVisitResult.CONTINUE;
-                }
-
-                @Override
-                public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-                    Files.delete(dir);
-                    return FileVisitResult.CONTINUE;
-                }
-            });
-        } catch (IOException e) {
-            System.err.println("Error deleting directory: " + e.getMessage());
-        }
-    }
-
+    @PreDestroy
     private void stopServer() {
-        if (server == null) {
-            return;
-        }
-
         try {
-            server.close();
+            if (server != null) {
+                server.close();
+            }
         } catch (IOException e) {
             log.info("Error stopping server", e);
         }
@@ -75,19 +51,22 @@ public class Node implements CommandLineRunner {
     @Override
     public void run(String... args) throws Exception {
         try {
-            deleteDirectoryIfItExists();
+            // TODO - don't delete this everytime
+            Utils.deleteDirectoryIfItExists(metadataSettings.getStorageDir());
 
-            RaftPeer node = buildPeer(settings.getNode());
-            List<RaftPeer> peers = settings.getPeers().stream().map(this::buildPeer).toList();
-            RaftGroup group = RaftGroup.valueOf(RaftGroupId.valueOf(settings.getGroupId()), peers);
-            MyStateMachine stateMachine = new MyStateMachine();
+            RaftPeer node = buildPeer(metadataSettings.getNode());
+            List<RaftPeer> peers = metadataSettings.getPeers().stream().map(this::buildPeer).toList();
+            RaftGroup group = RaftGroup.valueOf(RaftGroupId.valueOf(metadataSettings.getGroupId()), peers);
+            //MetadataStateMachine stateMachine = MetadataStateMachine.getInstance();
+            MetadataStateMachine stateMachine = new MetadataStateMachine(metadataSettings);
 
             RaftProperties properties = new RaftProperties();
-            NettyConfigKeys.Server.setHost(properties, settings.getNode().get("host"));
-            NettyConfigKeys.Server.setPort(properties, Integer.parseInt(settings.getNode().get("port")));
+            NettyConfigKeys.Server.setHost(properties, metadataSettings.getNode().get("host"));
+            NettyConfigKeys.Server.setPort(properties, Integer.parseInt(metadataSettings.getNode().get("port")));
 
+            // TODO - make these configurable
             properties.set("ratis.server.replication.factor", "1");
-            properties.set("raft.server.storage.dir", settings.getStorageDir());
+            properties.set("raft.server.storage.dir", metadataSettings.getStorageDir());
             properties.set("raft.rpc.type", "NETTY");
             properties.set("ratis.snapshot.auto.enable", "true");
             //properties.set("raft.server.snapshot.trigger-when-stop.enabled", "true");
@@ -103,30 +82,9 @@ public class Node implements CommandLineRunner {
                     .setOption(RaftStorage.StartupOption.FORMAT)
                     .build();
 
-            System.out.println("\n\n");
-            log.info("Server properties: {}", server.getProperties());
-            System.out.println("\n\n");
-
-            System.out.println("now starting...");
-
             server.start();
-
-            Thread mainThread = Thread.currentThread();
-
-            Runtime.getRuntime().addShutdownHook(new Thread() {
-                @Override
-                public void run() {
-                    log.info("System shutdown detected. Stopping server...");
-                    stopServer();
-                    try {
-                        mainThread.join();
-                    } catch (InterruptedException e) {
-                        log.info("Interrupted while waiting for main thread to complete", e);
-                    }
-                }
-            });
         } catch (Exception e) {
-            log.error("Unhandled error: ", e);
+            log.error("Error starting server: ", e);
             stopServer();
         }
     }

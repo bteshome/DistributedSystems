@@ -1,5 +1,7 @@
 package com.bteshome.keyvaluestore.common;
 
+import java.util.UUID;
+
 public class Validator {
     public static String notEmpty(String value) {
         if (value == null) {
@@ -36,6 +38,13 @@ public class Validator {
         return value;
     }
 
+    public static int notGreaterThan(int value, int max) {
+        if (value > max) {
+            throw new IllegalArgumentException("Value must not be greater than %s.".formatted(max));
+        }
+        return value;
+    }
+
     public static void notEqual(int value1, int value2) {
         notEqual(value1, value2, "Values %s and %s cannot be equal.".formatted(value1, value2));
     }
@@ -60,9 +69,23 @@ public class Validator {
         return value;
     }
 
+    public static long setDefault(long value, long defaultValue) {
+        if (value < 1) {
+            value = defaultValue;
+        }
+        return value;
+    }
+
     public static int setDefault(int value, int defaultValue) {
         if (value < 1) {
             value = defaultValue;
+        }
+        return value;
+    }
+
+    public static UUID setDefault(UUID value) {
+        if (value == null) {
+            value = UUID.randomUUID();
         }
         return value;
     }

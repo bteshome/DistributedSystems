@@ -20,7 +20,11 @@ metadata:
       host: ${metadata.node.host}
       port: ${metadata.node.port}
   storage-dir: /tmp/raft-server-1
-  heartbeat-expect-interval-seconds: 5
+  storage-node-heartbeat-expect-interval-ms: 3000
+  storage-node-heartbeat-send-interval-ms: 5000
+  storage-node-heartbeat-monitor-interval-ms: 5000
+  storage-node-metadata-lag-threshold: 1
+  storage-node-metadata-lag-ms: 1000000
   num-partitions-default: 1
   num-partitions-min: 1
   num-partitions-max: 10

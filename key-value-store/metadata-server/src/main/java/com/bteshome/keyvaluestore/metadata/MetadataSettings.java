@@ -1,4 +1,4 @@
-package com.bteshome.keyvaluestore.common;
+package com.bteshome.keyvaluestore.metadata;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -22,9 +22,12 @@ public class MetadataSettings {
     private String storageDir;
     private Map<String, String> node;
     private List<Map<String, String>> peers;
-    private int numPartitionsMin;
     private int numPartitionsMax;
     private int numPartitionsDefault;
     private int replicationFactorDefault;
-    private int heartbeatExpectIntervalSeconds;
+    private long storageNodeHeartbeatMonitorIntervalMs;
+    private long storageNodeHeartbeatExpectIntervalMs;
+    private long storageNodeHeartbeatSendIntervalMs;
+    private long storageNodeMetadataLagThreshold;
+    private long storageNodeMetadataLagMs;
 }

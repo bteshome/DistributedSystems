@@ -1,6 +1,7 @@
-package com.bteshome.keyvaluestore.metadata.common;
+package com.bteshome.keyvaluestore.common.requests;
 
 public enum RequestType {
+    METADATA_REFRESH,
     TABLE_CREATE,
     TABLE_GET,
     TABLE_LIST,
@@ -9,5 +10,6 @@ public enum RequestType {
     STORAGE_NODE_GET,
     STORAGE_NODE_LIST,
     STORAGE_NODE_HEARTBEAT,
+    STORAGE_NODE_STATUS_UPDATE,
     UNKNOWN
 }
