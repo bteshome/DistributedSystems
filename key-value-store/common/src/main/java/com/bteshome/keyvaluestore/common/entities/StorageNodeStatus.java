@@ -1,6 +1,6 @@
 package com.bteshome.keyvaluestore.common.entities;
 
-public enum StorageNodeState {
+public enum StorageNodeStatus {
     ACTIVE,
     INACTIVE,
     UNKNOWN

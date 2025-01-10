@@ -22,11 +22,8 @@ public class StorageNode implements Serializable {
     private int port;
     private int jmxPort;
     private String rack;
-    private StorageNodeState state;
-    private long lastHeartbeatReceivedTime;
+    private StorageNodeStatus state;
     private Set<ReplicaAssignment> replicaAssignmentSet;
-    private long metadataVersion;
-    private long lastMetadataRefreshTime;
     @Serial
     private static final long serialVersionUID = 1L;
 
@@ -37,11 +34,8 @@ public class StorageNode implements Serializable {
                 request.getPort(),
                 request.getJmxPort(),
                 request.getRack(),
-                StorageNodeState.INACTIVE,
-                0L,
-                new HashSet<>(),
-                0L,
-                0L
+                StorageNodeStatus.INACTIVE,
+                new HashSet<>()
         );
     }
 
@@ -57,14 +51,11 @@ public class StorageNode implements Serializable {
                 jmxPort,
                 rack,
                 state,
-                lastHeartbeatReceivedTime,
-                replicaAssignmentSet,
-                metadataVersion,
-                lastMetadataRefreshTime
+                replicaAssignmentSet
         );
     }
 
     public boolean isActive() {
-        return state == StorageNodeState.ACTIVE;
+        return state == StorageNodeStatus.ACTIVE;
     }
 }

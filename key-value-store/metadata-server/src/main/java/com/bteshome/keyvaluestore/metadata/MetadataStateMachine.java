@@ -1,7 +1,7 @@
 package com.bteshome.keyvaluestore.metadata;
 
 import com.bteshome.keyvaluestore.common.entities.StorageNode;
-import com.bteshome.keyvaluestore.common.entities.StorageNodeState;
+import com.bteshome.keyvaluestore.common.entities.StorageNodeStatus;
 import com.bteshome.keyvaluestore.common.entities.Table;
 import com.bteshome.keyvaluestore.common.requests.*;
 import com.bteshome.keyvaluestore.common.responses.*;
@@ -24,6 +24,7 @@ import org.apache.ratis.statemachine.impl.SimpleStateMachineStorage;
 import org.apache.ratis.statemachine.impl.SingleFileSnapshotInfo;
 import org.apache.ratis.util.*;
 import org.springframework.http.HttpStatus;
+
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -60,29 +61,23 @@ public class MetadataStateMachine extends BaseStateMachine {
         return AutoCloseableLock.acquire(lock.writeLock());
     }
 
-    private void incrementVersion() {
-        state.get(EntityType.VERSION).put(CURRENT, Long.parseLong(state.get(EntityType.VERSION).get(CURRENT).toString()) + 1L);
+    private void incrementVersion(RaftProtos.LogEntryProto entry) {
+        long version = Long.parseLong(state.get(EntityType.VERSION).get(CURRENT).toString());
+        version++;
+        state.get(EntityType.VERSION).put(CURRENT, version);
+        UnmanagedState.state.get(EntityType.VERSION).put(CURRENT, version);
+        updateLastAppliedTermIndex(entry.getTerm(), entry.getIndex());
     }
 
     private void scheduleStorageNodeHeartbeatMonitor() {
         long monitorIntervalMs = (Long)state.get(EntityType.CONFIGURATION).get(ConfigKeys.STORAGE_NODE_HEARTBEAT_MONITOR_INTERVAL_MS_KEY);
-        long expectIntervalMs = (Long)state.get(EntityType.CONFIGURATION).get(ConfigKeys.STORAGE_NODE_HEARTBEAT_EXPECT_INTERVAL_MS_KEY);
-
         try {
             heartBeatExecutor = Executors.newSingleThreadScheduledExecutor();
-            heartBeatExecutor.scheduleAtFixedRate(() -> {
-                    try (AutoCloseableLock lock = writeLock()) {
-                        boolean statusChanged = new StorageNodeHeartbeatMonitor().checkStatus(state.get(EntityType.STORAGE_NODE), expectIntervalMs);
-                        if (statusChanged) {
-                            // TODO
-                            //  - add changes to the transaction log
-                            //  - update the last applied term index
-                        }
-                    }
-                },
-                monitorIntervalMs,
-                monitorIntervalMs,
-                TimeUnit.MILLISECONDS);
+            heartBeatExecutor.scheduleAtFixedRate(
+                    () -> new StorageNodeHeartbeatMonitor().checkStatus(metadataSettings),
+                    monitorIntervalMs,
+                    monitorIntervalMs,
+                    TimeUnit.MILLISECONDS);
             log.info("Scheduled storage node heartbeat monitor. The interval is {} ms.", monitorIntervalMs);
         } catch (Exception e) {
             log.error("Error scheduling storage node monitor: ", e);
@@ -109,11 +104,43 @@ public class MetadataStateMachine extends BaseStateMachine {
     }
 
     @Override
+    public void notifyLeaderChanged(RaftGroupMemberId groupMemberId, RaftPeerId newLeaderId) {
+        super.notifyLeaderChanged(groupMemberId, newLeaderId);
+        // TODO
+        // remove the unmanaged state
+        // block it from serving http traffic
+        /*if (newLeaderId == null) {
+            log.info("No leader elected.");
+            return;
+        }*/
+        System.out.println("New leader: " + newLeaderId);
+        System.out.println("Group member ID: " + groupMemberId.getPeerId());
+
+        /*if (newLeaderId.equals(RaftUtils.getRaftPeerId(metadataSettings.getNode()))) {
+            log.info("This node is the leader.");
+            return;
+        }*/
+    }
+
+    @Override
     public LeaderEventApi leaderEvent() {
         if (state.get(EntityType.CONFIGURATION).isEmpty()) {
             try (AutoCloseableLock lock = writeLock()) {
                 new ConfigurationLoader().load(state, metadataSettings);
             }
+        }
+        try (AutoCloseableLock lock = writeLock()) {
+            state.get(EntityType.TABLE)
+                    .values()
+                    .stream()
+                    .map(Table.class::cast)
+                    .forEach(table -> UnmanagedState.state.get(EntityType.TABLE).put(table.getName(), table.copy()));
+            state.get(EntityType.STORAGE_NODE)
+                    .values()
+                    .stream()
+                    .map(StorageNode.class::cast)
+                    .forEach(node -> UnmanagedState.state.get(EntityType.STORAGE_NODE).put(node.getId(), node.copy()));
+            UnmanagedState.state.get(EntityType.CONFIGURATION).putAll(state.get(EntityType.CONFIGURATION));
         }
         scheduleStorageNodeHeartbeatMonitor();
         return super.leaderEvent();
@@ -225,11 +252,11 @@ public class MetadataStateMachine extends BaseStateMachine {
                     }
 
                     Table table = Table.toTable(request);
-                    ReplicaAssigner replicaAssigner = new ReplicaAssigner();
-                    replicaAssigner.assign(table, activeStorageNodes);
+                    ReplicaAssigner.assign(table, activeStorageNodes);
+                    PartitionLeaderElector.elect(table);
                     state.get(EntityType.TABLE).put(request.getTableName(), table);
-                    incrementVersion();
-                    updateLastAppliedTermIndex(entry.getTerm(), entry.getIndex());
+                    UnmanagedState.state.get(EntityType.TABLE).put(request.getTableName(), table.copy());
+                    incrementVersion(entry);
                 }
 
                 log.info("{} succeeded. Table = '{}'.", RequestType.TABLE_CREATE, request.getTableName());
@@ -259,16 +286,16 @@ public class MetadataStateMachine extends BaseStateMachine {
                         String infoMessage = "Node '%s' has re-joined the cluster.".formatted(request.getId());
                         log.info("{} succeeded. {}", RequestType.STORAGE_NODE_JOIN, infoMessage);
                         yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.OK.value()));
-                    } else {
-                        StorageNode  storageNode = StorageNode.toStorageNode(request);
-                        state.get(EntityType.STORAGE_NODE).put(storageNode.getId(), storageNode);
-                        incrementVersion();
-                        updateLastAppliedTermIndex(entry.getTerm(), entry.getIndex());
-
-                        String infoMessage = "Node '%s' has joined the cluster.".formatted(storageNode.getId());
-                        log.info("{} succeeded. {}", RequestType.STORAGE_NODE_JOIN, infoMessage);
-                        yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.OK.value(), infoMessage));
                     }
+
+                    StorageNode  storageNode = StorageNode.toStorageNode(request);
+                    state.get(EntityType.STORAGE_NODE).put(storageNode.getId(), storageNode);
+                    UnmanagedState.state.get(EntityType.STORAGE_NODE).put(storageNode.getId(), storageNode.copy());
+                    incrementVersion(entry);
+
+                    String infoMessage = "Node '%s' has joined the cluster.".formatted(storageNode.getId());
+                    log.info("{} succeeded. {}", RequestType.STORAGE_NODE_JOIN, infoMessage);
+                    yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.OK.value(), infoMessage));
                 }
             }
             case STORAGE_NODE_LEAVE -> {
@@ -287,59 +314,52 @@ public class MetadataStateMachine extends BaseStateMachine {
                     }
 
                     state.get(EntityType.STORAGE_NODE).remove(request.getId());
-                    incrementVersion();
-                    updateLastAppliedTermIndex(entry.getTerm(), entry.getIndex());
+                    UnmanagedState.state.get(EntityType.STORAGE_NODE).remove(request.getId());
+                    incrementVersion(entry);
                 }
 
                 log.info("{} succeeded. Node = '{}'.", RequestType.STORAGE_NODE_LEAVE, request.getId());
                 yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.OK.value()));
             }
-            case STORAGE_NODE_HEARTBEAT -> {
-                StorageNodeHeartbeatRequest request = JavaSerDe.deserialize(messageParts[1]);
+            case STORAGE_NODE_ACTIVATE -> {
+                StorageNodeActivateRequest request = JavaSerDe.deserialize(messageParts[1]);
 
                 try (AutoCloseableLock lock = writeLock()) {
                     boolean nodeExists = state.get(EntityType.STORAGE_NODE).containsKey(request.getId());
                     if (!nodeExists) {
                         String errorMessage = "Node '%s' is unrecognized.".formatted(request.getId());
-                        log.warn("{} failed. {}.", RequestType.STORAGE_NODE_HEARTBEAT, errorMessage);
+                        log.warn("{} failed. {}.", RequestType.STORAGE_NODE_ACTIVATE, errorMessage);
                         yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.UNAUTHORIZED.value(), errorMessage));
                     }
-                    StorageNode storageNode = (StorageNode)state.get(EntityType.STORAGE_NODE).get(request.getId());
 
-                    long currentMetadataVersion = (Long)state.get(EntityType.VERSION).get(CURRENT);
+                    ((StorageNode)state.get(EntityType.STORAGE_NODE).get(request.getId())).setState(StorageNodeStatus.ACTIVE);
+                    ((StorageNode)UnmanagedState.state.get(EntityType.STORAGE_NODE).get(request.getId())).setState(StorageNodeStatus.ACTIVE);
+                    incrementVersion(entry);
+                }
 
-                    log.debug("{} succeeded. Node: '{}', node metadata version: {}, current version: {}.",
-                            RequestType.STORAGE_NODE_HEARTBEAT,
-                            request.getId(),
-                            request.getLastFetchedMetadataVersion(),
-                            currentMetadataVersion);
+                log.info("{} succeeded. Node = '{}'.", RequestType.STORAGE_NODE_ACTIVATE, request.getId());
+                yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.OK.value()));
+            }
+            case STORAGE_NODE_DEACTIVATE -> {
+                StorageNodeDeactivateRequest request = JavaSerDe.deserialize(messageParts[1]);
 
-                    boolean isLaggingOnMetadata = request.getLastFetchedMetadataVersion() < currentMetadataVersion;
-                    StorageNodeHeartbeatResponse response = new StorageNodeHeartbeatResponse(isLaggingOnMetadata);
-
-                    // TODO - get it from config
-                    int threshold = 3;
-                    if (request.getLastFetchedMetadataVersion() < currentMetadataVersion - threshold) {
-                        log.info("Node '{}' is lagging behind on metadata beyond the threshold '{}'. Marking it as inactive, " +
-                                        "moving owned partitions, and removing it from ISR lists.",
-                                request.getId(),
-                                threshold
-                        );
-                        // TODO
-                        // move owned partitions
-                        // remove from ISR lists.
-                        storageNode.setState(StorageNodeState.INACTIVE);
+                try (AutoCloseableLock lock = writeLock()) {
+                    boolean nodeExists = state.get(EntityType.STORAGE_NODE).containsKey(request.getId());
+                    if (!nodeExists) {
+                        String errorMessage = "Node '%s' is unrecognized.".formatted(request.getId());
+                        log.warn("{} failed. {}.", RequestType.STORAGE_NODE_DEACTIVATE, errorMessage);
+                        yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.UNAUTHORIZED.value(), errorMessage));
                     }
 
-                    storageNode.setLastHeartbeatReceivedTime(System.nanoTime());
-                    incrementVersion();
-                    updateLastAppliedTermIndex(entry.getTerm(), entry.getIndex());
-                    yield CompletableFuture.completedFuture(response);
+                    StorageNode storageNode = (StorageNode)state.get(EntityType.STORAGE_NODE).get(request.getId());
+                    storageNode.setState(StorageNodeStatus.INACTIVE);
+                    ((StorageNode)UnmanagedState.state.get(EntityType.STORAGE_NODE).get(request.getId())).setState(StorageNodeStatus.INACTIVE);
+                    PartitionLeaderElector.oust(storageNode, state.get(EntityType.TABLE));
+                    incrementVersion(entry);
                 }
-            }
-            case STORAGE_NODE_STATUS_UPDATE -> {
-                System.out.println("STORAGE_NODE_STATUS_UPDATE ... more to come.");
-                yield CompletableFuture.completedFuture(GenericResponse.NONE);
+
+                log.info("{} succeeded. Node = '{}'.", RequestType.STORAGE_NODE_DEACTIVATE, request.getId());
+                yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.OK.value()));
             }
             default -> CompletableFuture.completedFuture(new GenericResponse(HttpStatus.BAD_REQUEST.value()));
         };
@@ -445,6 +465,47 @@ public class MetadataStateMachine extends BaseStateMachine {
                         yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.NOT_MODIFIED.value()));
                     }
                 }
+            }
+            case STORAGE_NODE_HEARTBEAT -> {
+                StorageNodeHeartbeatRequest request = JavaSerDe.deserialize(messageParts[1]);
+                boolean nodeExists;
+                long currentMetadataVersion ;
+                long threshold;
+
+                try (AutoCloseableLock lock = readLock()) {
+                    nodeExists = state.get(EntityType.STORAGE_NODE).containsKey(request.getId());
+                    currentMetadataVersion = (Long) state.get(EntityType.VERSION).get(CURRENT);
+                    threshold = (Long) state.get(EntityType.CONFIGURATION).get(ConfigKeys.STORAGE_NODE_METADATA_LAG_MS_KEY);
+                }
+
+                if (!nodeExists) {
+                    String errorMessage = "Node '%s' is unrecognized.".formatted(request.getId());
+                    log.warn("{} failed. {}.", RequestType.STORAGE_NODE_HEARTBEAT, errorMessage);
+                    yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.UNAUTHORIZED.value(), errorMessage));
+                }
+
+                boolean isLaggingOnMetadata = request.getLastFetchedMetadataVersion() < currentMetadataVersion;
+                boolean isLaggingOnMetadataBeyondThreshold = request.getLastFetchedMetadataVersion() < (currentMetadataVersion - threshold);
+
+                log.debug("{}. Node: '{}', node metadata version: {}, current version: {}.",
+                        RequestType.STORAGE_NODE_HEARTBEAT,
+                        request.getId(),
+                        request.getLastFetchedMetadataVersion(),
+                        currentMetadataVersion);
+
+                if (isLaggingOnMetadataBeyondThreshold) {
+                    log.warn("Node '{}' is lagging on metadata beyond the threshold '{}'. Preparing to mark it as inactive.",
+                            request.getId(),
+                            threshold
+                    );
+                    // TODO
+                    // move owned partitions
+                    // remove from ISR lists.
+                    // Send INACTIVATE request to raft
+                }
+
+                UnmanagedState.heartbeats.put(request.getId(), System.nanoTime());
+                yield CompletableFuture.completedFuture(new StorageNodeHeartbeatResponse(isLaggingOnMetadata));
             }
             default -> CompletableFuture.completedFuture(new GenericResponse(HttpStatus.BAD_REQUEST.value()));
         };

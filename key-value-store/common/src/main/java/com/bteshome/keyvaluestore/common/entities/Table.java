@@ -8,8 +8,9 @@ import lombok.Setter;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.HashMap;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
 import java.util.stream.IntStream;
 
 @Getter
@@ -19,20 +20,27 @@ import java.util.stream.IntStream;
 public class Table implements Serializable {
     private String name;
     private int replicationFactor;
-    private List<Partition> partitionList;
+    private Map<Integer, Partition> partitions = new HashMap<>();
     @Serial
     private static final long serialVersionUID = 1L;
 
     public static Table toTable(TableCreateRequest request) {
-        List<Partition> partitionList = IntStream.range(1, request.getNumPartitions() + 1)
-                .boxed()
-                .map(Partition::new)
-                .toList();
-        return new Table(request.getTableName(), request.getReplicationFactor(), partitionList);
+        Table table = new Table();
+        table.setName(request.getTableName());
+        table.setReplicationFactor(request.getReplicationFactor());
+        for (int partitionId = 1; partitionId <= request.getNumPartitions(); partitionId++) {
+            table.getPartitions().put(partitionId, new Partition(partitionId));
+        }
+        return table;
     }
 
     public Table copy() {
-        List<Partition> partitionList = this.partitionList.stream().map(Partition::copy).toList();
-        return new Table(name, replicationFactor, partitionList);
+        Table table = new Table();
+        table.setName(this.name);
+        table.setReplicationFactor(this.replicationFactor);
+        for (Partition partition : this.partitions.values()) {
+            table.partitions.put(partition.getId(), partition.copy());
+        }
+        return table;
     }
 }

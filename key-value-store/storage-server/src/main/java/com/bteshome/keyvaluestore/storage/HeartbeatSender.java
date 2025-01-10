@@ -58,7 +58,7 @@ public class HeartbeatSender {
             StorageNodeHeartbeatRequest request = new StorageNodeHeartbeatRequest(
                     storageSettings.getNode(),
                     MetadataCache.getInstance().getLastFetchedVersion());
-            final RaftClientReply reply = client.io().send(request);
+            final RaftClientReply reply = client.io().sendReadOnly(request);
             if (reply.isSuccess()) {
                 String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);
                 if (ResponseStatus.extractStatusCode(messageString) == HttpStatus.OK.value()) {
