@@ -57,7 +57,6 @@ public class Node implements CommandLineRunner {
             RaftPeer node = buildPeer(metadataSettings.getNode());
             List<RaftPeer> peers = metadataSettings.getPeers().stream().map(this::buildPeer).toList();
             RaftGroup group = RaftGroup.valueOf(RaftGroupId.valueOf(metadataSettings.getGroupId()), peers);
-            //MetadataStateMachine stateMachine = MetadataStateMachine.getInstance();
             MetadataStateMachine stateMachine = new MetadataStateMachine(metadataSettings);
 
             RaftProperties properties = new RaftProperties();
@@ -70,9 +69,10 @@ public class Node implements CommandLineRunner {
             properties.set("raft.rpc.type", "NETTY");
             properties.set("ratis.snapshot.auto.enable", "true");
             //properties.set("raft.server.snapshot.trigger-when-stop.enabled", "true");
+
             properties.set("raft.server.snapshot.auto.trigger.enabled ", "true");
-            properties.set("raft.server.snapshot.auto.trigger.interval", "5000");
-            properties.set("raft.server.snapshot.auto.trigger.threshold", "2");
+            properties.set("raft.server.snapshot.auto.trigger.interval", "600000");
+            properties.set("raft.server.snapshot.auto.trigger.threshold", "5");
 
             server = RaftServer.newBuilder()
                     .setProperties(properties)

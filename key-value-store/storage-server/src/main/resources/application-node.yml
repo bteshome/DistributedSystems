@@ -15,8 +15,19 @@ client:
   peers:
     - id: '1'
       #host: 0.0.0.0
-      host: 127.0.0.1
+      #host: 127.0.0.1
+      host: localhost
       port: '9311'
+    - id: '2'
+      #host: 0.0.0.0
+      #host: 127.0.0.1
+      host: localhost
+      port: '9312'
+    - id: '3'
+      #host: 0.0.0.0
+      #host: 127.0.0.1
+      host: localhost
+      port: '9313'
   metadata-refresh-interval-ms: 10000
 
 storage:

@@ -11,7 +11,9 @@ import org.apache.ratis.client.RaftClient;
 import org.apache.ratis.protocol.RaftClientReply;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
 
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Executors;
@@ -54,7 +56,29 @@ public class HeartbeatSender {
     }
 
     private void sendHeartbeat() {
-        try (RaftClient client = this.clientBuilder.createRaftClient()) {
+        try {
+            log.debug("Trying to sending heartbeat");
+            StorageNodeHeartbeatRequest request = new StorageNodeHeartbeatRequest(
+                    storageSettings.getNode(),
+                    MetadataCache.getInstance().getLastFetchedVersion());
+            StorageNodeHeartbeatResponse response = RestClient.builder()
+                    .build()
+                    .post()
+                    .uri("http://%s".formatted(MetadataCache.getInstance().getHeartbeatEndpoint()))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(request)
+                    .retrieve()
+                    .body(StorageNodeHeartbeatResponse.class);
+            log.debug("Sent heartbeat successfully");
+            if (response.isLaggingOnMetadata()) {
+                log.warn("The node is lagging behind on metadata. Now issuing a fetch request.");
+                metadataRefresher.fetch();
+            }
+        } catch (Exception e) {
+            log.error("Error sending heartbeat: ", e);
+        }
+
+        /*try (RaftClient client = this.clientBuilder.createRaftClient()) {
             StorageNodeHeartbeatRequest request = new StorageNodeHeartbeatRequest(
                     storageSettings.getNode(),
                     MetadataCache.getInstance().getLastFetchedVersion());
@@ -77,6 +101,6 @@ public class HeartbeatSender {
             }
         } catch (Exception e) {
             log.error("Error sending heartbeat: ", e);
-        }
+        }*/
     }
 }

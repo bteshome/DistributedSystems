@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
@@ -21,6 +22,8 @@ public class MetadataSettings {
     private UUID groupId;
     private String storageDir;
     private Map<String, String> node;
+    @Value("${server.port}")
+    private int restPort;
     private List<Map<String, String>> peers;
     private int numPartitionsMax;
     private int numPartitionsDefault;

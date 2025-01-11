@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -51,26 +52,29 @@ public class MetadataRefresher {
                     clientSettings.getClientId(),
                     MetadataCache.getInstance().getLastFetchedVersion());
             final RaftClientReply reply = client.io().sendReadOnly(request);
+
             if (reply.isSuccess()) {
                 String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);
+
                 if (ResponseStatus.extractStatusCode(messageString) == HttpStatus.OK.value()) {
                     MetadataRefreshResponse response = JavaSerDe.deserialize(messageString.split(" ")[1]);
-                    MetadataCache.getInstance().setLastFetchedVersion(response.getVersion());
-                    MetadataCache.getInstance().setState(response.getStateCopy());
-                    log.info("Refreshed metadata successfully.");
-                } else {
-                    GenericResponse response = ResponseStatus.toGenericResponse(messageString);
-                    if (response.getHttpStatusCode() == HttpStatus.NOT_MODIFIED.value()) {
-                        log.info("Metadata is up to date. Nothing to refresh.");
+                    MetadataCache.getInstance().setHeartbeatEndpoint(response.getHeartbeatEndpoint());
+                    if (response.isModified()) {
+                        MetadataCache.getInstance().setState(response.getState());
+                        log.debug("Refreshed metadata successfully.");
                     } else {
-                        log.error("Error refreshing metadata: {}", response.getMessage());
+                        log.debug("Metadata is up to date. Nothing to refresh.");
                     }
+                    return;
                 }
-            } else {
-                log.error("Error refreshing metadata: ", reply.getException());
+
+                log.error("Error refreshing metadata.");
+                return;
             }
+
+            log.error("Error refreshing metadata.", reply.getException());
         } catch (Exception e) {
-            log.error("Error refreshing metadata: ", e);
+            log.error("Error refreshing metadata.", e);
         }
     }
 }

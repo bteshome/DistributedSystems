@@ -1,5 +1,5 @@
 server:
-  port: '9320'
+  port: '9330'
 
 spring:
   application:
@@ -11,10 +11,10 @@ spring:
 
 metadata:
   node:
-    id: '2'
+    id: '3'
     #host: 0.0.0.0
     host: 127.0.0.1
-    port: '9312'
+    port: '9313'
   peers:
     - id: ${metadata.node.id}
       host: ${metadata.node.host}
@@ -23,11 +23,11 @@ metadata:
       #host: 0.0.0.0
       host: 127.0.0.1
       port: '9311'
-    - id: '3'
+    - id: '2'
       #host: 0.0.0.0
       host: 127.0.0.1
-      port: '9313'
-  storage-dir: /tmp/raft-server-2
+      port: '9312'
+  storage-dir: /tmp/raft-server-3
   storage-node-heartbeat-expect-interval-ms: 10000
   storage-node-heartbeat-send-interval-ms: 5000
   storage-node-heartbeat-monitor-interval-ms: 3000
@@ -37,14 +37,14 @@ metadata:
   num-partitions-min: 1
   num-partitions-max: 10
   replication-factor-default: 1
-  local-client-id: 0b3ad294-9e22-493b-a264-d4ea986bcc83
+  local-client-id: 727694ec-72c8-4e98-abf0-4632b1d6ec6f
 
 info:
   app:
-    name: 'Key Value Store - Controller Node 2'
+    name: 'Key Value Store - Controller Node 3'
     version: '1.0'
-    description: 'Key Value Store - Controller Node 2'
+    description: 'Key Value Store - Controller Node 3'
 
 management:
   server:
-    port: '9328'
+    port: '9338'

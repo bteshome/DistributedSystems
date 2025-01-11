@@ -22,7 +22,7 @@ public class StorageNode implements Serializable {
     private int port;
     private int jmxPort;
     private String rack;
-    private StorageNodeStatus state;
+    private StorageNodeStatus status;
     private Set<ReplicaAssignment> replicaAssignmentSet;
     @Serial
     private static final long serialVersionUID = 1L;
@@ -50,12 +50,12 @@ public class StorageNode implements Serializable {
                 port,
                 jmxPort,
                 rack,
-                state,
+                status,
                 replicaAssignmentSet
         );
     }
 
     public boolean isActive() {
-        return state == StorageNodeStatus.ACTIVE;
+        return status == StorageNodeStatus.ACTIVE;
     }
 }

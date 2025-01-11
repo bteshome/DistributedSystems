@@ -10,8 +10,9 @@ import java.util.Map;
 @Setter
 public class MetadataCache {
     private Map<EntityType, Map<String, Object>> state = Map.of();
-    private long lastFetchedVersion = 0L;
+    private String heartbeatEndpoint;
     private static MetadataCache instance;
+    private static final String CURRENT = "current";
 
     private synchronized static void createInstance() {
         if (instance == null) {
@@ -24,5 +25,12 @@ public class MetadataCache {
             createInstance();
         }
         return instance;
+    }
+
+    public long getLastFetchedVersion() {
+        if (state.containsKey(EntityType.VERSION)) {
+            return (Long)state.get(EntityType.VERSION).getOrDefault(CURRENT, 0L);
+        }
+        return 0L;
     }
 }

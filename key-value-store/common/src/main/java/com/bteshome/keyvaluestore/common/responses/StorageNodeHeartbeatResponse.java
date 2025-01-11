@@ -13,19 +13,12 @@ import java.nio.charset.StandardCharsets;
 
 @Getter
 @Setter
-public class StorageNodeHeartbeatResponse implements Serializable, Message {
+public class StorageNodeHeartbeatResponse {
     private boolean laggingOnMetadata;
-    @Serial
-    private static final long serialVersionUID = 1L;
+
+    public StorageNodeHeartbeatResponse() {}
 
     public StorageNodeHeartbeatResponse(boolean laggingOnMetadata) {
         this.laggingOnMetadata = laggingOnMetadata;
-    }
-
-    @Override
-    public ByteString getContent() {
-        final String message = "200 " + JavaSerDe.serialize(this);
-        byte[] bytes = message.getBytes(StandardCharsets.UTF_8);
-        return ProtoUtils.toByteString(bytes);
     }
 }

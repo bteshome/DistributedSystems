@@ -16,11 +16,12 @@ import java.util.Objects;
 public class ReplicaAssignment implements Serializable {
     private String tableName;
     private int partitionIid;
+    private ReplicaRole role;
     @Serial
     private static final long serialVersionUID = 1L;
 
     public ReplicaAssignment copy() {
-        return new ReplicaAssignment(tableName, partitionIid);
+        return new ReplicaAssignment(tableName, partitionIid, role);
     }
 
     @Override

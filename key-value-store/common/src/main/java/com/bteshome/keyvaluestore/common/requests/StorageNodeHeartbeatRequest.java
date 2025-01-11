@@ -14,21 +14,16 @@ import java.util.Map;
 
 @Getter
 @Setter
-public class StorageNodeHeartbeatRequest implements Serializable, Message {
+public class StorageNodeHeartbeatRequest {
     private String id;
     private long lastFetchedMetadataVersion;
+
+    public StorageNodeHeartbeatRequest() {}
 
     public StorageNodeHeartbeatRequest(
             Map<String, String> nodeInfo,
             long lastFetchedMetadataVersion) {
         this.id = Validator.notEmpty(nodeInfo.get("id"));
         this.lastFetchedMetadataVersion = lastFetchedMetadataVersion;
-    }
-
-    @Override
-    public ByteString getContent() {
-        final String message = RequestType.STORAGE_NODE_HEARTBEAT + " " + JavaSerDe.serialize(this);
-        byte[] bytes = message.getBytes(StandardCharsets.UTF_8);
-        return ProtoUtils.toByteString(bytes);
     }
 }

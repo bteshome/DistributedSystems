@@ -16,14 +16,24 @@ import java.util.Map;
 @Getter
 @Setter
 public class MetadataRefreshResponse implements Serializable, Message {
-    private long version;
-    private Map<EntityType, Map<String, Object>> stateCopy;
+    private Map<EntityType, Map<String, Object>> state;
+    private String heartbeatEndpoint;
+    private boolean modified;
     @Serial
     private static final long serialVersionUID = 1L;
 
-    public MetadataRefreshResponse(Map<EntityType, Map<String, Object>> stateCopy, long version) {
-        this.stateCopy = stateCopy;
-        this.version = version;
+    public MetadataRefreshResponse(
+            Map<EntityType, Map<String, Object>> state,
+            String heartbeatEndpoint) {
+        this.state = state;
+        this.heartbeatEndpoint = heartbeatEndpoint;
+        this.modified = true;
+    }
+
+    public MetadataRefreshResponse(
+            String heartbeatEndpoint) {
+        this.heartbeatEndpoint = heartbeatEndpoint;
+        this.modified = false;
     }
 
     @Override

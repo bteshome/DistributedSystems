@@ -1,9 +1,6 @@
 package com.bteshome.keyvaluestore.metadata;
 
-import com.bteshome.keyvaluestore.common.entities.Partition;
-import com.bteshome.keyvaluestore.common.entities.ReplicaAssignment;
-import com.bteshome.keyvaluestore.common.entities.StorageNode;
-import com.bteshome.keyvaluestore.common.entities.Table;
+import com.bteshome.keyvaluestore.common.entities.*;
 
 import java.util.*;
 
@@ -19,7 +16,7 @@ public class ReplicaAssigner {
                 var storageNode = priorityQueue.poll();
                 partition.getReplicas().add(storageNode.getId());
                 partition.getInSyncReplicas().add(storageNode.getId());
-                storageNode.getReplicaAssignmentSet().add(new ReplicaAssignment(table.getName(), partition.getId()));
+                storageNode.getReplicaAssignmentSet().add(new ReplicaAssignment(table.getName(), partition.getId(), ReplicaRole.FOLLOWER));
                 alreadyAssigned.add(storageNode);
             }
             priorityQueue.addAll(alreadyAssigned);
