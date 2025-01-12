@@ -2,35 +2,53 @@ package com.bteshome.keyvaluestore.common;
 
 import com.bteshome.keyvaluestore.common.entities.EntityType;
 import lombok.Getter;
-import lombok.Setter;
+import org.apache.ratis.util.AutoCloseableLock;
 
 import java.util.Map;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-@Getter
-@Setter
 public class MetadataCache {
     private Map<EntityType, Map<String, Object>> state = Map.of();
     private String heartbeatEndpoint;
-    private static MetadataCache instance;
     private static final String CURRENT = "current";
+    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
+    @Getter
+    private final static MetadataCache instance = new MetadataCache();
 
-    private synchronized static void createInstance() {
-        if (instance == null) {
-            instance = new MetadataCache();
-        }
-    }
+    private AutoCloseableLock readLock() { return AutoCloseableLock.acquire(lock.readLock()); }
 
-    public static MetadataCache getInstance() {
-        if (instance == null) {
-            createInstance();
-        }
-        return instance;
-    }
+    private AutoCloseableLock writeLock() { return AutoCloseableLock.acquire(lock.writeLock()); }
 
     public long getLastFetchedVersion() {
-        if (state.containsKey(EntityType.VERSION)) {
-            return (Long)state.get(EntityType.VERSION).getOrDefault(CURRENT, 0L);
+        try (AutoCloseableLock l = readLock()) {
+            if (state.containsKey(EntityType.VERSION)) {
+                return (Long) state.get(EntityType.VERSION).getOrDefault(CURRENT, 0L);
+            }
+            return 0L;
         }
-        return 0L;
+    }
+
+    public Object getConfiguration(String key) {
+        try (AutoCloseableLock l = readLock()) {
+            return state.get(EntityType.CONFIGURATION).get(key);
+        }
+    }
+
+    public String getHeartbeatEndpoint() {
+        try (AutoCloseableLock l = readLock()) {
+            return heartbeatEndpoint;
+        }
+    }
+
+    public void setHeartbeatEndpoint(String heartbeatEndpoint) {
+        try (AutoCloseableLock l = writeLock()) {
+            this.heartbeatEndpoint = heartbeatEndpoint;
+        }
+    }
+
+    public void setState(Map<EntityType, Map<String, Object>> state) {
+        try (AutoCloseableLock l = writeLock()) {
+            this.state = state;
+        }
     }
 }

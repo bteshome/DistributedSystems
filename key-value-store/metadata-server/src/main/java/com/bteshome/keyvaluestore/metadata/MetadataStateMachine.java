@@ -65,7 +65,7 @@ public class MetadataStateMachine extends BaseStateMachine {
         long version = Long.parseLong(state.get(EntityType.VERSION).get(CURRENT).toString());
         version++;
         state.get(EntityType.VERSION).put(CURRENT, version);
-        UnmanagedState.setVersion(version);
+        UnmanagedState.getInstance().setVersion(version);
         updateLastAppliedTermIndex(entry.getTerm(), entry.getIndex());
     }
 
@@ -107,7 +107,7 @@ public class MetadataStateMachine extends BaseStateMachine {
     public void notifyLeaderChanged(RaftGroupMemberId groupMemberId, RaftPeerId newLeaderId) {
         super.notifyLeaderChanged(groupMemberId, newLeaderId);
         if (!newLeaderId.equals(groupMemberId.getPeerId())) {
-            UnmanagedState.clear();
+            UnmanagedState.getInstance().clear();
             if (heartBeatMonitorExecutor != null) heartBeatMonitorExecutor.close();
             log.info("Stopped storage node heartbeat monitor");
         }
@@ -126,14 +126,14 @@ public class MetadataStateMachine extends BaseStateMachine {
     }
 
     private void loadUnmanagedState() {
-        UnmanagedState.setStorageNodes(state.get(EntityType.STORAGE_NODE)
+        UnmanagedState.getInstance().setStorageNodes(state.get(EntityType.STORAGE_NODE)
                 .values()
                 .stream()
                 .map(StorageNode.class::cast)
                 .toList());
-        UnmanagedState.setConfiguration(state.get(EntityType.CONFIGURATION));
-        UnmanagedState.setVersion((Long)state.get(EntityType.VERSION).get(CURRENT));
-        UnmanagedState.setLeader();
+        UnmanagedState.getInstance().setConfiguration(state.get(EntityType.CONFIGURATION));
+        UnmanagedState.getInstance().setVersion((Long)state.get(EntityType.VERSION).get(CURRENT));
+        UnmanagedState.getInstance().setLeader();
     }
 
     @Override
@@ -283,7 +283,7 @@ public class MetadataStateMachine extends BaseStateMachine {
 
                     StorageNode storageNode = StorageNode.toStorageNode(request);
                     state.get(EntityType.STORAGE_NODE).put(storageNode.getId(), storageNode);
-                    UnmanagedState.addStorageNode(storageNode);
+                    UnmanagedState.getInstance().addStorageNode(storageNode);
                     incrementVersion(entry);
 
                     String infoMessage = "Node '%s' has joined the cluster.".formatted(storageNode.getId());
@@ -306,7 +306,7 @@ public class MetadataStateMachine extends BaseStateMachine {
                     StorageNode storageNode = (StorageNode)state.get(EntityType.STORAGE_NODE).get(request.getId());
                     PartitionLeaderElector.oustAndReelect(storageNode, state.get(EntityType.TABLE), state.get(EntityType.STORAGE_NODE));
                     state.get(EntityType.STORAGE_NODE).remove(request.getId());
-                    UnmanagedState.removeStorageNode(request.getId());
+                    UnmanagedState.getInstance().removeStorageNode(request.getId());
                     incrementVersion(entry);
                 }
 
@@ -328,7 +328,7 @@ public class MetadataStateMachine extends BaseStateMachine {
                     // TODO - add it back to the ISR lists -
                     //        also, what is the partition leader's role here?
                     storageNode.setStatus(StorageNodeStatus.ACTIVE);
-                    UnmanagedState.setStorageNodeStatus(request.getId(), StorageNodeStatus.ACTIVE);
+                    UnmanagedState.getInstance().setStorageNodeStatus(request.getId(), StorageNodeStatus.ACTIVE);
                     incrementVersion(entry);
                 }
 
@@ -349,7 +349,7 @@ public class MetadataStateMachine extends BaseStateMachine {
                     // TODO - what is the partition leader's role here?
                     StorageNode storageNode = (StorageNode)state.get(EntityType.STORAGE_NODE).get(request.getId());
                     storageNode.setStatus(StorageNodeStatus.INACTIVE);
-                    UnmanagedState.setStorageNodeStatus(request.getId(), StorageNodeStatus.INACTIVE);
+                    UnmanagedState.getInstance().setStorageNodeStatus(request.getId(), StorageNodeStatus.INACTIVE);
                     PartitionLeaderElector.oustAndReelect(storageNode, state.get(EntityType.TABLE), state.get(EntityType.STORAGE_NODE));
                     incrementVersion(entry);
                 }

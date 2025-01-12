@@ -18,14 +18,14 @@ public class StorageNodeHeartbeatMonitor {
     private MetadataSettings metadataSettings;
 
     private void checkStatus(String nodeId) {
-        Long lastHeartbeatTime = UnmanagedState.getHeartbeat(nodeId);
+        Long lastHeartbeatTime = UnmanagedState.getInstance().getHeartbeat(nodeId);
 
         if (lastHeartbeatTime == null) {
             return;
         }
 
-        StorageNodeStatus nodeStatus = UnmanagedState.getStorageNodeStatus(nodeId);
-        long expectIntervalMs = (Long)UnmanagedState.getConfiguration(ConfigKeys.STORAGE_NODE_HEARTBEAT_EXPECT_INTERVAL_MS_KEY);
+        StorageNodeStatus nodeStatus = UnmanagedState.getInstance().getStorageNodeStatus(nodeId);
+        long expectIntervalMs = (Long)UnmanagedState.getInstance().getConfiguration(ConfigKeys.STORAGE_NODE_HEARTBEAT_EXPECT_INTERVAL_MS_KEY);
         boolean isLaggingOnHeartbeats = lastHeartbeatTime < System.nanoTime() - 1000000L * expectIntervalMs;
 
         if (isLaggingOnHeartbeats) {
@@ -45,7 +45,7 @@ public class StorageNodeHeartbeatMonitor {
     public void checkStatus(MetadataSettings metadataSettings) {
         this.metadataSettings = metadataSettings;
         log.info("Storage node heartbeat monitor fired. Checking...");
-        UnmanagedState.getStorageNodeIds().forEach(this::checkStatus);
+        UnmanagedState.getInstance().getStorageNodeIds().forEach(this::checkStatus);
     }
 
     private void activate(String nodeId) {

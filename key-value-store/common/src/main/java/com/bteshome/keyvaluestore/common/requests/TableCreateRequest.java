@@ -19,9 +19,9 @@ public class TableCreateRequest implements Serializable, Message {
     private int replicationFactor;
 
     public void Validate() {
-        int numPartitionsDefault = (Integer)MetadataCache.getInstance().getState().get(EntityType.CONFIGURATION).get(ConfigKeys.NUM_PARTITIONS_DEFAULT_KEY);
-        int maxNumPartitions = (Integer)MetadataCache.getInstance().getState().get(EntityType.CONFIGURATION).get(ConfigKeys.NUM_PARTITIONS_MAX_KEY);
-        int replicationFactorDefault = (Integer)MetadataCache.getInstance().getState().get(EntityType.CONFIGURATION).get(ConfigKeys.REPLICATION_FACTOR_DEFAULT_KEY);
+        int numPartitionsDefault = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.NUM_PARTITIONS_DEFAULT_KEY);
+        int maxNumPartitions = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.NUM_PARTITIONS_MAX_KEY);
+        int replicationFactorDefault = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICATION_FACTOR_DEFAULT_KEY);
 
         this.tableName = Validator.notEmpty(tableName);
         this.numPartitions = Validator.setDefault(numPartitions, numPartitionsDefault);

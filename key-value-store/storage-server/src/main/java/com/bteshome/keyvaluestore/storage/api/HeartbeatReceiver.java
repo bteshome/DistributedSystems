@@ -29,19 +29,19 @@ public class HeartbeatReceiver {
 
     @PostMapping("/")
     public ResponseEntity<?> receive(@RequestBody StorageNodeHeartbeatRequest request) {
-        if (!UnmanagedState.getInstance().isLeader()) {
+        if (!UnmanagedState.isLeader()) {
             String errorMessage = "Not leader. Refresh metadata.";
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(errorMessage);
         }
 
-        if (!UnmanagedState.getInstance().getStorageNodeIds().contains(request.getId())) {
+        if (!UnmanagedState.getStorageNodeIds().contains(request.getId())) {
             String errorMessage = "Node '%s' is unrecognized.".formatted(request.getId());
             log.warn("{} failed. {}.", RequestType.STORAGE_NODE_HEARTBEAT, errorMessage);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMessage);
         }
 
-        long currentMetadataVersion = UnmanagedState.getInstance().getVersion();
-        long threshold = (Long)UnmanagedState.getInstance().getConfiguration(ConfigKeys.STORAGE_NODE_METADATA_LAG_MS_KEY);
+        long currentMetadataVersion = UnmanagedState.getVersion();
+        long threshold = (Long)UnmanagedState.getConfiguration(ConfigKeys.STORAGE_NODE_METADATA_LAG_MS_KEY);
         boolean isLaggingOnMetadata = request.getLastFetchedMetadataVersion() < currentMetadataVersion;
         boolean isLaggingOnMetadataBeyondThreshold = request.getLastFetchedMetadataVersion() < (currentMetadataVersion - threshold);
 
@@ -73,7 +73,7 @@ public class HeartbeatReceiver {
             }
         }
 
-        UnmanagedState.getInstance().setHeartbeat(request.getId(), System.nanoTime());
+        UnmanagedState.setHeartbeat(request.getId(), System.nanoTime());
         return ResponseEntity.ok(new StorageNodeHeartbeatResponse(isLaggingOnMetadata));
     }
 }

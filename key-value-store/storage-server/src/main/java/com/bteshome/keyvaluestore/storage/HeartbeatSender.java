@@ -43,10 +43,7 @@ public class HeartbeatSender {
 
     public void schedule() {
         try {
-            long interval = (Long) MetadataCache.getInstance()
-                    .getState()
-                    .get(EntityType.CONFIGURATION)
-                    .get(ConfigKeys.STORAGE_NODE_HEARTBEAT_SEND_INTERVAL_MS_KEY);
+            long interval = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.STORAGE_NODE_HEARTBEAT_SEND_INTERVAL_MS_KEY);
             executor = Executors.newSingleThreadScheduledExecutor();
             executor.scheduleAtFixedRate(this::sendHeartbeat, 0L, interval, TimeUnit.MILLISECONDS);
             log.info("Scheduled heartbeat sender. The interval is {} ms.", interval);
@@ -77,30 +74,5 @@ public class HeartbeatSender {
         } catch (Exception e) {
             log.error("Error sending heartbeat: ", e);
         }
-
-        /*try (RaftClient client = this.clientBuilder.createRaftClient()) {
-            StorageNodeHeartbeatRequest request = new StorageNodeHeartbeatRequest(
-                    storageSettings.getNode(),
-                    MetadataCache.getInstance().getLastFetchedVersion());
-            final RaftClientReply reply = client.io().sendReadOnly(request);
-            if (reply.isSuccess()) {
-                String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);
-                if (ResponseStatus.extractStatusCode(messageString) == HttpStatus.OK.value()) {
-                    StorageNodeHeartbeatResponse response = JavaSerDe.deserialize(messageString.split(" ")[1]);
-                    log.debug("Sent heartbeat successfully");
-                    if (response.isLaggingOnMetadata()) {
-                        log.warn("The node is lagging behind on metadata. Now issuing a fetch request.");
-                        metadataRefresher.fetch();
-                    }
-                } else {
-                    GenericResponse response = ResponseStatus.toGenericResponse(messageString);
-                    log.error("Error sending heartbeat: {}", response.getMessage());
-                }
-            } else {
-                log.error("Error sending heartbeat: ", reply.getException());
-            }
-        } catch (Exception e) {
-            log.error("Error sending heartbeat: ", e);
-        }*/
     }
 }
