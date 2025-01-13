@@ -1,7 +1,6 @@
 package com.bteshome.keyvaluestore.common;
 
 import com.bteshome.keyvaluestore.common.requests.MetadataRefreshRequest;
-import com.bteshome.keyvaluestore.common.responses.GenericResponse;
 import com.bteshome.keyvaluestore.common.responses.MetadataRefreshResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.client.RaftClient;
@@ -10,7 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;

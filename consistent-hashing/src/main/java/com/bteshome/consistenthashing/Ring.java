@@ -3,6 +3,7 @@ package com.bteshome.consistenthashing;
 import org.apache.commons.codec.digest.DigestUtils;
 
 import java.math.BigInteger;
+import java.util.Collection;
 import java.util.TreeMap;
 
 public class Ring {
@@ -16,6 +17,12 @@ public class Ring {
     public Ring(int numOfVirtualNodes) {
         ring = new TreeMap<>();
         this.numOfVirtualNodes = numOfVirtualNodes;
+    }
+
+    public void addServers(Collection<String> servers) {
+        for (String server : servers) {
+            addServer(server);
+        }
     }
 
     public void addServers(String[] servers) {

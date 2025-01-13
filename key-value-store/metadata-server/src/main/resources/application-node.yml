@@ -25,6 +25,9 @@ metadata:
   storage-node-heartbeat-monitor-interval-ms: 3000
   storage-node-metadata-lag-threshold: 10
   storage-node-metadata-lag-ms: 1000000
+  storage-node-replica-monitor-interval-ms: 3000
+  storage-node-replica-lag-threshold: 3
+  storage-node-ring-num-virtual-nodes: 3
   num-partitions-default: 1
   num-partitions-min: 1
   num-partitions-max: 10

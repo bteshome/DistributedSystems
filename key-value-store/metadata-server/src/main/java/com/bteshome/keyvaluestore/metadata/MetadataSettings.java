@@ -33,5 +33,8 @@ public class MetadataSettings {
     private long storageNodeHeartbeatSendIntervalMs;
     private long storageNodeMetadataLagThreshold;
     private long storageNodeMetadataLagMs;
+    private long storageNodeReplicaMonitorIntervalMs;
+    private long storageNodeReplicaLagThreshold;
+    private int storageNodeRingNumVirtualNodes;
     private UUID localClientId;
 }

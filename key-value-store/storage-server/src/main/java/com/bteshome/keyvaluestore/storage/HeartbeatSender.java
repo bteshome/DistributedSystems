@@ -34,6 +34,9 @@ public class HeartbeatSender {
     @Autowired
     MetadataRefresher metadataRefresher;
 
+    @Autowired
+    ReplicationState replicationState;
+
     @PreDestroy
     public void close() {
         if (executor != null) {
@@ -48,13 +51,12 @@ public class HeartbeatSender {
             executor.scheduleAtFixedRate(this::sendHeartbeat, 0L, interval, TimeUnit.MILLISECONDS);
             log.info("Scheduled heartbeat sender. The interval is {} ms.", interval);
         } catch (Exception e) {
-            log.error("Error scheduling heartbeat sender: ", e);
+            log.error("Error scheduling heartbeat sender.", e);
         }
     }
 
     private void sendHeartbeat() {
         try {
-            log.debug("Trying to sending heartbeat");
             StorageNodeHeartbeatRequest request = new StorageNodeHeartbeatRequest(
                     storageSettings.getNode(),
                     MetadataCache.getInstance().getLastFetchedVersion());
@@ -67,11 +69,13 @@ public class HeartbeatSender {
                     .retrieve()
                     .body(StorageNodeHeartbeatResponse.class);
             log.debug("Sent heartbeat successfully");
+            replicationState.setLastHeartbeatSucceeded(true);
             if (response.isLaggingOnMetadata()) {
                 log.warn("The node is lagging behind on metadata. Now issuing a fetch request.");
                 metadataRefresher.fetch();
             }
         } catch (Exception e) {
+            replicationState.setLastHeartbeatSucceeded(false);
             log.error("Error sending heartbeat: ", e);
         }
     }

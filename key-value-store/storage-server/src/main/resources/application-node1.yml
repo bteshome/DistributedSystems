@@ -36,6 +36,7 @@ storage:
     #host: 0.0.0.0
     host: 127.0.0.1
     port: ${server.port}
-    jmxPort: ${management.server.port}
+    jmx-port: ${management.server.port}
     rack: ""
-    storage-dir: /tmp/storage-server-1
+    #storage-dir: /tmp/storage-server-1
+    storage-dir: storage-server-1

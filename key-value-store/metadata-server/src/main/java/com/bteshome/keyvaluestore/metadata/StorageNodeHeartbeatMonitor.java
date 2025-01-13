@@ -44,7 +44,7 @@ public class StorageNodeHeartbeatMonitor {
 
     public void checkStatus(MetadataSettings metadataSettings) {
         this.metadataSettings = metadataSettings;
-        log.info("Storage node heartbeat monitor fired. Checking...");
+        log.debug("Storage node heartbeat monitor fired. Checking...");
         UnmanagedState.getInstance().getStorageNodeIds().forEach(this::checkStatus);
     }
 

@@ -29,7 +29,7 @@ public class Table implements Serializable {
         table.setName(request.getTableName());
         table.setReplicationFactor(request.getReplicationFactor());
         for (int partitionId = 1; partitionId <= request.getNumPartitions(); partitionId++) {
-            table.getPartitions().put(partitionId, new Partition(partitionId));
+            table.getPartitions().put(partitionId, new Partition(table.getName(), partitionId));
         }
         return table;
     }

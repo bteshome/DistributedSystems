@@ -13,30 +13,27 @@ import java.util.Objects;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class ReplicaAssignment implements Serializable {
-    private String tableName;
-    private int partitionIid;
-    private ReplicaRole role;
+public class Replica implements Serializable {
+    private String nodeId;
+    private String table;
+    private int partition;
     @Serial
     private static final long serialVersionUID = 1L;
 
-    public ReplicaAssignment copy() {
-        return new ReplicaAssignment(tableName, partitionIid, role);
+    @Override
+    public String toString() {
+        return "%s-%s-%s".formatted(table, partition, nodeId);
     }
 
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
-        ReplicaAssignment that = (ReplicaAssignment) o;
-        return partitionIid == that.partitionIid && Objects.equals(tableName, that.tableName);
+        Replica replica = (Replica) o;
+        return partition == replica.partition && Objects.equals(nodeId, replica.nodeId) && Objects.equals(table, replica.table);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(tableName, partitionIid);
-    }
-
-    public boolean isLeader() {
-        return role.equals(ReplicaRole.LEADER);
+        return Objects.hash(nodeId, table, partition);
     }
 }

@@ -20,14 +20,16 @@ public class StorageNodeJoinRequest implements Serializable, Message {
     private int port;
     private int jmxPort;
     private String rack;
+    private String storageDir;
 
     public StorageNodeJoinRequest(Map<String, String> nodeInfo) {
         this.id = Validator.notEmpty(nodeInfo.get("id"));
         this.host = Validator.notEmpty(nodeInfo.get("host"));
         this.port = Validator.inRange(Integer.parseInt(nodeInfo.get("port")), 0, 65535);
-        this.jmxPort = Validator.inRange(Integer.parseInt(nodeInfo.get("jmxPort")), 0, 65535);
+        this.jmxPort = Validator.inRange(Integer.parseInt(nodeInfo.get("jmx-port")), 0, 65535);
         this.rack = Validator.setDefault(nodeInfo.get("rack"), "NA");
         Validator.notEqual(this.getPort(), this.getJmxPort(), "Port and JMX port must be different.");
+        storageDir = Validator.notEmpty(nodeInfo.get("storage-dir"));
     }
 
     @Override

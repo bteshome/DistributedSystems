@@ -17,8 +17,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 @Component
 @Slf4j
@@ -34,6 +32,9 @@ public class Node implements CommandLineRunner {
 
     @Autowired
     MetadataRefresher metadataRefresher;
+
+    @Autowired
+    ReplicaMonitor replicaMonitor;
 
     private final Map<String, Map<Integer, Map<String, String>>> state = new HashMap<>();
 
@@ -51,6 +52,7 @@ public class Node implements CommandLineRunner {
                     metadataRefresher.fetch();
                     heartbeatSender.schedule();
                     metadataRefresher.schedule();
+                    //replicaMonitor.schedule();
                 } else {
                     log.error(response.getMessage());
                 }

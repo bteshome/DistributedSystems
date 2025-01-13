@@ -1,12 +1,9 @@
 package com.bteshome.keyvaluestore.metadata;
 
-import com.bteshome.keyvaluestore.common.entities.StorageNode;
-import com.bteshome.keyvaluestore.common.entities.StorageNodeStatus;
-import com.bteshome.keyvaluestore.common.entities.Table;
+import com.bteshome.keyvaluestore.common.entities.*;
 import com.bteshome.keyvaluestore.common.requests.*;
 import com.bteshome.keyvaluestore.common.responses.*;
 import com.bteshome.keyvaluestore.common.requests.RequestType;
-import com.bteshome.keyvaluestore.common.entities.EntityType;
 import com.bteshome.keyvaluestore.common.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.io.MD5Hash;
@@ -325,8 +322,6 @@ public class MetadataStateMachine extends BaseStateMachine {
                     }
 
                     StorageNode storageNode = (StorageNode)state.get(EntityType.STORAGE_NODE).get(request.getId());
-                    // TODO - add it back to the ISR lists -
-                    //        also, what is the partition leader's role here?
                     storageNode.setStatus(StorageNodeStatus.ACTIVE);
                     UnmanagedState.getInstance().setStorageNodeStatus(request.getId(), StorageNodeStatus.ACTIVE);
                     incrementVersion(entry);
@@ -337,6 +332,7 @@ public class MetadataStateMachine extends BaseStateMachine {
             }
             case STORAGE_NODE_DEACTIVATE -> {
                 StorageNodeDeactivateRequest request = JavaSerDe.deserialize(messageParts[1]);
+                log.warn("{} request received. Node = '{}'.", RequestType.STORAGE_NODE_DEACTIVATE, request.getId());
 
                 try (AutoCloseableLock lock = writeLock()) {
                     boolean nodeExists = state.get(EntityType.STORAGE_NODE).containsKey(request.getId());
@@ -346,7 +342,6 @@ public class MetadataStateMachine extends BaseStateMachine {
                         yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.UNAUTHORIZED.value(), errorMessage));
                     }
 
-                    // TODO - what is the partition leader's role here?
                     StorageNode storageNode = (StorageNode)state.get(EntityType.STORAGE_NODE).get(request.getId());
                     storageNode.setStatus(StorageNodeStatus.INACTIVE);
                     UnmanagedState.getInstance().setStorageNodeStatus(request.getId(), StorageNodeStatus.INACTIVE);
@@ -355,6 +350,27 @@ public class MetadataStateMachine extends BaseStateMachine {
                 }
 
                 log.info("{} succeeded. Node = '{}'.", RequestType.STORAGE_NODE_DEACTIVATE, request.getId());
+                yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.OK.value()));
+            }
+            case REPLICA_REMOVE_FROM_ISR -> {
+                ReplicaRemoveFromISRRequest request = JavaSerDe.deserialize(messageParts[1]);
+                log.warn("{} request received. Number of replicas = '{}'.", RequestType.REPLICA_REMOVE_FROM_ISR, request.getReplicas().size());
+
+                try (AutoCloseableLock lock = writeLock()) {
+                    for (Replica replica : request.getReplicas()) {
+                        Table table = (Table)state.get(EntityType.TABLE).get(replica.getTable());
+                        Partition partition = table.getPartitions().get(replica.getPartition());
+                        partition.getInSyncReplicas().remove(replica.getNodeId());
+                        log.warn("'{}' removed the ISR list of table '{}' partition '{}'.",
+                                replica.getNodeId(),
+                                replica.getTable(),
+                                replica.getPartition());
+                    }
+
+                    incrementVersion(entry);
+                }
+
+                log.warn("{} succeeded.", RequestType.REPLICA_REMOVE_FROM_ISR);
                 yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.OK.value()));
             }
             default -> CompletableFuture.completedFuture(new GenericResponse(HttpStatus.BAD_REQUEST.value()));
@@ -467,61 +483,6 @@ public class MetadataStateMachine extends BaseStateMachine {
                     yield  CompletableFuture.completedFuture(new MetadataRefreshResponse(state, heartbeatEndpoint));
                 }
             }
-            /*case STORAGE_NODE_HEARTBEAT -> {
-                StorageNodeHeartbeatRequest request = JavaSerDe.deserialize(messageParts[1]);
-                boolean nodeExists;
-                long currentMetadataVersion ;
-                long threshold;
-
-                try (AutoCloseableLock lock = readLock()) {
-                    nodeExists = state.get(EntityType.STORAGE_NODE).containsKey(request.getId());
-                    currentMetadataVersion = (Long) state.get(EntityType.VERSION).get(CURRENT);
-                    threshold = (Long) state.get(EntityType.CONFIGURATION).get(ConfigKeys.STORAGE_NODE_METADATA_LAG_MS_KEY);
-                }
-
-                if (!nodeExists) {
-                    String errorMessage = "Node '%s' is unrecognized.".formatted(request.getId());
-                    log.warn("{} failed. {}.", RequestType.STORAGE_NODE_HEARTBEAT, errorMessage);
-                    yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.UNAUTHORIZED.value(), errorMessage));
-                }
-
-                boolean isLaggingOnMetadata = request.getLastFetchedMetadataVersion() < currentMetadataVersion;
-                boolean isLaggingOnMetadataBeyondThreshold = request.getLastFetchedMetadataVersion() < (currentMetadataVersion - threshold);
-
-                log.info("{}. Node: '{}', node metadata version: {}, current version: {}.",
-                        RequestType.STORAGE_NODE_HEARTBEAT,
-                        request.getId(),
-                        request.getLastFetchedMetadataVersion(),
-                        currentMetadataVersion);
-
-                if (isLaggingOnMetadataBeyondThreshold) {
-                    log.warn("Node '{}' is lagging on metadata beyond the threshold '{}'. Preparing to mark it as inactive.",
-                            request.getId(),
-                            threshold
-                    );
-                    StorageNodeDeactivateRequest deactivateRequest = new StorageNodeDeactivateRequest(request.getId());
-                    try (RaftClient client = LocalClientBuilder.createRaftClient(metadataSettings)) {
-                        final RaftClientReply reply = client.io().send(request);
-                        if (reply.isSuccess()) {
-                            String deactivateMessageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);
-                            GenericResponse response = ResponseStatus.toGenericResponse(deactivateMessageString);
-                            if (response.getHttpStatusCode() != HttpStatus.OK.value()) {
-                                log.error(response.getMessage());
-                            }
-                        } else {
-                            log.error("Error deactivating node '{}'.", request.getId(), reply.getException());
-                        }
-                    } catch (Exception e) {
-                        log.error("Error deactivating node '{}'.", request.getId(), e);
-                    }
-                }
-
-                try (AutoCloseableLock lock = writeLock()) {
-                    UnmanagedState.heartbeats.put(request.getId(), System.nanoTime());
-                }
-                yield CompletableFuture.completedFuture(new StorageNodeHeartbeatResponse(isLaggingOnMetadata));
-                yield CompletableFuture.completedFuture(new GenericResponse());
-            }*/
             default -> CompletableFuture.completedFuture(new GenericResponse(HttpStatus.BAD_REQUEST.value()));
         };
     }

@@ -9,4 +9,7 @@ public class ConfigKeys {
     public static final String STORAGE_NODE_HEARTBEAT_SEND_INTERVAL_MS_KEY = "storage-node-heartbeat-send-interval-ms";
     public static final String STORAGE_NODE_METADATA_LAG_THRESHOLD_KEY = "storage-node-metadata-lag-threshold";
     public static final String STORAGE_NODE_METADATA_LAG_MS_KEY = "storage-node-metadata-lag-ms";
+    public static final String STORAGE_NODE_REPLICA_MONITOR_INTERVAL_MS_KEY = "storage-node-replica-monitor-interval-ms";
+    public static final String STORAGE_NODE_REPLICA_LAG_THRESHOLD_KEY = "storage-node-replica-lag-threshold";
+    public static final String STORAGE_NODE_RING_NUM_VIRTUAL_NODES_KEY = "storage-node-ring-num-virtual-nodes";
 }

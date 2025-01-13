@@ -10,7 +10,7 @@ import java.util.Map;
 @Slf4j
 public class ConfigurationLoader {
     public void load(Map<EntityType, Map<String, Object>> state, MetadataSettings metadataSettings) {
-        log.info("Loading configuration...");
+        log.info("Loading configuration ...");
 
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.NUM_PARTITIONS_MAX_KEY,
                 Validator.setDefault(metadataSettings.getNumPartitionsMax(), 8));
@@ -28,6 +28,12 @@ public class ConfigurationLoader {
                 Validator.setDefault(metadataSettings.getStorageNodeMetadataLagMs(), 10000L));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.STORAGE_NODE_METADATA_LAG_THRESHOLD_KEY,
                 Validator.setDefault(metadataSettings.getStorageNodeMetadataLagThreshold(), 2L));
+        state.get(EntityType.CONFIGURATION).put(ConfigKeys.STORAGE_NODE_REPLICA_MONITOR_INTERVAL_MS_KEY,
+                Validator.setDefault(metadataSettings.getStorageNodeReplicaMonitorIntervalMs(), 10000L));
+        state.get(EntityType.CONFIGURATION).put(ConfigKeys.STORAGE_NODE_REPLICA_LAG_THRESHOLD_KEY,
+                Validator.setDefault(metadataSettings.getStorageNodeReplicaLagThreshold(), 3L));
+        state.get(EntityType.CONFIGURATION).put(ConfigKeys.STORAGE_NODE_RING_NUM_VIRTUAL_NODES_KEY,
+                Validator.setDefault(metadataSettings.getStorageNodeRingNumVirtualNodes(), 3));
 
         log.info("Configuration loaded.");
     }

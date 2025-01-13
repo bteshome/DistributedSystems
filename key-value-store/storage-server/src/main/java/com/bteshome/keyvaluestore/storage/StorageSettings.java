@@ -17,4 +17,8 @@ import java.util.Map;
 @AllArgsConstructor
 public class StorageSettings {
     private Map<String, String> node;
+
+    public String getStorageDir() {
+        return node.get("storage-dir");
+    }
 }

@@ -22,6 +22,7 @@ public class StorageNode implements Serializable {
     private int port;
     private int jmxPort;
     private String rack;
+    private String storageDir;
     private StorageNodeStatus status;
     private Set<ReplicaAssignment> replicaAssignmentSet;
     @Serial
@@ -34,6 +35,7 @@ public class StorageNode implements Serializable {
                 request.getPort(),
                 request.getJmxPort(),
                 request.getRack(),
+                request.getStorageDir(),
                 StorageNodeStatus.INACTIVE,
                 new HashSet<>()
         );
@@ -50,6 +52,7 @@ public class StorageNode implements Serializable {
                 port,
                 jmxPort,
                 rack,
+                storageDir,
                 status,
                 replicaAssignmentSet
         );
