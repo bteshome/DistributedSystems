@@ -8,21 +8,21 @@ import java.util.Map;
 
 @Getter
 @Setter
-public class ReplicaFetchRequest {
+public class WALFetchRequest {
     private String id;
     private String table;
     private int partition;
     private long lastFetchedOffset;
     private int maxRecords = 100;
 
-    public ReplicaFetchRequest() {}
+    public WALFetchRequest() {}
 
-    public ReplicaFetchRequest(
-            Map<String, String> nodeInfo,
+    public WALFetchRequest(
+            String nodeId,
             String table,
             int partition,
             long lastFetchedOffset) {
-        this.id = Validator.notEmpty(nodeInfo.get("id"));
+        this.id = Validator.notEmpty(nodeId);
         this.table = table;
         this.partition = partition;
         this.lastFetchedOffset = lastFetchedOffset;

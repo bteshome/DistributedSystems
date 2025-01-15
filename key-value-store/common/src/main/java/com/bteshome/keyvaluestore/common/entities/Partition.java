@@ -29,13 +29,4 @@ public class Partition implements Serializable {
         this.replicas = new ArrayList<>();
         this.inSyncReplicas = new ArrayList<>();
     }
-
-    public Partition copy() {
-        return new Partition(
-                id,
-                tableName,
-                leader,
-                replicas.stream().toList(),
-                inSyncReplicas.stream().toList());
-    }
 }

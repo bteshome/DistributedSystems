@@ -13,7 +13,13 @@ import java.util.Map;
 
 public class LocalClientBuilder {
     public static RaftClient createRaftClient(MetadataSettings metadataSettings) {
-        List<RaftPeer> peers =  metadataSettings.getPeers().stream().map(LocalClientBuilder::buildPeer).toList();
+        List<RaftPeer> peers = metadataSettings.getPeers().stream().map(peerInfo ->
+                RaftPeer
+                        .newBuilder()
+                        .setId(RaftPeerId.valueOf(peerInfo.getId()))
+                        .setAddress(peerInfo.getHost() + ":" + peerInfo.getPort())
+                        .build())
+                .toList();
         RaftGroup group = RaftGroup.valueOf(RaftGroupId.valueOf(metadataSettings.getGroupId()), peers);
         RaftProperties properties = new RaftProperties();
         ClientId clientId = ClientId.valueOf(metadataSettings.getLocalClientId());
@@ -23,16 +29,6 @@ public class LocalClientBuilder {
                 .setRaftGroup(group)
                 .setClientId(clientId)
                 .setClientRpc(new NettyFactory(new Parameters()).newRaftClientRpc(clientId, properties))
-                .build();
-    }
-
-    private static RaftPeer buildPeer(Map<String, String> peerInfo) {
-        String id = peerInfo.get("id");
-        String host = peerInfo.get("host");
-        String port = peerInfo.get("port");
-        return RaftPeer.newBuilder()
-                .setId(RaftPeerId.valueOf(id))
-                .setAddress(host + ":" + port)
                 .build();
     }
 }

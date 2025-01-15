@@ -15,9 +15,9 @@ public class StorageNodeHeartbeatRequest {
     public StorageNodeHeartbeatRequest() {}
 
     public StorageNodeHeartbeatRequest(
-            Map<String, String> nodeInfo,
+            String nodeId,
             long lastFetchedMetadataVersion) {
-        this.id = Validator.notEmpty(nodeInfo.get("id"));
+        this.id = Validator.notEmpty(nodeId);
         this.lastFetchedMetadataVersion = lastFetchedMetadataVersion;
     }
 }

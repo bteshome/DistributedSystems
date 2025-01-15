@@ -9,7 +9,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @Component
@@ -21,13 +20,14 @@ import java.util.UUID;
 public class MetadataSettings {
     private UUID groupId;
     private String storageDir;
-    private Map<String, String> node;
+    private NodeInfo node;
     @Value("${server.port}")
     private int restPort;
-    private List<Map<String, String>> peers;
+    private List<NodeInfo> peers;
     private int numPartitionsMax;
     private int numPartitionsDefault;
     private int replicationFactorDefault;
+    private int minInSyncReplicasDefault;
     private long storageNodeHeartbeatMonitorIntervalMs;
     private long storageNodeHeartbeatExpectIntervalMs;
     private long storageNodeHeartbeatSendIntervalMs;
@@ -35,6 +35,19 @@ public class MetadataSettings {
     private long storageNodeMetadataLagMs;
     private long storageNodeReplicaMonitorIntervalMs;
     private long storageNodeReplicaLagThreshold;
+    private long storageNodeReplicaFetchIntervalMs;
     private int storageNodeRingNumVirtualNodes;
+    private long writeTimeoutMs;
+    private long walFetchIntervalMs;
     private UUID localClientId;
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class NodeInfo {
+        private String id;
+        private String host;
+        private int port;
+    }
 }

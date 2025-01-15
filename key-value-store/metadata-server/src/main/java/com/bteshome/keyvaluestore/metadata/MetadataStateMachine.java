@@ -390,9 +390,6 @@ public class MetadataStateMachine extends BaseStateMachine {
                 Table result;
                 try (AutoCloseableLock lock = readLock()) {
                     result = (Table)state.get(EntityType.TABLE).getOrDefault(request.getTableName(), null);
-                    if (result != null) {
-                        result = result.copy();
-                    }
                 }
 
                 log.debug("{}: {} = {}", RequestType.TABLE_GET, request.getTableName(), result);
@@ -413,7 +410,6 @@ public class MetadataStateMachine extends BaseStateMachine {
                             .values()
                             .stream()
                             .map(Table.class::cast)
-                            .map(Table::copy)
                             .toList());
                 }
                 log.debug("{}: = {}", RequestType.TABLE_LIST, result);
@@ -427,9 +423,6 @@ public class MetadataStateMachine extends BaseStateMachine {
                 StorageNode result;
                 try (AutoCloseableLock lock = readLock()) {
                     result = (StorageNode)state.get(EntityType.STORAGE_NODE).getOrDefault(request.getId(), null);
-                    if (result != null) {
-                        result = result.copy();
-                    }
                 }
 
                 log.debug("{}: {} = {}", RequestType.STORAGE_NODE_GET, request.getId(), result);
@@ -450,7 +443,6 @@ public class MetadataStateMachine extends BaseStateMachine {
                             .values()
                             .stream()
                             .map(StorageNode.class::cast)
-                            .map(StorageNode::copy)
                             .toList());
                 }
                 log.debug("{}: = {}", RequestType.STORAGE_NODE_LIST, result);
@@ -471,7 +463,7 @@ public class MetadataStateMachine extends BaseStateMachine {
                         currentVersion);
 
                 String heartbeatEndpoint = "%s:%s/api/heartbeat/".formatted(
-                        metadataSettings.getNode().get("host"),
+                        metadataSettings.getNode().getHost(),
                         metadataSettings.getRestPort());
 
                 if (currentVersion == request.getLastFetchedVersion()) {

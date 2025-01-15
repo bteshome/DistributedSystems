@@ -36,12 +36,21 @@ public class Node implements CommandLineRunner {
     @Autowired
     ReplicaMonitor replicaMonitor;
 
+    @Autowired
+    WALFetcher walFetcher;
+
     private final Map<String, Map<Integer, Map<String, String>>> state = new HashMap<>();
 
     @Override
     public void run(String... args) throws IOException {
         try (RaftClient client = this.clientBuilder.createRaftClient()) {
-            StorageNodeJoinRequest request = new StorageNodeJoinRequest(storageSettings.getNode());
+            StorageNodeJoinRequest request = new StorageNodeJoinRequest(
+                    storageSettings.getNode().getId(),
+                    storageSettings.getNode().getHost(),
+                    storageSettings.getNode().getPort(),
+                    storageSettings.getNode().getJmxPort(),
+                    storageSettings.getNode().getRack(),
+                    storageSettings.getNode().getStorageDir());
             log.info("Trying to join cluster '{}' with node id: '{}'", client.getGroupId().getUuid(), request.getId());
             final RaftClientReply reply = client.io().send(request);
             if (reply.isSuccess()) {
@@ -53,6 +62,7 @@ public class Node implements CommandLineRunner {
                     heartbeatSender.schedule();
                     metadataRefresher.schedule();
                     //replicaMonitor.schedule();
+                    walFetcher.schedule();
                 } else {
                     log.error(response.getMessage());
                 }

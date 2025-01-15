@@ -1,21 +1,15 @@
 package com.bteshome.keyvaluestore.storage;
 
 import com.bteshome.keyvaluestore.common.*;
-import com.bteshome.keyvaluestore.common.entities.EntityType;
 import com.bteshome.keyvaluestore.common.requests.StorageNodeHeartbeatRequest;
-import com.bteshome.keyvaluestore.common.responses.GenericResponse;
 import com.bteshome.keyvaluestore.common.responses.StorageNodeHeartbeatResponse;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.ratis.client.RaftClient;
-import org.apache.ratis.protocol.RaftClientReply;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -35,7 +29,7 @@ public class HeartbeatSender {
     MetadataRefresher metadataRefresher;
 
     @Autowired
-    ReplicationState replicationState;
+    State state;
 
     @PreDestroy
     public void close() {
@@ -58,7 +52,7 @@ public class HeartbeatSender {
     private void sendHeartbeat() {
         try {
             StorageNodeHeartbeatRequest request = new StorageNodeHeartbeatRequest(
-                    storageSettings.getNode(),
+                    storageSettings.getNode().getId(),
                     MetadataCache.getInstance().getLastFetchedVersion());
             StorageNodeHeartbeatResponse response = RestClient.builder()
                     .build()
@@ -69,13 +63,13 @@ public class HeartbeatSender {
                     .retrieve()
                     .body(StorageNodeHeartbeatResponse.class);
             log.debug("Sent heartbeat successfully");
-            replicationState.setLastHeartbeatSucceeded(true);
+            state.setLastHeartbeatSucceeded(true);
             if (response.isLaggingOnMetadata()) {
                 log.warn("The node is lagging behind on metadata. Now issuing a fetch request.");
                 metadataRefresher.fetch();
             }
         } catch (Exception e) {
-            replicationState.setLastHeartbeatSucceeded(false);
+            state.setLastHeartbeatSucceeded(false);
             log.error("Error sending heartbeat: ", e);
         }
     }

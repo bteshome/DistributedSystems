@@ -27,13 +27,10 @@ public class Node implements CommandLineRunner {
     @Autowired
     MetadataSettings metadataSettings;
 
-    private RaftPeer buildPeer(Map<String, String> peerInfo) {
-        String id = peerInfo.get("id");
-        String host = peerInfo.get("host");
-        String port = peerInfo.get("port");
+    private RaftPeer buildPeer(MetadataSettings.NodeInfo nodeInfo) {
         return RaftPeer.newBuilder()
-                .setId(RaftPeerId.valueOf(id))
-                .setAddress(host + ":" + port)
+                .setId(RaftPeerId.valueOf(nodeInfo.getId()))
+                .setAddress(nodeInfo.getHost() + ":" + nodeInfo.getPort())
                 .build();
     }
 
@@ -60,8 +57,8 @@ public class Node implements CommandLineRunner {
             MetadataStateMachine stateMachine = new MetadataStateMachine(metadataSettings);
 
             RaftProperties properties = new RaftProperties();
-            NettyConfigKeys.Server.setHost(properties, metadataSettings.getNode().get("host"));
-            NettyConfigKeys.Server.setPort(properties, Integer.parseInt(metadataSettings.getNode().get("port")));
+            NettyConfigKeys.Server.setHost(properties, metadataSettings.getNode().getHost());
+            NettyConfigKeys.Server.setPort(properties, metadataSettings.getNode().getPort());
 
             // TODO - make these configurable
             properties.set("ratis.server.replication.factor", "1");

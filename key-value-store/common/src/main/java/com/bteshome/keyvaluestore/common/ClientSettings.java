@@ -20,6 +20,16 @@ import java.util.UUID;
 public class ClientSettings {
     private UUID clientId;
     private UUID groupId;
-    private List<Map<String, String>> peers;
+    private List<PeerInfo> peers;
     private long metadataRefreshIntervalMs = 5000;
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PeerInfo {
+        private String id;
+        private String host;
+        private int port;
+    }
 }

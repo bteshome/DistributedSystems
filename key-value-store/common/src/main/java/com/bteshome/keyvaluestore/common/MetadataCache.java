@@ -24,7 +24,7 @@ public class MetadataCache {
     public long getLastFetchedVersion() {
         try (AutoCloseableLock l = readLock()) {
             if (state.containsKey(EntityType.VERSION)) {
-                return (Long) state.get(EntityType.VERSION).getOrDefault(CURRENT, 0L);
+                return (Long)state.get(EntityType.VERSION).getOrDefault(CURRENT, 0L);
             }
             return 0L;
         }
@@ -65,6 +65,9 @@ public class MetadataCache {
         try (AutoCloseableLock l = readLock()) {
             Table table = (Table)state.get(EntityType.TABLE).get(tableName);
             String leaderNodeId = table.getPartitions().get(partition).getLeader();
+            if (leaderNodeId == null) {
+                return null;
+            }
             StorageNode leaderNode = (StorageNode)state.get(EntityType.STORAGE_NODE).get(leaderNodeId);
             return "%s:%s".formatted(leaderNode.getHost(), leaderNode.getPort());
         }
@@ -92,6 +95,17 @@ public class MetadataCache {
         }
     }
 
+    public List<Replica> getFollowedReplicas(String nodeId) {
+        try (AutoCloseableLock l = readLock()) {
+            StorageNode node = (StorageNode)state.get(EntityType.STORAGE_NODE).get(nodeId);
+            return node.getReplicaAssignmentSet()
+                    .stream()
+                    .filter(ReplicaAssignment::isFollower)
+                    .map(a -> new Replica(nodeId, a.getTableName(), a.getPartitionIid()))
+                    .toList();
+        }
+    }
+
     public boolean tableExists(String tableName) {
         try (AutoCloseableLock l = readLock()) {
             return state.get(EntityType.TABLE).containsKey(tableName);
@@ -101,6 +115,12 @@ public class MetadataCache {
     public int getNumPartitions(String tableName) {
         try (AutoCloseableLock l = readLock()) {
             return ((Table)state.get(EntityType.TABLE).get(tableName)).getPartitions().size();
+        }
+    }
+
+    public int getMinInSyncReplicas(String tableName) {
+        try (AutoCloseableLock l = writeLock()) {
+            return ((Table)state.get(EntityType.TABLE).get(tableName)).getMinInSyncReplicas();
         }
     }
 }

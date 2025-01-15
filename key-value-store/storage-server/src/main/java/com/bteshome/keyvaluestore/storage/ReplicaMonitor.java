@@ -30,7 +30,7 @@ public class ReplicaMonitor {
     ClientBuilder clientBuilder;
 
     @Autowired
-    ReplicationState replicationState;
+    State state;
 
     @PreDestroy
     public void close() {
@@ -51,9 +51,9 @@ public class ReplicaMonitor {
     }
 
     private void checkStatus() {
-        log.info("Replica monitor fired. Checking...");
+        //log.info("Replica monitor fired. Checking...");
 
-        try {
+        /*try {
             String leaderNodeId = replicationState.getId();
             List<Replica> ownedReplicas = MetadataCache.getInstance().getOwnedReplicas(leaderNodeId);
             Set<Replica> laggingReplicas = new HashSet<>();
@@ -61,7 +61,7 @@ public class ReplicaMonitor {
 
             for (Replica ownedReplica : ownedReplicas) {
                 List<String> allReplicaNodeIds = MetadataCache.getInstance().getReplicaNodeIds(ownedReplica.getTable(), ownedReplica.getPartition());
-                long leaderOffset = replicationState.getOffset(ownedReplica.getTable(), ownedReplica.getPartition(), leaderNodeId);
+                long leaderOffset = state.getOffset(ownedReplica.getTable(), ownedReplica.getPartition(), leaderNodeId);
 
                 for (String replicaId : allReplicaNodeIds) {
                     if (replicaId.equals(leaderNodeId)) {
@@ -85,7 +85,7 @@ public class ReplicaMonitor {
             removeFromISRs(laggingReplicas);
         } catch (Exception e) {
             log.error("Error checking replicas", e);
-        }
+        }*/
     }
 
     private void addToISR() {

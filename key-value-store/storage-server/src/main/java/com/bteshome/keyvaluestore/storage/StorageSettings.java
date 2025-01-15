@@ -7,8 +7,6 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
-
 @Component
 @ConfigurationProperties(prefix = "storage")
 @Getter
@@ -16,9 +14,18 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 public class StorageSettings {
-    private Map<String, String> node;
+    private NodeInfo node;
 
-    public String getStorageDir() {
-        return node.get("storage-dir");
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class NodeInfo {
+        private String id;
+        private String host;
+        private int port;
+        private int jmxPort;
+        private String rack;
+        private String storageDir;
     }
 }

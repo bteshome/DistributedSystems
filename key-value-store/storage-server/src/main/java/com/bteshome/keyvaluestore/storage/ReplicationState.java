@@ -1,16 +1,13 @@
+/*
 package com.bteshome.keyvaluestore.storage;
 
 import com.bteshome.keyvaluestore.common.Validator;
 import jakarta.annotation.PostConstruct;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.apache.ratis.util.AutoCloseableLock;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.annotation.ApplicationScope;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,7 +27,7 @@ public class ReplicationState {
 
     @PostConstruct
     public void init() {
-        id = Validator.notEmpty(storageSettings.getNode().get("id"));
+        id = Validator.notEmpty(storageSettings.getNode().getStorageDir());
         offsets = new ConcurrentHashMap<>();
         lastHeartbeatSucceeded = false;
         lock = new ReentrantReadWriteLock(true);
@@ -64,3 +61,4 @@ public class ReplicationState {
         }
     }
 }
+*/

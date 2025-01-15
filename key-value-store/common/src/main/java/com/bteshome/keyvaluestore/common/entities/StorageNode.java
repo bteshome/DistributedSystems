@@ -41,23 +41,6 @@ public class StorageNode implements Serializable {
         );
     }
 
-    public StorageNode copy() {
-        Set<ReplicaAssignment> replicaAssignmentSet = this.replicaAssignmentSet
-                .stream()
-                .map(ReplicaAssignment::copy)
-                .collect(Collectors.toSet());
-        return new StorageNode(
-                id,
-                host,
-                port,
-                jmxPort,
-                rack,
-                storageDir,
-                status,
-                replicaAssignmentSet
-        );
-    }
-
     public boolean isActive() {
         return status == StorageNodeStatus.ACTIVE;
     }

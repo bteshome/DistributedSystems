@@ -35,11 +35,14 @@ metadata:
   storage-node-metadata-lag-ms: 1000000
   storage-node-replica-monitor-interval-ms: 3000
   storage-node-replica-lag-threshold: 3
+  storage-node-replica-fetch-interval-ms: 500
   storage-node-ring-num-virtual-nodes: 3
   num-partitions-default: 1
-  num-partitions-min: 1
   num-partitions-max: 10
   replication-factor-default: 1
+  min-in-sync-replicas-default: 1
+  write-timeout-ms: 30000
+  wal-fetch-interval-ms: 100
   local-client-id: 0b3ad294-9e22-493b-a264-d4ea986bcc83
 
 info:

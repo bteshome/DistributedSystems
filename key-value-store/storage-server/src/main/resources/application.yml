@@ -48,6 +48,6 @@ logging:
 
 info:
   app:
-    name: 'Key Value Store Storage Server'
+    name: 'Key Value State Storage Server'
     version: '1.0'
-    description: 'Key Value Store Storage Server'
+    description: 'Key Value State Storage Server'

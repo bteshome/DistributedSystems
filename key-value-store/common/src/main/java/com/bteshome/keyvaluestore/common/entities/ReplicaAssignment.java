@@ -20,10 +20,6 @@ public class ReplicaAssignment implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    public ReplicaAssignment copy() {
-        return new ReplicaAssignment(tableName, partitionIid, role);
-    }
-
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
@@ -38,5 +34,9 @@ public class ReplicaAssignment implements Serializable {
 
     public boolean isLeader() {
         return role.equals(ReplicaRole.LEADER);
+    }
+
+    public boolean isFollower() {
+        return role.equals(ReplicaRole.FOLLOWER);
     }
 }
