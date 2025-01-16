@@ -1,4 +1,4 @@
-package com.bteshome.keyvaluestore.storage;
+package com.bteshome.keyvaluestore.storage.common;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

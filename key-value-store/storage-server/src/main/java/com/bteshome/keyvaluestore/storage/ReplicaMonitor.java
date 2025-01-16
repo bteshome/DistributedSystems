@@ -7,6 +7,7 @@ import com.bteshome.keyvaluestore.common.ResponseStatus;
 import com.bteshome.keyvaluestore.common.entities.Replica;
 import com.bteshome.keyvaluestore.common.requests.ReplicaRemoveFromISRRequest;
 import com.bteshome.keyvaluestore.common.responses.GenericResponse;
+import com.bteshome.keyvaluestore.storage.states.State;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.client.RaftClient;
@@ -61,7 +62,7 @@ public class ReplicaMonitor {
 
             for (Replica ownedReplica : ownedReplicas) {
                 List<String> allReplicaNodeIds = MetadataCache.getInstance().getReplicaNodeIds(ownedReplica.getTable(), ownedReplica.getPartition());
-                long leaderOffset = state.getOffset(ownedReplica.getTable(), ownedReplica.getPartition(), leaderNodeId);
+                long leaderOffset = states.getOffset(ownedReplica.getTable(), ownedReplica.getPartition(), leaderNodeId);
 
                 for (String replicaId : allReplicaNodeIds) {
                     if (replicaId.equals(leaderNodeId)) {

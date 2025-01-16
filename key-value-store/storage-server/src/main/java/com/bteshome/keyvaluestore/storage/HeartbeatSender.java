@@ -3,6 +3,8 @@ package com.bteshome.keyvaluestore.storage;
 import com.bteshome.keyvaluestore.common.*;
 import com.bteshome.keyvaluestore.common.requests.StorageNodeHeartbeatRequest;
 import com.bteshome.keyvaluestore.common.responses.StorageNodeHeartbeatResponse;
+import com.bteshome.keyvaluestore.storage.common.StorageSettings;
+import com.bteshome.keyvaluestore.storage.states.State;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

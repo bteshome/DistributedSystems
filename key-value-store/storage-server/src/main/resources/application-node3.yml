@@ -1,16 +1,16 @@
 spring:
   application:
-    name: kvstorageserver1
+    name: kvstorageserver2
 
 server:
-  port: '9407'
+  port: '9807'
 
 management:
   server:
-    port: '9507'
+    port: '9907'
 
 client:
-  client-id: a30d2590-e197-46e1-826c-a51480786dfd
+  client-id: 2ac5a91b-b439-4c52-9617-bdc4f3683c97
   group-id: d7d23a0d-26f1-46ce-b10b-af833738907e
   peers:
     - id: '1'
@@ -32,11 +32,11 @@ client:
 
 storage:
   node:
-    id: 'storage1'
+    id: 'storage3'
     #host: 0.0.0.0
     host: 127.0.0.1
     port: ${server.port}
     jmx-port: ${management.server.port}
     rack: ""
-    #storage-dir: /tmp/storage-server-1
-    storage-dir: storage-server-1
+    #storage-dir: /tmp/storage-server-3
+    storage-dir: storage-server-3

@@ -6,15 +6,15 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class WALFetchAckRequest {
+public class WALAcknowledgeRequest {
     private String id;
     private String table;
     private int partition;
     private long endOffset;
 
-    public WALFetchAckRequest() {}
+    public WALAcknowledgeRequest() {}
 
-    public WALFetchAckRequest(
+    public WALAcknowledgeRequest(
             String nodeId,
             String table,
             int partition,

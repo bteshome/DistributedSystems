@@ -1,9 +1,9 @@
-package com.bteshome.keyvaluestore.storage;
+package com.bteshome.keyvaluestore.storage.states;
 
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.Validator;
+import com.bteshome.keyvaluestore.storage.common.StorageSettings;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
-import com.bteshome.keyvaluestore.storage.state.PartitionState;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.Getter;
@@ -16,7 +16,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -78,7 +77,11 @@ public class State {
         }
         try (AutoCloseableLock l = writeLock()) {
             if (!tableState.containsKey(partition)) {
-                tableState.put(partition, new PartitionState(table, partition, storageSettings));
+                try {
+                    tableState.put(partition, new PartitionState(table, partition, storageSettings));
+                } catch (Exception e) {
+                    log.error("Error creating PartitionState.", e);
+                }
             }
             return tableState.get(partition);
         }
@@ -115,7 +118,7 @@ public class State {
         return partitionState.getItem(key);
     }
 
-    public ResponseEntity<?> ackFetch(String table, int partition, long endIndex, String replicaId) {
+    public ResponseEntity<?> acknowledgeFetch(String table, int partition, long endIndex, String replicaId) {
         if (!nodeId.equals(MetadataCache.getInstance().getLeaderNodeId(table, partition))) {
             String errorMessage = "Not the leader for table '%s' partition '%s'.".formatted(table, partition);
             return ResponseEntity.status(HttpStatus.MOVED_PERMANENTLY).body(errorMessage);
@@ -125,15 +128,22 @@ public class State {
 
         try (AutoCloseableLock l = readLock()) {
             if (!partitionStates.containsKey(table)) {
-                return ResponseEntity.ok(new WALFetchResponse(HttpStatus.NOT_FOUND));
+                return ResponseEntity.notFound().build();
             }
             if (!partitionStates.get(table).containsKey(partition)) {
-                return ResponseEntity.ok(new WALFetchResponse(HttpStatus.NOT_FOUND));
+                return ResponseEntity.notFound().build();
             }
             partitionState = partitionStates.get(table).get(partition);
         }
 
-        partitionState.setEndOffset(replicaId, endIndex);
+        partitionState.getOffsetState().setEndOffset(replicaId, endIndex);
+
+        // TODO - change to trace()
+        log.debug("Persisted a fetch acknowledge from replica '{}' for table '{}' partition '{}' end offset '{}'.",
+                replicaId,
+                table,
+                partition,
+                endIndex);
 
         return ResponseEntity.ok().build();
     }
@@ -141,17 +151,19 @@ public class State {
     public ResponseEntity<?> fetch(String table, int partition, long afterIndex) {
         if (!nodeId.equals(MetadataCache.getInstance().getLeaderNodeId(table, partition))) {
             String errorMessage = "Not the leader for table '%s' partition '%s'.".formatted(table, partition);
-            return ResponseEntity.ok(new WALFetchResponse(HttpStatus.MOVED_PERMANENTLY, errorMessage));
+            return ResponseEntity.ok(WALFetchResponse.builder()
+                    .httpStatus(HttpStatus.MOVED_PERMANENTLY)
+                    .errorMessage(errorMessage)
+                    .build());
         }
 
         PartitionState partitionState;
 
         try (AutoCloseableLock l = readLock()) {
-            if (!partitionStates.containsKey(table)) {
-                return ResponseEntity.ok(new WALFetchResponse(HttpStatus.NOT_FOUND));
-            }
-            if (!partitionStates.get(table).containsKey(partition)) {
-                return ResponseEntity.ok(new WALFetchResponse(HttpStatus.NOT_FOUND));
+            if (!partitionStates.containsKey(table) || !partitionStates.get(table).containsKey(partition)) {
+                return ResponseEntity.ok(WALFetchResponse.builder()
+                        .httpStatus(HttpStatus.NOT_FOUND)
+                        .build());
             }
             partitionState = partitionStates.get(table).get(partition);
         }
@@ -168,8 +180,8 @@ public class State {
         Map<Integer, PartitionState> tableState = ensureTableStateExists(table);
         PartitionState partitionState = ensurePartitionStateExists(tableState, table, partition);
         partitionState.appendLogEntries(logEntries);
-        partitionState.setEndOffsets(endOffsets);
-        partitionState.setCommitedOffset(commitedOffset);
+        partitionState.getOffsetState().setEndOffsets(endOffsets);
+        partitionState.getOffsetState().setCommitedOffset(commitedOffset);
     }
 
     public void applyLogEntries(String table, int partition, List<String> entries) {
@@ -203,7 +215,7 @@ public class State {
             partitionState = partitionStates.get(table).get(partition);
         }
 
-        return partitionState.getEndOffsets();
+        return partitionState.getOffsetState().getEndOffsets();
     }
 
     public long getEndOffset(String table, int partition, String replica) {
@@ -219,7 +231,7 @@ public class State {
             partitionState = partitionStates.get(table).get(partition);
         }
 
-        return partitionState.getEndOffset(replica);
+        return partitionState.getOffsetState().getEndOffset(replica);
     }
 
     public long getCommitedOffset(String table, int partition) {
@@ -235,6 +247,6 @@ public class State {
             partitionState = partitionStates.get(table).get(partition);
         }
 
-        return partitionState.getCommitedOffset();
+        return partitionState.getOffsetState().getCommitedOffset();
     }
 }

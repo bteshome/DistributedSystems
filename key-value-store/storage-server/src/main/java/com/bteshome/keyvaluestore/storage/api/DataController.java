@@ -2,9 +2,8 @@ package com.bteshome.keyvaluestore.storage.api;
 
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.storage.KeyToPartitionMapper;
-import com.bteshome.keyvaluestore.storage.State;
+import com.bteshome.keyvaluestore.storage.states.State;
 import com.bteshome.keyvaluestore.storage.requests.DataWriteRequest;
-import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -12,8 +11,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/api/data")

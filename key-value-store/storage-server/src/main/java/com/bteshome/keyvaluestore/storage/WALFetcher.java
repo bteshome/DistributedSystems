@@ -3,9 +3,10 @@ package com.bteshome.keyvaluestore.storage;
 import com.bteshome.keyvaluestore.common.ConfigKeys;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.entities.Replica;
-import com.bteshome.keyvaluestore.storage.requests.WALFetchAckRequest;
+import com.bteshome.keyvaluestore.storage.requests.WALAcknowledgeRequest;
 import com.bteshome.keyvaluestore.storage.requests.WALFetchRequest;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
+import com.bteshome.keyvaluestore.storage.states.State;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,7 +17,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -48,7 +48,7 @@ public class WALFetcher {
     }
 
     private void fetch() {
-        //log.debug("WAL fetcher triggered. Fetching ...");
+        log.trace("WAL fetcher triggered. Fetching ...");
 
         List<Replica> followedReplicas = MetadataCache.getInstance().getFollowedReplicas(store.getNodeId());
 
@@ -58,7 +58,7 @@ public class WALFetcher {
                 String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(followedReplica.getTable(), followedReplica.getPartition());
 
                 if (leaderEndpoint == null) {
-                    //log.warn("No leader for table '{}' partition '{}'. Skipping fetch.", followedReplica.getTable(), followedReplica.getPartition());
+                    log.trace("No leader for table '{}' partition '{}'. Skipping fetch.", followedReplica.getTable(), followedReplica.getPartition());
                     continue;
                 }
 
@@ -72,14 +72,14 @@ public class WALFetcher {
                 WALFetchResponse response = RestClient.builder()
                         .build()
                         .post()
-                        .uri("http://%s/api/fetch/".formatted(leaderEndpoint))
+                        .uri("http://%s/api/wal/fetch/".formatted(leaderEndpoint))
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(request)
                         .retrieve()
                         .toEntity(WALFetchResponse.class)
                         .getBody();
 
-                if (response.getHttpStatus() != HttpStatus.OK) {
+                if (response.getHttpStatus() == HttpStatus.INTERNAL_SERVER_ERROR) {
                     log.error("Error fetching WAL for table '{}' partition '{}'. Http status: {}, error: {}.",
                             followedReplica.getTable(),
                             followedReplica.getPartition(),
@@ -88,9 +88,17 @@ public class WALFetcher {
                     continue;
                 }
 
-                if (response.getEntries().isEmpty()) {
+                if (response.getHttpStatus() != HttpStatus.OK) {
                     continue;
                 }
+
+                log.debug("Fetched WAL for table '{}' partition '{}' lastFetchedOffset '{}'. entries={}, endOffsets={}, commited offset={}.",
+                        followedReplica.getTable(),
+                        followedReplica.getPartition(),
+                        lastFetchedOffset,
+                        response.getEntries(),
+                        response.getReplicaEndOffsets(),
+                        response.getCommitedOffset());
 
                 store.appendLogEntries(
                         followedReplica.getTable(),
@@ -99,26 +107,21 @@ public class WALFetcher {
                         response.getReplicaEndOffsets(),
                         response.getCommitedOffset());
 
+                if (response.getEntries().isEmpty()) {
+                    continue;
+                }
+
                 long endOffset = store.getEndOffset(request.getTable(), request.getPartition(), store.getNodeId());
                 acknowledgeFetch(request.getTable(), request.getPartition(), endOffset, leaderEndpoint);
                 store.applyLogEntries(request.getTable(), request.getPartition(), response.getEntries());
-
-                log.debug("Fetched and applied {} WAL entries for table '{}' partition '{}'.",
-                        response.getEntries().size(),
-                        followedReplica.getTable(),
-                        followedReplica.getPartition());
             } catch (Exception e) {
                 log.error("Error fetching WAL for table '{}' partition '{}'.", followedReplica.getTable(), followedReplica.getPartition(), e);
             }
         }
     }
 
-    private void replayWal() {
-
-    }
-
     private void acknowledgeFetch(String table, int partition, long endOffset, String leaderEndpoint) {
-        WALFetchAckRequest request = new WALFetchAckRequest(
+        WALAcknowledgeRequest request = new WALAcknowledgeRequest(
                 store.getNodeId(),
                 table,
                 partition,
@@ -127,7 +130,7 @@ public class WALFetcher {
         ResponseEntity<String> response = RestClient.builder()
                 .build()
                 .post()
-                .uri("http://%s/api/fetch/ack/".formatted(leaderEndpoint))
+                .uri("http://%s/api/wal/acknowledge/".formatted(leaderEndpoint))
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
