@@ -1,7 +1,6 @@
 package com.bteshome.keyvaluestore.storage;
 
 import com.bteshome.keyvaluestore.common.ConfigKeys;
-import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.entities.Replica;
 import com.bteshome.keyvaluestore.storage.requests.WALAcknowledgeRequest;
 import com.bteshome.keyvaluestore.storage.requests.WALFetchRequest;

@@ -20,6 +20,11 @@
 			<version>0.0.1-SNAPSHOT</version>
 		</dependency>
 		<dependency>
+			<groupId>com.bteshome.key-value-store</groupId>
+			<artifactId>client</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
+		</dependency>
+		<dependency>
 			<groupId>com.bteshome</groupId>
 			<artifactId>consistent-hashing</artifactId>
 			<version>0.0.1-SNAPSHOT</version>

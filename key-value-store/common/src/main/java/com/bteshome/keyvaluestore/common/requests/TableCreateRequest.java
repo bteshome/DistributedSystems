@@ -9,6 +9,7 @@ import org.apache.ratis.util.ProtoUtils;
 
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 @Getter
 @Setter
@@ -18,18 +19,18 @@ public class TableCreateRequest implements Serializable, Message {
     private int replicationFactor;
     private int minInSyncReplicas;
 
-    public void Validate() {
-        int numPartitionsDefault = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.NUM_PARTITIONS_DEFAULT_KEY);
-        int maxNumPartitions = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.NUM_PARTITIONS_MAX_KEY);
-        int replicationFactorDefault = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICATION_FACTOR_DEFAULT_KEY);
-        int minInSyncReplicasDefault = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.MIN_IN_SYNC_REPLICAS_DEFAULT);
+    public void validate(Map<String, Object> configurations) {
+        int numPartitionsDefault = (Integer)configurations.get(ConfigKeys.NUM_PARTITIONS_DEFAULT_KEY);
+        int maxNumPartitions = (Integer)configurations.get(ConfigKeys.NUM_PARTITIONS_MAX_KEY);
+        int replicationFactorDefault = (Integer)configurations.get(ConfigKeys.REPLICATION_FACTOR_DEFAULT_KEY);
+        int minInSyncReplicasDefault = (Integer)configurations.get(ConfigKeys.MIN_IN_SYNC_REPLICAS_DEFAULT);
 
-        this.tableName = Validator.notEmpty(tableName);
+        this.tableName = Validator.notEmpty(tableName, "Table name");
         this.numPartitions = Validator.setDefault(numPartitions, numPartitionsDefault);
-        Validator.notGreaterThan(numPartitions, maxNumPartitions);
+        Validator.notGreaterThan(numPartitions, maxNumPartitions, "Number of partitions");
         this.replicationFactor = Validator.setDefault(replicationFactor, replicationFactorDefault);
         this.minInSyncReplicas = Validator.setDefault(minInSyncReplicas, minInSyncReplicasDefault);
-        Validator.notGreaterThan(minInSyncReplicas, replicationFactor);
+        Validator.notGreaterThan(minInSyncReplicas, replicationFactor, "Min in sync replicas", "replication factor");
     }
 
     @Override

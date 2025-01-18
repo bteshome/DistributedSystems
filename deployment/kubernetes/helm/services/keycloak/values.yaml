@@ -293,7 +293,7 @@ extraEnvVarsSecret: ""
 ## @param replicaCount Number of Keycloak replicas to deploy
 ##
 replicaCount: 1
-## @param revisionHistoryLimitCount Number of controller revisions to keep
+## @param revisionHistoryLimitCount Number of web revisions to keep
 ##
 revisionHistoryLimitCount: 10
 ## @param containerPorts.http Keycloak HTTP container port
@@ -630,9 +630,9 @@ ingress:
   ## @param ingress.apiVersion Force Ingress API version (automatically detected if not set)
   ##
   apiVersion: ""
-  ## @param ingress.controller The ingress controller type. Currently supports `default` and `gce`
-  ## leave as `default` for most ingress controller.
-  ## set to `gce` if using the GCE ingress controller
+  ## @param ingress.web The ingress web type. Currently supports `default` and `gce`
+  ## leave as `default` for most ingress web.
+  ## set to `gce` if using the GCE ingress web
   ##
   controller: default
   ## @param ingress.hostname Default host for the ingress record (evaluated as template)
@@ -684,7 +684,7 @@ ingress:
   ##
   extraHosts: []
   ## @param ingress.extraPaths Any additional arbitrary paths that may need to be added to the ingress under the main host.
-  ## For example: The ALB ingress controller requires a special rule for handling SSL redirection.
+  ## For example: The ALB ingress web requires a special rule for handling SSL redirection.
   ## extraPaths:
   ## - path: /*
   ##   backend:
@@ -747,9 +747,9 @@ adminIngress:
   ## @param adminIngress.apiVersion Force Ingress API version (automatically detected if not set)
   ##
   apiVersion: ""
-  ## @param adminIngress.controller The ingress controller type. Currently supports `default` and `gce`
-  ## leave as `default` for most ingress controller.
-  ## set to `gce` if using the GCE ingress controller
+  ## @param adminIngress.web The ingress web type. Currently supports `default` and `gce`
+  ## leave as `default` for most ingress web.
+  ## set to `gce` if using the GCE ingress web
   ##
   controller: default
   ## @param adminIngress.hostname Default host for the admin ingress record (evaluated as template)
@@ -796,7 +796,7 @@ adminIngress:
   ##
   extraHosts: []
   ## @param adminIngress.extraPaths Any additional arbitrary paths that may need to be added to the admin ingress under the main host.
-  ## For example: The ALB ingress controller requires a special rule for handling SSL redirection.
+  ## For example: The ALB ingress web requires a special rule for handling SSL redirection.
   ## extraPaths:
   ## - path: /*
   ##   backend:

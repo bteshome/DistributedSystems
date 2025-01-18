@@ -33,4 +33,8 @@ public class Table implements Serializable {
         }
         return table;
     }
+
+    public long getNumOfflinePartitions() {
+        return partitions.values().stream().filter(p -> p.getLeader() == null).count();
+    }
 }

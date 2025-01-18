@@ -267,15 +267,9 @@ public class MetadataStateMachine extends BaseStateMachine {
                             yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.UNAUTHORIZED.value()));
                         }
 
-                        if (existingNodeInfo.isActive()) {
-                            String errorMessage = "Node '%s' is already registered.".formatted(request.getId());
-                            log.warn("{} failed. {}.", RequestType.STORAGE_NODE_JOIN, errorMessage);
-                            yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.CONFLICT.value(), errorMessage));
-                        }
-
                         String infoMessage = "Node '%s' has re-joined the cluster.".formatted(request.getId());
                         log.info("{} succeeded. {}", RequestType.STORAGE_NODE_JOIN, infoMessage);
-                        yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.OK.value()));
+                        yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.OK.value(), infoMessage));
                     }
 
                     StorageNode storageNode = StorageNode.toStorageNode(request);
@@ -474,6 +468,10 @@ public class MetadataStateMachine extends BaseStateMachine {
                     // TODO - work on sending incremental updates - using WAL?
                     yield  CompletableFuture.completedFuture(new MetadataRefreshResponse(state, heartbeatEndpoint));
                 }
+            }
+            case CONFIGURATION_LIST -> {
+                Map<String, Object> result = state.get(EntityType.CONFIGURATION);
+                yield CompletableFuture.completedFuture(new ConfigurationListResponse(result));
             }
             default -> CompletableFuture.completedFuture(new GenericResponse(HttpStatus.BAD_REQUEST.value()));
         };

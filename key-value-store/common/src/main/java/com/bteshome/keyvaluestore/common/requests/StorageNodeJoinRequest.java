@@ -35,7 +35,7 @@ public class StorageNodeJoinRequest implements Serializable, Message {
         this.port = Validator.inRange(port, 0, 65535);
         this.jmxPort = Validator.inRange(jmxPort, 0, 65535);
         this.rack = Validator.setDefault(rack, "NA");
-        Validator.notEqual(this.getPort(), this.getJmxPort(), "Port and JMX port must be different.");
+        Validator.notEqual(this.getPort(), this.getJmxPort(), "Port", "JMX port");
         this.storageDir = Validator.notEmpty(storageDir);
     }
 

@@ -43,7 +43,7 @@ spec:
             - name: KAFKA_CFG_NODE_ID
               value: "1"
             - name: KAFKA_CFG_PROCESS_ROLES
-              value: 'broker,controller'
+              value: 'broker,web'
             - name: KAFKA_CFG_CONTROLLER_QUORUM_VOTERS
               value: '1@localhost:9093'
             - name: KAFKA_CFG_LISTENERS

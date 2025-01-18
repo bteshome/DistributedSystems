@@ -1,7 +1,10 @@
 package com.bteshome.keyvaluestore.storage.states;
 
+import com.bteshome.keyvaluestore.client.ItemGetResponse;
+import com.bteshome.keyvaluestore.client.ItemListResponse;
+import com.bteshome.keyvaluestore.client.ItemPutResponse;
 import com.bteshome.keyvaluestore.common.ConfigKeys;
-import com.bteshome.keyvaluestore.common.MetadataCache;
+import com.bteshome.keyvaluestore.storage.MetadataCache;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
@@ -11,10 +14,6 @@ import org.apache.ratis.util.AutoCloseableLock;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -52,7 +51,7 @@ public class PartitionState implements AutoCloseable {
         return AutoCloseableLock.acquire(lock.writeLock());
     }
 
-    public ResponseEntity<?> putItem(String key, String value) {
+    public ResponseEntity<ItemPutResponse> putItem(String key, String value) {
         log.debug("PUT '{}'='{}' to table '{}' partition '{}'.", key, value, table, partition);
 
         try (AutoCloseableLock l = writeLock()) {
@@ -61,13 +60,19 @@ public class PartitionState implements AutoCloseable {
             try {
                 offset = wal.appendLog("PUT", key, value);
             } catch (Exception e) {
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error writing to WAL.");
+                return ResponseEntity.ok(ItemPutResponse.builder()
+                        .httpStatus(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                        .errorMessage(e.getMessage())
+                        .build());
             }
 
             try {
                 offsetState.setEndOffset(nodeId, offset);
             } catch (StorageServerException e) {
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+                return ResponseEntity.ok(ItemPutResponse.builder()
+                        .httpStatus(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                        .errorMessage(e.getMessage())
+                        .build());
             }
 
             int minInSyncReplicas = MetadataCache.getInstance().getMinInSyncReplicas(table);
@@ -81,10 +86,15 @@ public class PartitionState implements AutoCloseable {
                     try {
                         offsetState.setCommitedOffset(offset);
                     } catch (StorageServerException e) {
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+                        return ResponseEntity.ok(ItemPutResponse.builder()
+                                .httpStatus(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                                .errorMessage(e.getMessage())
+                                .build());
                     }
                     data.put(key, value);
-                    return ResponseEntity.ok().build();
+                    return ResponseEntity.ok(ItemPutResponse.builder()
+                            .httpStatus(HttpStatus.OK.value())
+                            .build());
                 }
 
                 try {
@@ -92,22 +102,42 @@ public class PartitionState implements AutoCloseable {
                 } catch (InterruptedException e) {
                     String errorMessage = "Error waiting for replicas to acknowledge the log entry.";
                     log.error(errorMessage, e);
-                    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorMessage);
+                    return ResponseEntity.ok(ItemPutResponse.builder()
+                            .httpStatus(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                            .errorMessage(errorMessage)
+                            .build());
                 }
             }
 
             String errorMessage = "Request timed out.";
             log.error(errorMessage);
-            return ResponseEntity.status(HttpStatus.REQUEST_TIMEOUT).body(errorMessage);
+            return ResponseEntity.ok(ItemPutResponse.builder()
+                    .httpStatus(HttpStatus.REQUEST_TIMEOUT.value())
+                    .errorMessage(errorMessage)
+                    .build());
         }
     }
 
-    public ResponseEntity<?> getItem(String key) {
+    public ResponseEntity<ItemGetResponse> getItem(String key) {
         try (AutoCloseableLock l = readLock()) {
             if (!data.containsKey(key)) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+                return ResponseEntity.ok(ItemGetResponse.builder()
+                        .httpStatus(HttpStatus.NOT_FOUND.value())
+                        .build());
             }
-            return ResponseEntity.ok(data.get(key));
+            return ResponseEntity.ok(ItemGetResponse.builder()
+                    .httpStatus(HttpStatus.OK.value())
+                    .value(data.get(key))
+                    .build());
+        }
+    }
+
+    public ResponseEntity<ItemListResponse> listItems(int limit) {
+        try (AutoCloseableLock l = readLock()) {
+            return ResponseEntity.ok(ItemListResponse.builder()
+                    .httpStatus(HttpStatus.OK.value())
+                    .items(data.entrySet().stream().limit(Math.min(limit, 100)).toList())
+                    .build());
         }
     }
 
@@ -147,6 +177,10 @@ public class PartitionState implements AutoCloseable {
                 data.put(key, value);
             }
         }
+    }
+
+    public int countItems() {
+        return data.size();
     }
 
     @Override

@@ -2,7 +2,6 @@ package com.bteshome.keyvaluestore.storage;
 
 import com.bteshome.consistenthashing.Ring;
 import com.bteshome.keyvaluestore.common.ConfigKeys;
-import com.bteshome.keyvaluestore.common.MetadataCache;
 
 import java.util.List;
 import java.util.stream.IntStream;

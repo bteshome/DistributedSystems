@@ -2,7 +2,6 @@ package com.bteshome.keyvaluestore.storage;
 
 import com.bteshome.keyvaluestore.common.ClientBuilder;
 import com.bteshome.keyvaluestore.common.ConfigKeys;
-import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.ResponseStatus;
 import com.bteshome.keyvaluestore.common.entities.Replica;
 import com.bteshome.keyvaluestore.common.requests.ReplicaRemoveFromISRRequest;

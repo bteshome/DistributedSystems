@@ -44,4 +44,8 @@ public class StorageNode implements Serializable {
     public boolean isActive() {
         return status == StorageNodeStatus.ACTIVE;
     }
+
+    public int getNumOwnedReplicas() {
+        return replicaAssignmentSet.stream().filter(ReplicaAssignment::isLeader).collect(Collectors.toSet()).size();
+    }
 }

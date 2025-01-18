@@ -1,6 +1,6 @@
 package com.bteshome.keyvaluestore.storage.api;
 
-import com.bteshome.keyvaluestore.common.MetadataCache;
+import com.bteshome.keyvaluestore.storage.MetadataCache;
 import com.bteshome.keyvaluestore.storage.states.State;
 import com.bteshome.keyvaluestore.storage.requests.WALAcknowledgeRequest;
 import com.bteshome.keyvaluestore.storage.requests.WALFetchRequest;

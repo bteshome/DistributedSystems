@@ -676,7 +676,7 @@ persistence:
 ## @param serviceAccount.create Specifies whether a ServiceAccount should be created
 ## @param serviceAccount.name The name of the ServiceAccount to use. If not set and create is true, a name is generated using the fullname template
 ## @param serviceAccount.annotations Annotations to add to the ServiceAccount Metadata
-## @param serviceAccount.automountServiceAccountToken Automount service account token for the application controller service account
+## @param serviceAccount.automountServiceAccountToken Automount service account token for the application web service account
 serviceAccount:
   create: true
   name: ""
@@ -829,7 +829,7 @@ ingress:
   ##
   hostname: grafana.local
   ## @param ingress.path Default path for the ingress resource
-  ## The Path to Grafana. You may need to set this to '/*' in order to use this with ALB ingress controller.
+  ## The Path to Grafana. You may need to set this to '/*' in order to use this with ALB ingress web.
   ##
   path: /
   ## @param ingress.annotations Additional annotations for the Ingress resource. To enable certificate autogeneration, place here your cert-manager annotations.
@@ -857,7 +857,7 @@ ingress:
   ##
   extraHosts: []
   ## @param ingress.extraPaths Any additional arbitrary paths that may need to be added to the ingress under the main host.
-  ## For example: The ALB ingress controller requires a special rule for handling SSL redirection.
+  ## For example: The ALB ingress web requires a special rule for handling SSL redirection.
   ## extraPaths:
   ## - path: /*
   ##   backend:

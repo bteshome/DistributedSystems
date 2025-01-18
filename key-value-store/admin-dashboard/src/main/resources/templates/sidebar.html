@@ -1,0 +1,85 @@
+<nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse" th:fragment="sidebar">
+    <div class="position-sticky pt-3">
+        <ul class="nav flex-column">
+            <li class="nav-item">
+                <a class="nav-link" th:classappend="${page}=='metadata_nodes'?'active'" href="/nodes/metadata/">
+                    <span data-feather="server"></span>
+                    Metadata Nodes
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" th:classappend="${page}=='storage_nodes'?'active'" href="/nodes/storage/">
+                    <span data-feather="database"></span>
+                    Storage Nodes
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" th:classappend="${page}=='configurations'?'active'" href="/configurations/">
+                    <span data-feather="settings"></span>
+                    Configurations
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" th:classappend="${page}=='tables'?'active'" href="/tables/">
+                    <span data-feather="folder"></span>
+                    Tables
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" th:classappend="${page}=='partitions'?'active'" href="/partitions/">
+                    <span data-feather="folder"></span>
+                    Partitions
+                </a>
+            </li>
+            <!--<li class="nav-item">
+                <a class="nav-link" th:classappend="${page}=='items'?'active'" href="/items/">
+                    <span data-feather="file"></span>
+                    Items - Get or List
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" th:classappend="${page}=='items-put'?'active'" href="/items/put/">
+                    <span data-feather="file"></span>
+                    Items - Put
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" th:classappend="${page}=='items-put'?'active'" href="/items/put/">
+                    <span data-feather="file"></span>
+                    Items - Bulk Insert
+                </a>
+            </li>-->
+            <div class="accordion" id="itemsMenu">
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingOne">
+                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+                            Items
+                        </button>
+                    </h2>
+                    <div id="collapseOne" class="accordion-collapse collapse show" aria-labelledby="headingOne" data-bs-parent="#itemsMenu">
+                        <div class="accordion-body">
+                            <li class="nav-item">
+                                <a class="nav-link" th:classappend="${page}=='items'?'active'" href="/items/">
+                                    <span data-feather="search"></span>
+                                    Get or List
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" th:classappend="${page}=='items-put'?'active'" href="/items/put/">
+                                    <span data-feather="plus"></span>
+                                    Put
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" th:classappend="${page}=='items-put-batch'?'active'" href="/items/put-batch/">
+                                    <span data-feather="plus-circle"></span>
+                                    Put In Batch
+                                </a>
+                            </li>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </ul>
+    </div>
+</nav>

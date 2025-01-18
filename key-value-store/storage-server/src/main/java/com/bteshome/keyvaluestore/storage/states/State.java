@@ -1,6 +1,7 @@
 package com.bteshome.keyvaluestore.storage.states;
 
-import com.bteshome.keyvaluestore.common.MetadataCache;
+import com.bteshome.keyvaluestore.client.*;
+import com.bteshome.keyvaluestore.storage.MetadataCache;
 import com.bteshome.keyvaluestore.common.Validator;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
@@ -14,9 +15,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @Component
@@ -87,35 +91,102 @@ public class State {
         }
     }
 
-    public ResponseEntity<?> putItem(String table, int partition, String key, String value) {
+    public ResponseEntity<ItemPutResponse> putItem(String table, int partition, String key, String value) {
         if (!nodeId.equals(MetadataCache.getInstance().getLeaderNodeId(table, partition))) {
             String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
-            return ResponseEntity.status(HttpStatus.MOVED_PERMANENTLY).body(leaderEndpoint);
+            return ResponseEntity.ok(ItemPutResponse.builder()
+                    .httpStatus(HttpStatus.MOVED_PERMANENTLY.value())
+                    .leaderEndpoint(leaderEndpoint)
+                    .build());
         }
         Map<Integer, PartitionState> tableState = ensureTableStateExists(table);
         PartitionState partitionState = ensurePartitionStateExists(tableState, table, partition);
         return partitionState.putItem(key, value);
     }
 
-    public ResponseEntity<?> getItem(String table, int partition, String key) {
+    public ResponseEntity<ItemGetResponse> getItem(String table, int partition, String key) {
         if (!nodeId.equals(MetadataCache.getInstance().getLeaderNodeId(table, partition))) {
             String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
-            return ResponseEntity.status(HttpStatus.MOVED_PERMANENTLY).body(leaderEndpoint);
+            return ResponseEntity.ok(ItemGetResponse.builder()
+                    .httpStatus(HttpStatus.MOVED_PERMANENTLY.value())
+                    .leaderEndpoint(leaderEndpoint)
+                    .build());
         }
 
         PartitionState partitionState;
 
         try (AutoCloseableLock l = readLock()) {
             if (!partitionStates.containsKey(table)) {
-                return ResponseEntity.notFound().build();
+                return ResponseEntity.ok(ItemGetResponse.builder()
+                        .httpStatus(HttpStatus.NOT_FOUND.value())
+                        .build());
             }
             if (!partitionStates.get(table).containsKey(partition)) {
-                return ResponseEntity.notFound().build();
+                return ResponseEntity.ok(ItemGetResponse.builder()
+                        .httpStatus(HttpStatus.NOT_FOUND.value())
+                        .build());
             }
             partitionState = partitionStates.get(table).get(partition);
         }
 
         return partitionState.getItem(key);
+    }
+
+    public ResponseEntity<ItemListResponse> listItems(String table, int partition, int limit) {
+        if (!nodeId.equals(MetadataCache.getInstance().getLeaderNodeId(table, partition))) {
+            String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
+            return ResponseEntity.ok(ItemListResponse.builder()
+                    .httpStatus(HttpStatus.MOVED_PERMANENTLY.value())
+                    .leaderEndpoint(leaderEndpoint)
+                    .build());
+        }
+
+        PartitionState partitionState;
+
+        try (AutoCloseableLock l = readLock()) {
+            if (!partitionStates.containsKey(table)) {
+                return ResponseEntity.ok(ItemListResponse.builder()
+                        .httpStatus(HttpStatus.NOT_FOUND.value())
+                        .build());
+            }
+            if (!partitionStates.get(table).containsKey(partition)) {
+                return ResponseEntity.ok(ItemListResponse.builder()
+                        .httpStatus(HttpStatus.NOT_FOUND.value())
+                        .build());
+            }
+            partitionState = partitionStates.get(table).get(partition);
+        }
+
+        return partitionState.listItems(limit);
+    }
+
+    public ResponseEntity<ItemCountResponse> countItems(String table, int partition) {
+        if (!nodeId.equals(MetadataCache.getInstance().getLeaderNodeId(table, partition))) {
+            String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
+            return ResponseEntity.ok(ItemCountResponse.builder()
+                    .httpStatus(HttpStatus.MOVED_PERMANENTLY.value())
+                    .leaderEndpoint(leaderEndpoint)
+                    .build());
+        }
+
+        PartitionState partitionState;
+
+        if (!partitionStates.containsKey(table)) {
+            return ResponseEntity.ok(ItemCountResponse.builder()
+                    .httpStatus(HttpStatus.NOT_FOUND.value())
+                    .build());
+        }
+        if (!partitionStates.get(table).containsKey(partition)) {
+            return ResponseEntity.ok(ItemCountResponse.builder()
+                    .httpStatus(HttpStatus.NOT_FOUND.value())
+                    .build());
+        }
+        partitionState = partitionStates.get(table).get(partition);
+
+        return ResponseEntity.ok(ItemCountResponse.builder()
+                .httpStatus(HttpStatus.OK.value())
+                .count(partitionState.countItems())
+                .build());
     }
 
     public ResponseEntity<?> acknowledgeFetch(String table, int partition, long endIndex, String replicaId) {

@@ -360,7 +360,7 @@ server:
     ##
     enabled: false
 
-    # For Kubernetes >= 1.18 you should specify the ingress-controller via the field ingressClassName
+    # For Kubernetes >= 1.18 you should specify the ingress-web via the field ingressClassName
     # See https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/#specifying-the-class-of-an-ingress
     # ingressClassName: nginx
 
@@ -668,7 +668,7 @@ server:
   ## Vertical Pod Autoscaler config
   ## Ref: https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler
   verticalAutoscaler:
-    ## If true a VPA object will be created for the controller (either StatefulSet or Deployemnt, based on above configs)
+    ## If true a VPA object will be created for the web (either StatefulSet or Deployemnt, based on above configs)
     enabled: false
     # updateMode: "Auto"
     # containerPolicies:
