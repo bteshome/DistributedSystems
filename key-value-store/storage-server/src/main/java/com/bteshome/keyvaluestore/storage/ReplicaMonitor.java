@@ -1,6 +1,6 @@
 package com.bteshome.keyvaluestore.storage;
 
-import com.bteshome.keyvaluestore.common.ClientBuilder;
+import com.bteshome.keyvaluestore.common.MetadataClientBuilder;
 import com.bteshome.keyvaluestore.common.ConfigKeys;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.ResponseStatus;
@@ -28,7 +28,7 @@ public class ReplicaMonitor {
     private ScheduledExecutorService executor = null;
 
     @Autowired
-    ClientBuilder clientBuilder;
+    MetadataClientBuilder metadataClientBuilder;
 
     @Autowired
     State state;
@@ -96,7 +96,7 @@ public class ReplicaMonitor {
     private void removeFromISRs(Set<Replica> laggingReplicas) {
         ReplicaRemoveFromISRRequest request = new ReplicaRemoveFromISRRequest(laggingReplicas);
 
-        try (RaftClient client = this.clientBuilder.createRaftClient()) {
+        try (RaftClient client = this.metadataClientBuilder.createRaftClient()) {
             final RaftClientReply reply = client.io().send(request);
             if (reply.isSuccess()) {
                 String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);

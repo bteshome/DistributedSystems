@@ -2,7 +2,7 @@ package com.bteshome.keyvaluestore.admindashboard.service;
 
 import com.bteshome.keyvaluestore.admindashboard.common.AdminDashboardException;
 
-import com.bteshome.keyvaluestore.common.ClientBuilder;
+import com.bteshome.keyvaluestore.common.MetadataClientBuilder;
 import com.bteshome.keyvaluestore.common.JavaSerDe;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.ResponseStatus;
@@ -27,12 +27,12 @@ import java.util.List;
 @Service
 public class TableService {
     @Autowired
-    ClientBuilder clientBuilder;
+    MetadataClientBuilder metadataClientBuilder;
 
     public void createTable(TableCreateRequest request) {
         request.validate(MetadataCache.getInstance().getConfigurations());
 
-        try (RaftClient client = this.clientBuilder.createRaftClient()) {
+        try (RaftClient client = this.metadataClientBuilder.createRaftClient()) {
             final RaftClientReply reply = client.io().send(request);
             if (reply.isSuccess()) {
                 String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);
@@ -49,7 +49,7 @@ public class TableService {
     }
 
     public Table getTable(TableGetRequest request) {
-        try (RaftClient client = this.clientBuilder.createRaftClient()) {
+        try (RaftClient client = this.metadataClientBuilder.createRaftClient()) {
             final RaftClientReply reply = client.io().sendReadOnly(request);
             if (reply.isSuccess()) {
                 String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);
@@ -71,7 +71,7 @@ public class TableService {
     }
 
     public List<Table> list(TableListRequest request) {
-        try (RaftClient client = this.clientBuilder.createRaftClient()) {
+        try (RaftClient client = this.metadataClientBuilder.createRaftClient()) {
             final RaftClientReply reply = client.io().sendReadOnly(request);
             if (reply.isSuccess()) {
                 String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);

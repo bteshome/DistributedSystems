@@ -1,11 +1,11 @@
 package com.bteshome.keyvaluestore.metadata.api;
 
 import com.bteshome.keyvaluestore.common.ConfigKeys;
+import com.bteshome.keyvaluestore.common.MetadataClientBuilder;
 import com.bteshome.keyvaluestore.common.ResponseStatus;
 import com.bteshome.keyvaluestore.common.requests.*;
 import com.bteshome.keyvaluestore.common.responses.GenericResponse;
 import com.bteshome.keyvaluestore.common.responses.StorageNodeHeartbeatResponse;
-import com.bteshome.keyvaluestore.metadata.LocalClientBuilder;
 import com.bteshome.keyvaluestore.metadata.MetadataSettings;
 import com.bteshome.keyvaluestore.metadata.UnmanagedState;
 import lombok.RequiredArgsConstructor;
@@ -57,7 +57,10 @@ public class HeartbeatReceiver {
                     threshold
             );
             StorageNodeDeactivateRequest deactivateRequest = new StorageNodeDeactivateRequest(request.getId());
-            try (RaftClient client = LocalClientBuilder.createRaftClient(metadataSettings)) {
+            try (RaftClient client = MetadataClientBuilder.createRaftClient(
+                    metadataSettings.getPeers(),
+                    metadataSettings.getGroupId(),
+                    metadataSettings.getLocalClientId())) {
                 final RaftClientReply reply = client.io().send(deactivateRequest);
                 if (reply.isSuccess()) {
                     String deactivateMessageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);

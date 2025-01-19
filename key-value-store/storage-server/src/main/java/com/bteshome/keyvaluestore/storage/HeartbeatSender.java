@@ -25,7 +25,7 @@ public class HeartbeatSender {
     StorageSettings storageSettings;
 
     @Autowired
-    ClientBuilder clientBuilder;
+    MetadataClientBuilder metadataClientBuilder;
 
     @Autowired
     MetadataRefresher metadataRefresher;

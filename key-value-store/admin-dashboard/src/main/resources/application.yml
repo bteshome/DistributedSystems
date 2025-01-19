@@ -76,6 +76,6 @@ client:
 
 info:
   app:
-    name: 'Key Value Store Admin ClientBuilder'
+    name: 'Key Value Store Admin MetadataClientBuilder'
     version: '1.0'
-    description: 'Key Value Store Admin ClientBuilder'
+    description: 'Key Value Store Admin MetadataClientBuilder'

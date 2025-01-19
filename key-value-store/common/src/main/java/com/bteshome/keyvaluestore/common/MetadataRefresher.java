@@ -20,10 +20,10 @@ public class MetadataRefresher {
     private ScheduledExecutorService executor = null;
 
     @Autowired
-    ClientSettings clientSettings;
+    MetadataClientSettings metadataClientSettings;
 
     @Autowired
-    ClientBuilder clientBuilder;
+    MetadataClientBuilder metadataClientBuilder;
 
     public void schedule() {
         try {
@@ -36,18 +36,18 @@ public class MetadataRefresher {
             });
             executor.scheduleAtFixedRate(this::fetch,
                     0L,
-                    clientSettings.getMetadataRefreshIntervalMs(),
+                    metadataClientSettings.getMetadataRefreshIntervalMs(),
                     TimeUnit.MILLISECONDS);
-            log.info("Scheduled metadata refresher. The interval is {} ms.", clientSettings.getMetadataRefreshIntervalMs());
+            log.info("Scheduled metadata refresher. The interval is {} ms.", metadataClientSettings.getMetadataRefreshIntervalMs());
         } catch (Exception e) {
             log.error("Error scheduling metadata refresher: ", e);
         }
     }
 
     public void fetch() {
-        try (RaftClient client = this.clientBuilder.createRaftClient()) {
+        try (RaftClient client = this.metadataClientBuilder.createRaftClient()) {
             MetadataRefreshRequest request = new MetadataRefreshRequest(
-                    clientSettings.getClientId(),
+                    metadataClientSettings.getClientId(),
                     MetadataCache.getInstance().getLastFetchedVersion());
             final RaftClientReply reply = client.io().sendReadOnly(request);
 

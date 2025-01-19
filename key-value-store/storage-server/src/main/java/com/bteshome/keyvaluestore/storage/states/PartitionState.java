@@ -59,6 +59,7 @@ public class PartitionState implements AutoCloseable {
 
             try {
                 offset = wal.appendLog("PUT", key, value);
+                offsetState.setLeaderTerm(MetadataCache.getInstance().getLeaderTerm(table, partition));
             } catch (Exception e) {
                 return ResponseEntity.ok(ItemPutResponse.builder()
                         .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
@@ -147,9 +148,9 @@ public class PartitionState implements AutoCloseable {
         offsetState.setEndOffset(nodeId, wal.getEndIndex());
     }
 
-    public ResponseEntity<?> getLogEntries(long afterOffset, int maxNumRecords) {
+    public ResponseEntity<?> getLogEntries(long lastFetchedEndOffset, int lastFetchedLeaderTerm, int maxNumRecords) {
         try {
-            List<String> entries = wal.readLog(afterOffset, maxNumRecords);
+            List<String> entries = wal.readLog(lastFetchedEndOffset, maxNumRecords);
             Map<String, Long> endOffsets = offsetState.getEndOffsets();
             long commitedOffset = offsetState.getCommitedOffset();
 
@@ -157,6 +158,7 @@ public class PartitionState implements AutoCloseable {
                     .httpStatusCode(HttpStatus.OK.value())
                     .entries(entries)
                     .replicaEndOffsets(endOffsets)
+                    .leaderTerm(MetadataCache.getInstance().getLeaderTerm(table, partition))
                     .commitedOffset(commitedOffset)
                     .build());
         } catch (Exception e) {

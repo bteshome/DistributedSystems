@@ -1,6 +1,6 @@
 package com.bteshome.keyvaluestore.storage;
 
-import com.bteshome.keyvaluestore.common.ClientBuilder;
+import com.bteshome.keyvaluestore.common.MetadataClientBuilder;
 import com.bteshome.keyvaluestore.common.MetadataRefresher;
 import com.bteshome.keyvaluestore.common.ResponseStatus;
 import com.bteshome.keyvaluestore.common.requests.StorageNodeJoinRequest;
@@ -23,7 +23,7 @@ import java.util.Map;
 @Slf4j
 public class Node implements CommandLineRunner {
     @Autowired
-    ClientBuilder clientBuilder;
+    MetadataClientBuilder metadataClientBuilder;
 
     @Autowired
     StorageSettings storageSettings;
@@ -44,7 +44,7 @@ public class Node implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws IOException {
-        try (RaftClient client = this.clientBuilder.createRaftClient()) {
+        try (RaftClient client = this.metadataClientBuilder.createRaftClient()) {
             StorageNodeJoinRequest request = new StorageNodeJoinRequest(
                     storageSettings.getNode().getId(),
                     storageSettings.getNode().getHost(),

@@ -10,7 +10,8 @@ public class WALFetchRequest {
     private String id;
     private String table;
     private int partition;
-    private long lastFetchedOffset;
+    private long lastFetchedEndOffset;
+    private int lastFetchedLeaderTerm;
     private int maxNumRecords;
 
     public WALFetchRequest() {}
@@ -19,12 +20,14 @@ public class WALFetchRequest {
             String nodeId,
             String table,
             int partition,
-            long lastFetchedOffset,
+            long lastFetchedEndOffset,
+            int lastFetchedLeaderTerm,
             int maxNumRecords) {
         this.id = Validator.notEmpty(nodeId);
         this.table = table;
         this.partition = partition;
-        this.lastFetchedOffset = lastFetchedOffset;
+        this.lastFetchedEndOffset = lastFetchedEndOffset;
+        this.lastFetchedLeaderTerm = lastFetchedLeaderTerm;
         this.maxNumRecords = maxNumRecords;
     }
 }

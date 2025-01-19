@@ -60,6 +60,7 @@ public class WALFetcher {
                 }
 
                 long lastFetchedOffset = store.getEndOffset(followedReplica.getTable(), followedReplica.getPartition(), store.getNodeId());
+                int lastFetchedLeaderTerm = store.getLastFetchedLeaderTerm(followedReplica.getTable(), followedReplica.getPartition(), store.getNodeId());
                 int maxNumRecords = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.STORAGE_NODE_REPLICA_FETCH_MAX_NUM_RECORDS_KEY);
 
                 WALFetchRequest request = new WALFetchRequest(
@@ -67,6 +68,7 @@ public class WALFetcher {
                         followedReplica.getTable(),
                         followedReplica.getPartition(),
                         lastFetchedOffset,
+                        lastFetchedLeaderTerm,
                         maxNumRecords
                 );
 
@@ -110,7 +112,8 @@ public class WALFetcher {
                         followedReplica.getPartition(),
                         response.getEntries(),
                         response.getReplicaEndOffsets(),
-                        response.getCommitedOffset());
+                        response.getCommitedOffset(),
+                        response.getLeaderTerm());
 
                 if (response.getEntries().isEmpty()) {
                     continue;

@@ -13,7 +13,8 @@ metadata:
   node:
     id: '3'
     #host: 0.0.0.0
-    host: 127.0.0.1
+    #host: 127.0.0.1
+    host: localhost
     port: '9313'
   peers:
     - id: ${metadata.node.id}
@@ -21,14 +22,16 @@ metadata:
       port: ${metadata.node.port}
     - id: '1'
       #host: 0.0.0.0
-      host: 127.0.0.1
+      #host: 127.0.0.1
+      host: localhost
       port: '9311'
     - id: '2'
       #host: 0.0.0.0
-      host: 127.0.0.1
+      #host: 127.0.0.1
+      host: localhost
       port: '9312'
   storage-dir: /tmp/raft-server-3
-  storage-node-heartbeat-expect-interval-ms: 2000000
+  storage-node-heartbeat-expect-interval-ms: 10000
   storage-node-heartbeat-send-interval-ms: 5000
   storage-node-heartbeat-monitor-interval-ms: 5000
   storage-node-metadata-lag-threshold: 10

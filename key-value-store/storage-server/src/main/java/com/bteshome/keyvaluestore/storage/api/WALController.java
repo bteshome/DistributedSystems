@@ -54,7 +54,8 @@ public class WALController {
         return state.fetch(
                 request.getTable(),
                 request.getPartition(),
-                request.getLastFetchedOffset(),
+                request.getLastFetchedEndOffset(),
+                request.getLastFetchedLeaderTerm(),
                 request.getMaxNumRecords(),
                 request.getId());
     }

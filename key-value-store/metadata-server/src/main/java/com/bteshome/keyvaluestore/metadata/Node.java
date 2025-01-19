@@ -1,5 +1,6 @@
 package com.bteshome.keyvaluestore.metadata;
 
+import com.bteshome.keyvaluestore.common.MetadataClientSettings;
 import com.bteshome.keyvaluestore.common.Utils;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +28,7 @@ public class Node implements CommandLineRunner {
     @Autowired
     MetadataSettings metadataSettings;
 
-    private RaftPeer buildPeer(MetadataSettings.NodeInfo nodeInfo) {
+    private RaftPeer buildPeer(MetadataClientSettings.PeerInfo nodeInfo) {
         return RaftPeer.newBuilder()
                 .setId(RaftPeerId.valueOf(nodeInfo.getId()))
                 .setAddress(nodeInfo.getHost() + ":" + nodeInfo.getPort())

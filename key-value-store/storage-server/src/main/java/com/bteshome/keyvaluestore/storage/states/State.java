@@ -191,7 +191,7 @@ public class State {
                 .build());
     }
 
-    public ResponseEntity<?> fetch(String table, int partition, long lastFetchedUptoOffset, int maxNumRecords, String replicaId) {
+    public ResponseEntity<?> fetch(String table, int partition, long lastFetchedEndOffset, int lastFetchedLeaderTerm, int maxNumRecords, String replicaId) {
         if (!nodeId.equals(MetadataCache.getInstance().getLeaderNodeId(table, partition))) {
             String errorMessage = "Not the leader for table '%s' partition '%s'.".formatted(table, partition);
             return ResponseEntity.ok(WALFetchResponse.builder()
@@ -211,9 +211,9 @@ public class State {
             partitionState = partitionStates.get(table).get(partition);
         }
 
-        partitionState.getOffsetState().setEndOffset(replicaId, lastFetchedUptoOffset);
+        partitionState.getOffsetState().setEndOffset(replicaId, lastFetchedEndOffset);
 
-        return partitionState.getLogEntries(lastFetchedUptoOffset, maxNumRecords);
+        return partitionState.getLogEntries(lastFetchedEndOffset, lastFetchedLeaderTerm, maxNumRecords);
     }
 
     public void appendLogEntries(
@@ -221,12 +221,14 @@ public class State {
             int partition,
             List<String> logEntries,
             Map<String, Long> endOffsets,
-            long commitedOffset) {
+            long commitedOffset,
+            int leaderTerm) {
         Map<Integer, PartitionState> tableState = ensureTableStateExists(table);
         PartitionState partitionState = ensurePartitionStateExists(tableState, table, partition);
         partitionState.appendLogEntries(logEntries);
         partitionState.getOffsetState().setEndOffsets(endOffsets);
         partitionState.getOffsetState().setCommitedOffset(commitedOffset);
+        partitionState.getOffsetState().setLeaderTerm(leaderTerm);
     }
 
     public void applyLogEntries(String table, int partition, List<String> entries) {
@@ -279,19 +281,19 @@ public class State {
         return partitionState.getOffsetState().getEndOffset(replica);
     }
 
-    public long getCommitedOffset(String table, int partition) {
+    public int getLastFetchedLeaderTerm(String table, int partition, String replica) {
         PartitionState partitionState;
 
         try (AutoCloseableLock l = readLock()) {
             if (!partitionStates.containsKey(table)) {
-                return 0L;
+                return 0;
             }
             if (!partitionStates.get(table).containsKey(partition)) {
-                return 0L;
+                return 0;
             }
             partitionState = partitionStates.get(table).get(partition);
         }
 
-        return partitionState.getOffsetState().getCommitedOffset();
+        return partitionState.getOffsetState().getLastFetchedLeaderTerm();
     }
 }

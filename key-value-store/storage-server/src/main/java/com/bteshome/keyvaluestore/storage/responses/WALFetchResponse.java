@@ -16,4 +16,5 @@ public class WALFetchResponse {
     private List<String> entries;
     private Map<String, Long> replicaEndOffsets;
     private long commitedOffset;
+    private int leaderTerm;
 }

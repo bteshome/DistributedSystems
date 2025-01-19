@@ -1,7 +1,7 @@
 package com.bteshome.keyvaluestore.admindashboard.service;
 
 import com.bteshome.keyvaluestore.admindashboard.common.AdminDashboardException;
-import com.bteshome.keyvaluestore.common.ClientBuilder;
+import com.bteshome.keyvaluestore.common.MetadataClientBuilder;
 import com.bteshome.keyvaluestore.common.JavaSerDe;
 import com.bteshome.keyvaluestore.common.ResponseStatus;
 import com.bteshome.keyvaluestore.common.entities.StorageNode;
@@ -24,10 +24,10 @@ import java.util.List;
 @Service
 public class NodeService {
     @Autowired
-    ClientBuilder clientBuilder;
+    MetadataClientBuilder metadataClientBuilder;
 
     public StorageNode getNode(StorageNodeGetRequest request) {
-        try (RaftClient client = this.clientBuilder.createRaftClient()) {
+        try (RaftClient client = this.metadataClientBuilder.createRaftClient()) {
             final RaftClientReply reply = client.io().sendReadOnly(request);
             if (reply.isSuccess()) {
                 String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);
@@ -49,7 +49,7 @@ public class NodeService {
     }
 
     public List<StorageNode> list(StorageNodeListRequest request) {
-        try (RaftClient client = this.clientBuilder.createRaftClient()) {
+        try (RaftClient client = this.metadataClientBuilder.createRaftClient()) {
             final RaftClientReply reply = client.io().sendReadOnly(request);
             if (reply.isSuccess()) {
                 String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);

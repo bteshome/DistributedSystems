@@ -21,15 +21,15 @@ import org.apache.ratis.statemachine.impl.SimpleStateMachineStorage;
 import org.apache.ratis.statemachine.impl.SingleFileSnapshotInfo;
 import org.apache.ratis.util.*;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.web.client.RestClient;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class MetadataStateMachine extends BaseStateMachine {
@@ -247,6 +247,40 @@ public class MetadataStateMachine extends BaseStateMachine {
                     PartitionLeaderElector.elect(table, state.get(EntityType.STORAGE_NODE));
                     state.get(EntityType.TABLE).put(request.getTableName(), table);
                     incrementVersion(entry);
+                }
+
+                if (trx.getServerRole().equals(RaftProtos.RaftPeerRole.LEADER)) {
+                    var replicaEndpoints = state.get(EntityType.STORAGE_NODE)
+                            .values()
+                            .stream()
+                            .map(StorageNode.class::cast)
+                            .filter(node -> node.hasReplicasFor(table.getName()))
+                            .map(node -> "%s:%s".formatted(node.getHost(), node.getPort()));
+
+                    List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+                    replicaEndpoints.forEach(endpoint -> {
+                        futures.add(CompletableFuture.runAsync(() -> {
+                            try {
+                                Long response = RestClient.builder()
+                                        .build()
+                                        .post()
+                                        .uri("http://%s/api/metadata/notify-fetch/".formatted(endpoint))
+                                        .retrieve()
+                                        .toEntity(Long.class)
+                                        .getBody();
+                                if (response < UnmanagedState.getInstance().getVersion()) {
+                                    log.error("Error notifying replica endpoint '{}' to fetch the latest metadata. The replica is still at an older version '{}' after responding.", endpoint, response);
+                                }
+                            } catch (Exception e) {
+                                log.error("Error notifying replicas to fetch latest metadata.", e);
+                            }
+                        }));
+                    });
+
+                    CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+                    log.info("Notifying replicas to fetch the latest metadata succeeded. Table = '{}'.", request.getTableName());
                 }
 
                 log.info("{} succeeded. Table = '{}'.", RequestType.TABLE_CREATE, request.getTableName());

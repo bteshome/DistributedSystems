@@ -20,20 +20,24 @@ public class OffsetState {
     private final int partition;
     private final String nodeId;
     private final Map<String, Long> endOffsets;
-    private long commitedOffset = 0L;
+    private int lastFetchedLeaderTerm;
+    private long commitedOffset;
     private final ReentrantReadWriteLock lock;
     private final String endOffsetsFile;
     private final String commitedOffsetFile;
+    private final String leaderTermFile;
 
     public OffsetState(String table, int partition, StorageSettings storageSettings) {
         this.table = table;
         this.partition = partition;
         this.nodeId = storageSettings.getNode().getId();
         endOffsets = new ConcurrentHashMap<>();
+        lastFetchedLeaderTerm = 0;
         commitedOffset = 0L;
         lock = new ReentrantReadWriteLock(true);
         endOffsetsFile = "%s/%s-%s/endOffsets.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
         commitedOffsetFile = "%s/%s-%s/commitedOffset.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
+        leaderTermFile = "%s/%s-%s/leaderTerm.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
     }
 
     private AutoCloseableLock readLock() {
@@ -90,6 +94,16 @@ public class OffsetState {
         }
     }
 
+    private BufferedWriter createLeaderTermWriter() {
+        try {
+            return new BufferedWriter(new FileWriter(leaderTermFile, false));
+        } catch (IOException e) {
+            String errorMessage = "Error creating leader term writer for table '%s' partition '%s'.".formatted(table, partition);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }
+
     public Collection<Long> getEndOffsetValues() {
         try (AutoCloseableLock l = readLock()) {
             return endOffsets.values();
@@ -99,6 +113,12 @@ public class OffsetState {
     public long getEndOffset(String replica) {
         try (AutoCloseableLock l = readLock()) {
             return endOffsets.getOrDefault(replica, 0L);
+        }
+    }
+
+    public int getLastFetchedLeaderTerm() {
+        try (AutoCloseableLock l = readLock()) {
+            return lastFetchedLeaderTerm;
         }
     }
 
@@ -117,6 +137,18 @@ public class OffsetState {
             writer.write(Long.toString(offset));
         } catch (IOException e) {
             String errorMessage = "Error writing commited offset for table '%s' partition '%s'.".formatted(table, partition);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }
+
+    public void setLeaderTerm(int leaderTerm) {
+        BufferedWriter writer = createLeaderTermWriter();
+        try (writer; AutoCloseableLock l = writeLock()) {
+            this.lastFetchedLeaderTerm = leaderTerm;
+            writer.write(Long.toString(leaderTerm));
+        } catch (IOException e) {
+            String errorMessage = "Error writing leader term for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
         }

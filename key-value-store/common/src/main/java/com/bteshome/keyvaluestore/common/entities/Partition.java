@@ -18,6 +18,7 @@ public class Partition implements Serializable {
     private int id;
     private String tableName;
     private String leader;
+    private int leaderTerm;
     private List<String> replicas;
     private List<String> inSyncReplicas;
     @Serial

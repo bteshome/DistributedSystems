@@ -1,5 +1,6 @@
 package com.bteshome.keyvaluestore.metadata;
 
+import com.bteshome.keyvaluestore.common.MetadataClientSettings;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -20,10 +21,10 @@ import java.util.UUID;
 public class MetadataSettings {
     private UUID groupId;
     private String storageDir;
-    private NodeInfo node;
+    private MetadataClientSettings.PeerInfo node;
     @Value("${server.port}")
     private int restPort;
-    private List<NodeInfo> peers;
+    private List<MetadataClientSettings.PeerInfo> peers;
     private int numPartitionsMax;
     private int numPartitionsDefault;
     private int replicationFactorDefault;
@@ -41,14 +42,4 @@ public class MetadataSettings {
     private long writeTimeoutMs;
     private long walFetchIntervalMs;
     private UUID localClientId;
-
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class NodeInfo {
-        private String id;
-        private String host;
-        private int port;
-    }
 }

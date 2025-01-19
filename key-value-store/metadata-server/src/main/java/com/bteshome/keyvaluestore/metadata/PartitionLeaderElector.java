@@ -63,6 +63,7 @@ public class PartitionLeaderElector {
         }
 
         partition.setLeader(priorityQueue.peek().getId());
+        partition.setLeaderTerm(partition.getLeaderTerm() + 1);
         StorageNode electedStorageNode = (StorageNode)storageNodes.get(priorityQueue.peek().getId());
         electedStorageNode.getReplicaAssignmentSet().stream()
                 .filter(assignment ->
@@ -72,9 +73,10 @@ public class PartitionLeaderElector {
                 .get()
                 .setRole(ReplicaRole.LEADER);
 
-        log.info("Storage node '{}' elected as leader for table '{}' partition '{}'.",
+        log.info("Storage node '{}' elected as leader for table '{}' partition '{}' in term '{}'.",
                 partition.getLeader(),
                 partition.getTableName(),
-                partition.getId());
+                partition.getId(),
+                partition.getLeaderTerm());
     }
 }

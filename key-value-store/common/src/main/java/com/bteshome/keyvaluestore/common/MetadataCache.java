@@ -80,6 +80,13 @@ public class MetadataCache {
         }
     }
 
+    public int getLeaderTerm(String tableName, int partition) {
+        try (AutoCloseableLock l = readLock()) {
+            Table table = (Table)state.get(EntityType.TABLE).get(tableName);
+            return table.getPartitions().get(partition).getLeaderTerm();
+        }
+    }
+
     public List<String> getReplicaNodeIds(String tableName, int partition) {
         try (AutoCloseableLock l = readLock()) {
             Table table = (Table)state.get(EntityType.TABLE).get(tableName);

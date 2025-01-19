@@ -1,6 +1,7 @@
 package com.bteshome.keyvaluestore.metadata;
 
 import com.bteshome.keyvaluestore.common.ConfigKeys;
+import com.bteshome.keyvaluestore.common.MetadataClientBuilder;
 import com.bteshome.keyvaluestore.common.ResponseStatus;
 import com.bteshome.keyvaluestore.common.entities.StorageNodeStatus;
 import com.bteshome.keyvaluestore.common.requests.StorageNodeActivateRequest;
@@ -50,7 +51,10 @@ public class StorageNodeHeartbeatMonitor {
 
     private void activate(String nodeId) {
         StorageNodeActivateRequest request = new StorageNodeActivateRequest(nodeId);
-        try (RaftClient client = LocalClientBuilder.createRaftClient(metadataSettings)) {
+        try (RaftClient client = MetadataClientBuilder.createRaftClient(
+                metadataSettings.getPeers(),
+                metadataSettings.getGroupId(),
+                metadataSettings.getLocalClientId())) {
             final RaftClientReply reply = client.io().send(request);
             if (reply.isSuccess()) {
                 String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);
@@ -68,7 +72,10 @@ public class StorageNodeHeartbeatMonitor {
 
     private void deactivate(String nodeId) {
         StorageNodeDeactivateRequest request = new StorageNodeDeactivateRequest(nodeId);
-        try (RaftClient client = LocalClientBuilder.createRaftClient(metadataSettings)) {
+        try (RaftClient client = MetadataClientBuilder.createRaftClient(
+                metadataSettings.getPeers(),
+                metadataSettings.getGroupId(),
+                metadataSettings.getLocalClientId())) {
             final RaftClientReply reply = client.io().send(request);
             if (reply.isSuccess()) {
                 String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);
