@@ -36,7 +36,8 @@ public class MetadataSettings {
     private long storageNodeReplicaMonitorIntervalMs;
     private long storageNodeReplicaLagThreshold;
     private long storageNodeReplicaFetchIntervalMs;
-    private int storageNodeRingNumVirtualNodes;
+    private int storageNodeReplicaFetchMaxNumRecords;
+    private int ringNumVirtualPartitions;
     private long writeTimeoutMs;
     private long walFetchIntervalMs;
     private UUID localClientId;

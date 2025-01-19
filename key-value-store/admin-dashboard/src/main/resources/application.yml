@@ -71,7 +71,7 @@ client:
       #host: 127.0.0.1
       host: localhost
       port: '9313'
-  metadata-refresh-interval-ms: 10000
+  metadata-refresh-interval-ms: 5000
   storage-node-endpoints: localhost:9407,localhost:9607,localhost:9807
 
 info:

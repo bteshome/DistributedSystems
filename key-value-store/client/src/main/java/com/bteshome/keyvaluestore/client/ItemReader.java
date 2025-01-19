@@ -1,13 +1,11 @@
 package com.bteshome.keyvaluestore.client;
 
-import com.bteshome.keyvaluestore.client.requests.ItemCountRequest;
+import com.bteshome.keyvaluestore.client.requests.ItemCountAndOffsetsRequest;
 import com.bteshome.keyvaluestore.client.requests.ItemGetRequest;
 import com.bteshome.keyvaluestore.client.requests.ItemListRequest;
-import com.bteshome.keyvaluestore.client.responses.ItemCountResponse;
+import com.bteshome.keyvaluestore.client.responses.ItemCountAndOffsetsResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemGetResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemListResponse;
-import com.bteshome.keyvaluestore.common.MetadataCache;
-import com.bteshome.keyvaluestore.common.MetadataRefresher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,9 +22,6 @@ import java.util.Map;
 public class ItemReader {
     @Value("${client.storage-node-endpoints}")
     private String endpoints;
-
-    @Autowired
-    MetadataRefresher metadataRefresher;
 
     @Autowired
     KeyToPartitionMapper keyToPartitionMapper;
@@ -59,20 +54,19 @@ public class ItemReader {
                 .toEntity(ItemGetResponse.class)
                 .getBody();
 
-        if (response.getHttpStatus() == HttpStatus.MOVED_PERMANENTLY.value()) {
-            metadataRefresher.fetch();
+        if (response.getHttpStatusCode() == HttpStatus.MOVED_PERMANENTLY.value()) {
             return get(response.getLeaderEndpoint(), request);
         }
 
-        if (response.getHttpStatus() == HttpStatus.NOT_FOUND.value()) {
+        if (response.getHttpStatusCode() == HttpStatus.NOT_FOUND.value()) {
             return null;
         }
 
-        if (response.getHttpStatus() == HttpStatus.OK.value()) {
+        if (response.getHttpStatusCode() == HttpStatus.OK.value()) {
             return response.getValue();
         }
 
-        throw new RuntimeException("Unable to read from endpoint '%s'. Http status: %s, error: %s.".formatted(endpoint, response.getHttpStatus(), response.getErrorMessage()));
+        throw new RuntimeException("Unable to read from endpoint '%s'. Http status: %s, error: %s.".formatted(endpoint, response.getHttpStatusCode(), response.getErrorMessage()));
     }
 
     public List<Map.Entry<String, String>> list(ItemListRequest request) {
@@ -100,27 +94,26 @@ public class ItemReader {
                 .toEntity(ItemListResponse.class)
                 .getBody();
 
-        if (response.getHttpStatus() == HttpStatus.MOVED_PERMANENTLY.value()) {
-            metadataRefresher.fetch();
+        if (response.getHttpStatusCode() == HttpStatus.MOVED_PERMANENTLY.value()) {
             return list(response.getLeaderEndpoint(), request);
         }
 
-        if (response.getHttpStatus() == HttpStatus.NOT_FOUND.value()) {
+        if (response.getHttpStatusCode() == HttpStatus.NOT_FOUND.value()) {
             return List.of();
         }
 
-        if (response.getHttpStatus() == HttpStatus.OK.value()) {
+        if (response.getHttpStatusCode() == HttpStatus.OK.value()) {
             return response.getItems();
         }
 
-        throw new RuntimeException("Unable to read from endpoint '%s'. Http status: %s, error: %s.".formatted(endpoint, response.getHttpStatus(), response.getErrorMessage()));
+        throw new RuntimeException("Unable to read from endpoint '%s'. Http status: %s, error: %s.".formatted(endpoint, response.getHttpStatusCode(), response.getErrorMessage()));
     }
 
-    public int count(ItemCountRequest request) {
+    public ItemCountAndOffsetsResponse getCountAndOffsets(ItemCountAndOffsetsRequest request) {
         request.setTable(Validator.notEmpty(request.getTable(), "Table name"));
         for (String endpoint : endpoints.split(",")) {
             try {
-                return count(endpoint, request);
+                return getCountAndOffsets(endpoint, request);
             } catch (Exception e) {
                 log.trace(e.getMessage());
             }
@@ -128,30 +121,29 @@ public class ItemReader {
         throw new RuntimeException("Unable to read from any endpoint.");
     }
 
-    private int count(String endpoint, ItemCountRequest request) {
-        ItemCountResponse response = RestClient.builder()
+    private ItemCountAndOffsetsResponse getCountAndOffsets(String endpoint, ItemCountAndOffsetsRequest request) {
+        ItemCountAndOffsetsResponse response = RestClient.builder()
                 .build()
                 .post()
-                .uri("http://%s/api/items/count/".formatted(endpoint))
+                .uri("http://%s/api/items/count-and-offsets/".formatted(endpoint))
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
-                .toEntity(ItemCountResponse.class)
+                .toEntity(ItemCountAndOffsetsResponse.class)
                 .getBody();
 
-        if (response.getHttpStatus() == HttpStatus.MOVED_PERMANENTLY.value()) {
-            metadataRefresher.fetch();
-            return count(response.getLeaderEndpoint(), request);
+        if (response.getHttpStatusCode() == HttpStatus.MOVED_PERMANENTLY.value()) {
+            return getCountAndOffsets(response.getLeaderEndpoint(), request);
         }
 
-        if (response.getHttpStatus() == HttpStatus.NOT_FOUND.value()) {
-            return 0;
+        if (response.getHttpStatusCode() == HttpStatus.NOT_FOUND.value()) {
+            return null;
         }
 
-        if (response.getHttpStatus() == HttpStatus.OK.value()) {
-            return response.getCount();
+        if (response.getHttpStatusCode() == HttpStatus.OK.value()) {
+            return response;
         }
 
-        throw new RuntimeException("Unable to read from endpoint '%s'. Http status: %s, error: %s.".formatted(endpoint, response.getHttpStatus(), response.getErrorMessage()));
+        throw new RuntimeException("Unable to read from endpoint '%s'. Http status: %s, error: %s.".formatted(endpoint, response.getHttpStatusCode(), response.getErrorMessage()));
     }
 }

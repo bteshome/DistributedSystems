@@ -9,7 +9,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class ItemCountRequest {
+public class ItemCountAndOffsetsRequest {
     private String table;
     private int partition;
 }

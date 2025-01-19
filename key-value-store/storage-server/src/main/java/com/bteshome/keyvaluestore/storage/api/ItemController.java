@@ -1,10 +1,10 @@
 package com.bteshome.keyvaluestore.storage.api;
 
-import com.bteshome.keyvaluestore.client.requests.ItemCountRequest;
+import com.bteshome.keyvaluestore.client.requests.ItemCountAndOffsetsRequest;
 import com.bteshome.keyvaluestore.client.requests.ItemGetRequest;
 import com.bteshome.keyvaluestore.client.requests.ItemListRequest;
 import com.bteshome.keyvaluestore.client.requests.ItemPutRequest;
-import com.bteshome.keyvaluestore.client.responses.ItemCountResponse;
+import com.bteshome.keyvaluestore.client.responses.ItemCountAndOffsetsResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemGetResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemListResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
@@ -31,14 +31,14 @@ public class ItemController {
         if (!state.getLastHeartbeatSucceeded()) {
             String errorMessage = "Node '%s' is not active.".formatted(state.getNodeId());
             return ResponseEntity.ok(ItemGetResponse.builder()
-                    .httpStatus(HttpStatus.SERVICE_UNAVAILABLE.value())
+                    .httpStatusCode(HttpStatus.SERVICE_UNAVAILABLE.value())
                     .errorMessage(errorMessage)
                     .build());
         }
 
         if (!MetadataCache.getInstance().tableExists(request.getTable())) {
             return ResponseEntity.ok(ItemGetResponse.builder()
-                    .httpStatus(HttpStatus.NOT_FOUND.value())
+                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
                     .errorMessage("Table '%s' does not exist.".formatted(request.getTable()))
                     .build());
         }
@@ -51,14 +51,14 @@ public class ItemController {
         if (!state.getLastHeartbeatSucceeded()) {
             String errorMessage = "Node '%s' is not active.".formatted(state.getNodeId());
             return ResponseEntity.ok(ItemListResponse.builder()
-                    .httpStatus(HttpStatus.SERVICE_UNAVAILABLE.value())
+                    .httpStatusCode(HttpStatus.SERVICE_UNAVAILABLE.value())
                     .errorMessage(errorMessage)
                     .build());
         }
 
         if (!MetadataCache.getInstance().tableExists(request.getTable())) {
             return ResponseEntity.ok(ItemListResponse.builder()
-                    .httpStatus(HttpStatus.NOT_FOUND.value())
+                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
                     .errorMessage("Table '%s' does not exist.".formatted(request.getTable()))
                     .build());
         }
@@ -71,7 +71,7 @@ public class ItemController {
         if (!state.getLastHeartbeatSucceeded()) {
             String errorMessage = "Node '%s' is not active.".formatted(state.getNodeId());
             return ResponseEntity.ok(ItemPutResponse.builder()
-                    .httpStatus(HttpStatus.SERVICE_UNAVAILABLE.value())
+                    .httpStatusCode(HttpStatus.SERVICE_UNAVAILABLE.value())
                     .errorMessage(errorMessage)
                     .build());
         }
@@ -79,7 +79,7 @@ public class ItemController {
         if (!MetadataCache.getInstance().tableExists(request.getTable())) {
             String errorMessage = "Table '%s' does not exist.".formatted(request.getTable());
             return ResponseEntity.ok(ItemPutResponse.builder()
-                    .httpStatus(HttpStatus.NOT_FOUND.value())
+                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
                     .errorMessage(errorMessage)
                     .build());
         }
@@ -87,19 +87,19 @@ public class ItemController {
         return state.putItem(request.getTable(), request.getPartition(), request.getKey(), request.getValue());
     }
 
-    @PostMapping("/count/")
-    public ResponseEntity<ItemCountResponse> countItems(@RequestBody ItemCountRequest request) {
+    @PostMapping("/count-and-offsets/")
+    public ResponseEntity<ItemCountAndOffsetsResponse> countItems(@RequestBody ItemCountAndOffsetsRequest request) {
         if (!state.getLastHeartbeatSucceeded()) {
             String errorMessage = "Node '%s' is not active.".formatted(state.getNodeId());
-            return ResponseEntity.ok(ItemCountResponse.builder()
-                    .httpStatus(HttpStatus.SERVICE_UNAVAILABLE.value())
+            return ResponseEntity.ok(ItemCountAndOffsetsResponse.builder()
+                    .httpStatusCode(HttpStatus.SERVICE_UNAVAILABLE.value())
                     .errorMessage(errorMessage)
                     .build());
         }
 
         if (!MetadataCache.getInstance().tableExists(request.getTable())) {
-            return ResponseEntity.ok(ItemCountResponse.builder()
-                    .httpStatus(HttpStatus.NOT_FOUND.value())
+            return ResponseEntity.ok(ItemCountAndOffsetsResponse.builder()
+                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
                     .errorMessage("Table '%s' does not exist.".formatted(request.getTable()))
                     .build());
         }

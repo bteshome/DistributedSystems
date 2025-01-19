@@ -21,7 +21,7 @@ public class ClientSettings {
     private UUID clientId;
     private UUID groupId;
     private List<PeerInfo> peers;
-    private long metadataRefreshIntervalMs = 5000;
+    private long metadataRefreshIntervalMs = 60000;
 
     @Getter
     @Setter

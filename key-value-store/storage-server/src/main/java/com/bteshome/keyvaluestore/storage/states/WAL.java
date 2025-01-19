@@ -109,13 +109,13 @@ public class WAL implements AutoCloseable {
         }
     }
 
-    public List<String> readLog(long afterIndex) {
+    public List<String> readLog(long afterIndex, int limit) {
         try (AutoCloseableLock l = readLock();
              BufferedReader reader = new BufferedReader(new FileReader(logFile));) {
             String line;
             List<String> lines = new ArrayList<>();
 
-            while ((line = reader.readLine()) != null) {
+            while (lines.size() < limit && (line = reader.readLine()) != null) {
                 String[] parts = line.split(" ");
                 long index = Long.parseLong(parts[0]);
                 if (index > afterIndex) {

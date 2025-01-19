@@ -11,7 +11,7 @@ import java.util.Map;
 @AllArgsConstructor
 @Builder
 public class ItemListResponse {
-    private int httpStatus;
+    private int httpStatusCode;
     private String errorMessage;
     private String leaderEndpoint;
     private List<Map.Entry<String, String>> items;

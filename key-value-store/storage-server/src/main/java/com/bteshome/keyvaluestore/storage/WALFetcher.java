@@ -3,7 +3,6 @@ package com.bteshome.keyvaluestore.storage;
 import com.bteshome.keyvaluestore.common.ConfigKeys;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.entities.Replica;
-import com.bteshome.keyvaluestore.storage.requests.WALAcknowledgeRequest;
 import com.bteshome.keyvaluestore.storage.requests.WALFetchRequest;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
 import com.bteshome.keyvaluestore.storage.states.State;
@@ -12,7 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -54,7 +52,6 @@ public class WALFetcher {
 
         for (Replica followedReplica : followedReplicas) {
             try {
-                long lastFetchedOffset = store.getEndOffset(followedReplica.getTable(), followedReplica.getPartition(), store.getNodeId());
                 String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(followedReplica.getTable(), followedReplica.getPartition());
 
                 if (leaderEndpoint == null) {
@@ -62,11 +59,15 @@ public class WALFetcher {
                     continue;
                 }
 
+                long lastFetchedOffset = store.getEndOffset(followedReplica.getTable(), followedReplica.getPartition(), store.getNodeId());
+                int maxNumRecords = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.STORAGE_NODE_REPLICA_FETCH_MAX_NUM_RECORDS_KEY);
+
                 WALFetchRequest request = new WALFetchRequest(
                         store.getNodeId(),
                         followedReplica.getTable(),
                         followedReplica.getPartition(),
-                        lastFetchedOffset
+                        lastFetchedOffset,
+                        maxNumRecords
                 );
 
                 WALFetchResponse response = RestClient.builder()
@@ -79,16 +80,20 @@ public class WALFetcher {
                         .toEntity(WALFetchResponse.class)
                         .getBody();
 
-                if (response.getHttpStatus() == HttpStatus.INTERNAL_SERVER_ERROR) {
-                    log.error("Error fetching WAL for table '{}' partition '{}'. Http status: {}, error: {}.",
-                            followedReplica.getTable(),
-                            followedReplica.getPartition(),
-                            response.getHttpStatus(),
-                            response.getErrorMessage());
+                if (response == null) {
+                    log.error("Error fetching WAL for table '{}' partition '{}'. Response is null.", followedReplica.getTable(), followedReplica.getPartition());
                     continue;
                 }
 
-                if (response.getHttpStatus() != HttpStatus.OK) {
+                if (response.getHttpStatusCode() == HttpStatus.INTERNAL_SERVER_ERROR.value() || response.getHttpStatusCode() == HttpStatus.BAD_REQUEST.value()) {
+                    log.error("Error fetching WAL for table '{}' partition '{}'. Http status: {}, error: {}.",
+                            followedReplica.getTable(),
+                            followedReplica.getPartition(),
+                            response.getHttpStatusCode(),
+                            response.getErrorMessage());
+                }
+
+                if (response.getHttpStatusCode() != HttpStatus.OK.value()) {
                     continue;
                 }
 
@@ -111,39 +116,10 @@ public class WALFetcher {
                     continue;
                 }
 
-                long endOffset = store.getEndOffset(request.getTable(), request.getPartition(), store.getNodeId());
-                acknowledgeFetch(request.getTable(), request.getPartition(), endOffset, leaderEndpoint);
                 store.applyLogEntries(request.getTable(), request.getPartition(), response.getEntries());
             } catch (Exception e) {
                 log.error("Error fetching WAL for table '{}' partition '{}'.", followedReplica.getTable(), followedReplica.getPartition(), e);
             }
-        }
-    }
-
-    private void acknowledgeFetch(String table, int partition, long endOffset, String leaderEndpoint) {
-        WALAcknowledgeRequest request = new WALAcknowledgeRequest(
-                store.getNodeId(),
-                table,
-                partition,
-                endOffset);
-
-        ResponseEntity<String> response = RestClient.builder()
-                .build()
-                .post()
-                .uri("http://%s/api/wal/acknowledge/".formatted(leaderEndpoint))
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(request)
-                .retrieve()
-                .toEntity(String.class);
-
-        if (response.getStatusCode().value() != HttpStatus.OK.value()) {
-            log.error("Error acknowledging WAL fetch for table '{}' partition '{}'. Http status: {}, error: {}.",
-                    table,
-                    partition,
-                    response.getStatusCode().value(),
-                    response.getBody());
-        } else {
-            log.debug("Acknowledged WAL fetch for table '{}' partition '{}'.", table, partition);
         }
     }
 }

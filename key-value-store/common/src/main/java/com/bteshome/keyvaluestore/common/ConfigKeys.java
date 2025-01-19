@@ -13,7 +13,8 @@ public class ConfigKeys {
     public static final String STORAGE_NODE_REPLICA_MONITOR_INTERVAL_MS_KEY = "storage-node-replica-monitor-interval-ms";
     public static final String STORAGE_NODE_REPLICA_LAG_THRESHOLD_KEY = "storage-node-replica-lag-threshold";
     public static final String STORAGE_NODE_REPLICA_FETCH_INTERVAL_MS_KEY = "storage-node-replica-fetch-interval-ms";
-    public static final String STORAGE_NODE_RING_NUM_VIRTUAL_PARTITIONS_KEY = "storage-node-ring-num-virtual-partitions";
+    public static final String STORAGE_NODE_REPLICA_FETCH_MAX_NUM_RECORDS_KEY = "storage-node-replica-fetch-max-num-records";
+    public static final String RING_NUM_VIRTUAL_PARTITIONS_KEY = "ring-num-virtual-partitions";
     public static final String WRITE_TIMEOUT_MS_KEY = "write-timeout-ms";
     public static final String WAL_FETCH_INTERVAL_MS_KEY = "wal-fetch-interval-ms";
 }

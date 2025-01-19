@@ -1,8 +1,8 @@
 package com.bteshome.keyvaluestore.storage.api;
 
+import com.bteshome.keyvaluestore.common.ConfigKeys;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.storage.states.State;
-import com.bteshome.keyvaluestore.storage.requests.WALAcknowledgeRequest;
 import com.bteshome.keyvaluestore.storage.requests.WALFetchRequest;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
 import lombok.RequiredArgsConstructor;
@@ -29,7 +29,7 @@ public class WALController {
             String errorMessage = "Node '%s' is not active.".formatted(state.getNodeId());
             log.warn("{} from replica '{}' failed. {}", "WAL_FETCH", request.getId(), errorMessage);
             return ResponseEntity.ok(WALFetchResponse.builder()
-                    .httpStatus(HttpStatus.SERVICE_UNAVAILABLE)
+                    .httpStatusCode(HttpStatus.SERVICE_UNAVAILABLE.value())
                     .errorMessage(errorMessage)
                     .build());
         }
@@ -37,27 +37,25 @@ public class WALController {
         if (!MetadataCache.getInstance().tableExists(request.getTable())) {
             String errorMessage = "Table '%s' does not exist.".formatted(request.getTable());
             return ResponseEntity.ok(WALFetchResponse.builder()
-                    .httpStatus(HttpStatus.NOT_FOUND)
+                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
                     .errorMessage(errorMessage)
                     .build());
         }
 
-        return state.fetch(request.getTable(), request.getPartition(), request.getLastFetchedOffset());
-    }
-
-    @PostMapping("/acknowledge/")
-    public ResponseEntity<?> acknowledge(@RequestBody WALAcknowledgeRequest request) {
-        if (!state.getLastHeartbeatSucceeded()) {
-            String errorMessage = "Node '%s' is not active.".formatted(state.getNodeId());
-            log.warn("{} from replica '{}' failed. {}", "WAL_ACKNOWLEDGE", request.getId(), errorMessage);
-            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(errorMessage);
+        int maxNumRecordsAllowed = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.STORAGE_NODE_REPLICA_FETCH_MAX_NUM_RECORDS_KEY);
+        if (request.getMaxNumRecords() > maxNumRecordsAllowed) {
+            String errorMessage = "Max number of records allowed is %d.".formatted(maxNumRecordsAllowed);
+            return ResponseEntity.ok(WALFetchResponse.builder()
+                    .httpStatusCode(HttpStatus.BAD_REQUEST.value())
+                    .errorMessage(errorMessage)
+                    .build());
         }
 
-        if (!MetadataCache.getInstance().tableExists(request.getTable())) {
-            String errorMessage = "Table '%s' does not exist.".formatted(request.getTable());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorMessage);
-        }
-
-        return state.acknowledgeFetch(request.getTable(), request.getPartition(), request.getEndOffset(), request.getId());
+        return state.fetch(
+                request.getTable(),
+                request.getPartition(),
+                request.getLastFetchedOffset(),
+                request.getMaxNumRecords(),
+                request.getId());
     }
 }

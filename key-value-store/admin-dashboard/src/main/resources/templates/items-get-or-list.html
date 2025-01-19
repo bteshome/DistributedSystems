@@ -33,8 +33,8 @@
 
             <form class="row g-3" method="post" th:action="@{/items/}" th:object="${request}">
                 <div class="col-md-3">
-                    <label for="list-table" class="form-label">Table name</label>
-                    <input type="text" class="form-control form-control-sm" id="list-table" th:field="*{table}">
+                    <label for="table" class="form-label">Table name</label>
+                    <input type="text" class="form-control form-control-sm" id="table" th:field="*{table}">
                 </div>
                 <div class="col-md-3">
                     <label for="key" class="form-label">Key</label>

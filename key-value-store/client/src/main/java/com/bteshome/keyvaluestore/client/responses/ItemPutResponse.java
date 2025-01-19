@@ -8,7 +8,7 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class ItemPutResponse {
-    private int httpStatus;
+    private int httpStatusCode;
     private String errorMessage;
     private String leaderEndpoint;
 }

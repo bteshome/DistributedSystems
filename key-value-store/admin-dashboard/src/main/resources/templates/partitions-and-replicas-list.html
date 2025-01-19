@@ -20,7 +20,7 @@
 
         <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
             <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                <h1 class="h2">Partitions</h1>
+                <h1 class="h2">Partitions And Replicas</h1>
                 <div class="btn-toolbar mb-2 mb-md-0">
                     <div class="btn-group me-2">
                         <button type="button" class="btn btn-sm btn-outline-secondary">Share</button>
@@ -29,11 +29,23 @@
                 </div>
             </div>
 
-            <div class="no-data" th:if="${tables.size == 0}">No Data</div>
+            <form class="row g-3" method="post" th:action="@{/partitions-and-replicas/}" th:object="${request}">
+                <div class="col-md-12">
+                    <label for="table" class="form-label">Table name</label>
+                    <input type="text" class="form-control form-control-sm" id="table" th:field="*{table}">
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary mb-3">Show</button>
+                </div>
+            </form>
 
-            <div th:if="${tables.size > 0}"></div>
-                <div class="table-responsive" th:each="table: ${tables}">
-                    <h5 class="fw-normal" th:text="${'Table ' + table.name + ':'}"></h5>
+            <div class="no-data" th:if="${partitions == null}">
+                No Data.
+                <p>Enter a valid table name.</p>
+            </div>
+
+            <div th:if="${partitions}">
+                <div class="table-responsive">
                     <table class="table table-striped table-sm">
                         <thead>
                         <tr>
@@ -42,15 +54,19 @@
                             <th>Replicas</th>
                             <th>In Sync Replicas</th>
                             <th>Item Count</th>
+                            <th>Commited Offset</th>
+                            <th>Replica End Offsets</th>
                         </tr>
                         </thead>
                         <tbody>
-                        <tr th:each="partition: ${table.partitions.values}">
+                        <tr th:each="partition: ${partitions}">
                             <td th:text="${partition.id}"></td>
                             <td th:text="${partition.leader}"></td>
                             <td th:text="${partition.replicas}"></td>
                             <td th:text="${partition.inSyncReplicas}"></td>
-                            <td th:text="${partitionCounts[table.name][partition.id]}"></td>
+                            <td th:text="${counts == null ? '' : counts[partition.id]}"></td>
+                            <td th:text="${commitedOffsets == null ? '' : commitedOffsets[partition.id]}"></td>
+                            <td th:text="${replicaEndOffsets == null ? null : replicaEndOffsets[partition.id]}"></td>
                         </tr>
                         </tbody>
                         <thead>

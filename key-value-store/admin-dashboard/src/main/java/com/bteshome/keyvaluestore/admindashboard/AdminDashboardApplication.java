@@ -17,6 +17,6 @@ public class AdminDashboardApplication implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        metadataRefresher.fetch();
+        metadataRefresher.schedule();
     }
 }

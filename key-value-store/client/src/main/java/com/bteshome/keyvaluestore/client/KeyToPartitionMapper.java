@@ -12,7 +12,7 @@ import java.util.stream.IntStream;
 @Component
 public class KeyToPartitionMapper {
     private Ring createRing(int numPartitions) {
-        int numVirtualPartitions = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.STORAGE_NODE_RING_NUM_VIRTUAL_PARTITIONS_KEY);
+        int numVirtualPartitions = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.RING_NUM_VIRTUAL_PARTITIONS_KEY);
         List<String> partitions = IntStream.range(1, numPartitions + 1)
                 .boxed()
                 .map(p -> Integer.toString(p))

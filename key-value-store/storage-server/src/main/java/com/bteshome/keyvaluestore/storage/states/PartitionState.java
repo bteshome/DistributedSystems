@@ -61,7 +61,7 @@ public class PartitionState implements AutoCloseable {
                 offset = wal.appendLog("PUT", key, value);
             } catch (Exception e) {
                 return ResponseEntity.ok(ItemPutResponse.builder()
-                        .httpStatus(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                        .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
                         .errorMessage(e.getMessage())
                         .build());
             }
@@ -70,7 +70,7 @@ public class PartitionState implements AutoCloseable {
                 offsetState.setEndOffset(nodeId, offset);
             } catch (StorageServerException e) {
                 return ResponseEntity.ok(ItemPutResponse.builder()
-                        .httpStatus(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                        .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
                         .errorMessage(e.getMessage())
                         .build());
             }
@@ -87,13 +87,13 @@ public class PartitionState implements AutoCloseable {
                         offsetState.setCommitedOffset(offset);
                     } catch (StorageServerException e) {
                         return ResponseEntity.ok(ItemPutResponse.builder()
-                                .httpStatus(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                                .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
                                 .errorMessage(e.getMessage())
                                 .build());
                     }
                     data.put(key, value);
                     return ResponseEntity.ok(ItemPutResponse.builder()
-                            .httpStatus(HttpStatus.OK.value())
+                            .httpStatusCode(HttpStatus.OK.value())
                             .build());
                 }
 
@@ -103,7 +103,7 @@ public class PartitionState implements AutoCloseable {
                     String errorMessage = "Error waiting for replicas to acknowledge the log entry.";
                     log.error(errorMessage, e);
                     return ResponseEntity.ok(ItemPutResponse.builder()
-                            .httpStatus(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                            .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
                             .errorMessage(errorMessage)
                             .build());
                 }
@@ -112,7 +112,7 @@ public class PartitionState implements AutoCloseable {
             String errorMessage = "Request timed out.";
             log.error(errorMessage);
             return ResponseEntity.ok(ItemPutResponse.builder()
-                    .httpStatus(HttpStatus.REQUEST_TIMEOUT.value())
+                    .httpStatusCode(HttpStatus.REQUEST_TIMEOUT.value())
                     .errorMessage(errorMessage)
                     .build());
         }
@@ -122,11 +122,11 @@ public class PartitionState implements AutoCloseable {
         try (AutoCloseableLock l = readLock()) {
             if (!data.containsKey(key)) {
                 return ResponseEntity.ok(ItemGetResponse.builder()
-                        .httpStatus(HttpStatus.NOT_FOUND.value())
+                        .httpStatusCode(HttpStatus.NOT_FOUND.value())
                         .build());
             }
             return ResponseEntity.ok(ItemGetResponse.builder()
-                    .httpStatus(HttpStatus.OK.value())
+                    .httpStatusCode(HttpStatus.OK.value())
                     .value(data.get(key))
                     .build());
         }
@@ -135,7 +135,7 @@ public class PartitionState implements AutoCloseable {
     public ResponseEntity<ItemListResponse> listItems(int limit) {
         try (AutoCloseableLock l = readLock()) {
             return ResponseEntity.ok(ItemListResponse.builder()
-                    .httpStatus(HttpStatus.OK.value())
+                    .httpStatusCode(HttpStatus.OK.value())
                     .items(data.entrySet().stream().limit(Math.min(limit, 100)).toList())
                     .build());
         }
@@ -147,22 +147,21 @@ public class PartitionState implements AutoCloseable {
         offsetState.setEndOffset(nodeId, wal.getEndIndex());
     }
 
-    // TODO - how many log entries max to send back per request?
-    public ResponseEntity<?> getLogEntries(long afterOffset) {
+    public ResponseEntity<?> getLogEntries(long afterOffset, int maxNumRecords) {
         try {
-            List<String> entries = wal.readLog(afterOffset);
+            List<String> entries = wal.readLog(afterOffset, maxNumRecords);
             Map<String, Long> endOffsets = offsetState.getEndOffsets();
             long commitedOffset = offsetState.getCommitedOffset();
 
             return ResponseEntity.ok(WALFetchResponse.builder()
-                    .httpStatus(HttpStatus.OK)
+                    .httpStatusCode(HttpStatus.OK.value())
                     .entries(entries)
                     .replicaEndOffsets(endOffsets)
                     .commitedOffset(commitedOffset)
                     .build());
         } catch (Exception e) {
             return ResponseEntity.ok(WALFetchResponse.builder()
-                    .httpStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
                     .errorMessage(e.getMessage())
                     .build());
         }

@@ -18,9 +18,6 @@ public class ItemWriter {
     private String endpoints;
 
     @Autowired
-    MetadataRefresher metadataRefresher;
-
-    @Autowired
     KeyToPartitionMapper keyToPartitionMapper;
 
     public void put(ItemPutRequest request) {
@@ -54,16 +51,15 @@ public class ItemWriter {
                 .toEntity(ItemPutResponse.class)
                 .getBody();
 
-        if (response.getHttpStatus() == HttpStatus.MOVED_PERMANENTLY.value()) {
-            metadataRefresher.fetch();
+        if (response.getHttpStatusCode() == HttpStatus.MOVED_PERMANENTLY.value()) {
             put(response.getLeaderEndpoint(), request);
             return;
         }
 
-        if (response.getHttpStatus() == HttpStatus.OK.value()) {
+        if (response.getHttpStatusCode() == HttpStatus.OK.value()) {
             return;
         }
 
-        throw new RuntimeException("Unable to write to endpoint '%s'. Http status: %s, error: %s.".formatted(endpoint, response.getHttpStatus(), response.getErrorMessage()));
+        throw new RuntimeException("Unable to write to endpoint '%s'. Http status: %s, error: %s.".formatted(endpoint, response.getHttpStatusCode(), response.getErrorMessage()));
     }
 }

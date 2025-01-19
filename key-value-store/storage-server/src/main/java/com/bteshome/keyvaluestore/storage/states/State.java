@@ -1,6 +1,6 @@
 package com.bteshome.keyvaluestore.storage.states;
 
-import com.bteshome.keyvaluestore.client.responses.ItemCountResponse;
+import com.bteshome.keyvaluestore.client.responses.ItemCountAndOffsetsResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemGetResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemListResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
@@ -95,7 +95,7 @@ public class State {
         if (!nodeId.equals(MetadataCache.getInstance().getLeaderNodeId(table, partition))) {
             String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
             return ResponseEntity.ok(ItemPutResponse.builder()
-                    .httpStatus(HttpStatus.MOVED_PERMANENTLY.value())
+                    .httpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
                     .leaderEndpoint(leaderEndpoint)
                     .build());
         }
@@ -108,7 +108,7 @@ public class State {
         if (!nodeId.equals(MetadataCache.getInstance().getLeaderNodeId(table, partition))) {
             String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
             return ResponseEntity.ok(ItemGetResponse.builder()
-                    .httpStatus(HttpStatus.MOVED_PERMANENTLY.value())
+                    .httpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
                     .leaderEndpoint(leaderEndpoint)
                     .build());
         }
@@ -118,12 +118,12 @@ public class State {
         try (AutoCloseableLock l = readLock()) {
             if (!partitionStates.containsKey(table)) {
                 return ResponseEntity.ok(ItemGetResponse.builder()
-                        .httpStatus(HttpStatus.NOT_FOUND.value())
+                        .httpStatusCode(HttpStatus.NOT_FOUND.value())
                         .build());
             }
             if (!partitionStates.get(table).containsKey(partition)) {
                 return ResponseEntity.ok(ItemGetResponse.builder()
-                        .httpStatus(HttpStatus.NOT_FOUND.value())
+                        .httpStatusCode(HttpStatus.NOT_FOUND.value())
                         .build());
             }
             partitionState = partitionStates.get(table).get(partition);
@@ -136,7 +136,7 @@ public class State {
         if (!nodeId.equals(MetadataCache.getInstance().getLeaderNodeId(table, partition))) {
             String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
             return ResponseEntity.ok(ItemListResponse.builder()
-                    .httpStatus(HttpStatus.MOVED_PERMANENTLY.value())
+                    .httpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
                     .leaderEndpoint(leaderEndpoint)
                     .build());
         }
@@ -146,12 +146,12 @@ public class State {
         try (AutoCloseableLock l = readLock()) {
             if (!partitionStates.containsKey(table)) {
                 return ResponseEntity.ok(ItemListResponse.builder()
-                        .httpStatus(HttpStatus.NOT_FOUND.value())
+                        .httpStatusCode(HttpStatus.NOT_FOUND.value())
                         .build());
             }
             if (!partitionStates.get(table).containsKey(partition)) {
                 return ResponseEntity.ok(ItemListResponse.builder()
-                        .httpStatus(HttpStatus.NOT_FOUND.value())
+                        .httpStatusCode(HttpStatus.NOT_FOUND.value())
                         .build());
             }
             partitionState = partitionStates.get(table).get(partition);
@@ -160,11 +160,11 @@ public class State {
         return partitionState.listItems(limit);
     }
 
-    public ResponseEntity<ItemCountResponse> countItems(String table, int partition) {
+    public ResponseEntity<ItemCountAndOffsetsResponse> countItems(String table, int partition) {
         if (!nodeId.equals(MetadataCache.getInstance().getLeaderNodeId(table, partition))) {
             String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
-            return ResponseEntity.ok(ItemCountResponse.builder()
-                    .httpStatus(HttpStatus.MOVED_PERMANENTLY.value())
+            return ResponseEntity.ok(ItemCountAndOffsetsResponse.builder()
+                    .httpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
                     .leaderEndpoint(leaderEndpoint)
                     .build());
         }
@@ -172,57 +172,30 @@ public class State {
         PartitionState partitionState;
 
         if (!partitionStates.containsKey(table)) {
-            return ResponseEntity.ok(ItemCountResponse.builder()
-                    .httpStatus(HttpStatus.NOT_FOUND.value())
+            return ResponseEntity.ok(ItemCountAndOffsetsResponse.builder()
+                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
                     .build());
         }
         if (!partitionStates.get(table).containsKey(partition)) {
-            return ResponseEntity.ok(ItemCountResponse.builder()
-                    .httpStatus(HttpStatus.NOT_FOUND.value())
+            return ResponseEntity.ok(ItemCountAndOffsetsResponse.builder()
+                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
                     .build());
         }
         partitionState = partitionStates.get(table).get(partition);
 
-        return ResponseEntity.ok(ItemCountResponse.builder()
-                .httpStatus(HttpStatus.OK.value())
+        return ResponseEntity.ok(ItemCountAndOffsetsResponse.builder()
+                .httpStatusCode(HttpStatus.OK.value())
                 .count(partitionState.countItems())
+                .commitedOffset(partitionState.getOffsetState().getCommitedOffset())
+                .replicaEndOffsets(partitionState.getOffsetState().getEndOffsets())
                 .build());
     }
 
-    public ResponseEntity<?> acknowledgeFetch(String table, int partition, long endIndex, String replicaId) {
-        if (!nodeId.equals(MetadataCache.getInstance().getLeaderNodeId(table, partition))) {
-            String errorMessage = "Not the leader for table '%s' partition '%s'.".formatted(table, partition);
-            return ResponseEntity.status(HttpStatus.MOVED_PERMANENTLY).body(errorMessage);
-        }
-
-        PartitionState partitionState;
-
-        try (AutoCloseableLock l = readLock()) {
-            if (!partitionStates.containsKey(table)) {
-                return ResponseEntity.notFound().build();
-            }
-            if (!partitionStates.get(table).containsKey(partition)) {
-                return ResponseEntity.notFound().build();
-            }
-            partitionState = partitionStates.get(table).get(partition);
-        }
-
-        partitionState.getOffsetState().setEndOffset(replicaId, endIndex);
-
-        log.trace("Persisted a fetch acknowledge from replica '{}' for table '{}' partition '{}' end offset '{}'.",
-                replicaId,
-                table,
-                partition,
-                endIndex);
-
-        return ResponseEntity.ok().build();
-    }
-
-    public ResponseEntity<?> fetch(String table, int partition, long afterIndex) {
+    public ResponseEntity<?> fetch(String table, int partition, long lastFetchedUptoOffset, int maxNumRecords, String replicaId) {
         if (!nodeId.equals(MetadataCache.getInstance().getLeaderNodeId(table, partition))) {
             String errorMessage = "Not the leader for table '%s' partition '%s'.".formatted(table, partition);
             return ResponseEntity.ok(WALFetchResponse.builder()
-                    .httpStatus(HttpStatus.MOVED_PERMANENTLY)
+                    .httpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
                     .errorMessage(errorMessage)
                     .build());
         }
@@ -232,13 +205,15 @@ public class State {
         try (AutoCloseableLock l = readLock()) {
             if (!partitionStates.containsKey(table) || !partitionStates.get(table).containsKey(partition)) {
                 return ResponseEntity.ok(WALFetchResponse.builder()
-                        .httpStatus(HttpStatus.NOT_FOUND)
+                        .httpStatusCode(HttpStatus.NOT_FOUND.value())
                         .build());
             }
             partitionState = partitionStates.get(table).get(partition);
         }
 
-        return partitionState.getLogEntries(afterIndex);
+        partitionState.getOffsetState().setEndOffset(replicaId, lastFetchedUptoOffset);
+
+        return partitionState.getLogEntries(lastFetchedUptoOffset, maxNumRecords);
     }
 
     public void appendLogEntries(

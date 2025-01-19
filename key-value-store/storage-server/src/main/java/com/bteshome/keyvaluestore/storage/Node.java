@@ -63,7 +63,7 @@ public class Node implements CommandLineRunner {
                     heartbeatSender.schedule();
                     metadataRefresher.schedule();
                     //replicaMonitor.schedule();
-                    //walFetcher.schedule();
+                    walFetcher.schedule();
                 } else {
                     log.error(response.getMessage());
                 }
