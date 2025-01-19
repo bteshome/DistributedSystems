@@ -1,10 +1,13 @@
 package com.bteshome.keyvaluestore.client;
 
+import com.bteshome.keyvaluestore.client.requests.ItemPutRequest;
+import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
+import com.bteshome.keyvaluestore.common.MetadataRefresher;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -14,11 +17,20 @@ public class ItemWriter {
     @Value("${client.storage-node-endpoints}")
     private String endpoints;
 
+    @Autowired
+    MetadataRefresher metadataRefresher;
+
+    @Autowired
+    KeyToPartitionMapper keyToPartitionMapper;
+
     public void put(ItemPutRequest request) {
         request.setTable(Validator.notEmpty(request.getTable(), "Table name"));
         request.setKey(Validator.notEmpty(request.getKey(), "Key"));
         request.setValue(Validator.notEmpty(request.getValue(), "Value"));
         Validator.doesNotContain(request.getValue(), ",", "Value");
+
+        int partition = keyToPartitionMapper.map(request.getTable(), request.getKey());
+        request.setPartition(partition);
 
         for (String endpoint : endpoints.split(",")) {
             try {
@@ -43,6 +55,7 @@ public class ItemWriter {
                 .getBody();
 
         if (response.getHttpStatus() == HttpStatus.MOVED_PERMANENTLY.value()) {
+            metadataRefresher.fetch();
             put(response.getLeaderEndpoint(), request);
             return;
         }

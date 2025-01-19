@@ -36,7 +36,7 @@ public class ConfigurationLoader {
                 Validator.setDefault(metadataSettings.getStorageNodeReplicaLagThreshold(), 3L));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.STORAGE_NODE_REPLICA_FETCH_INTERVAL_MS_KEY,
                 Validator.setDefault(metadataSettings.getStorageNodeReplicaFetchIntervalMs(), 500L));
-        state.get(EntityType.CONFIGURATION).put(ConfigKeys.STORAGE_NODE_RING_NUM_VIRTUAL_NODES_KEY,
+        state.get(EntityType.CONFIGURATION).put(ConfigKeys.STORAGE_NODE_RING_NUM_VIRTUAL_PARTITIONS_KEY,
                 Validator.setDefault(metadataSettings.getStorageNodeRingNumVirtualNodes(), 3));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.WRITE_TIMEOUT_MS_KEY,
                 Validator.setDefault(metadataSettings.getWriteTimeoutMs(), 30000));

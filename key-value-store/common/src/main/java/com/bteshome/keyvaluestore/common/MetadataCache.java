@@ -1,10 +1,11 @@
-package com.bteshome.keyvaluestore.storage;
+package com.bteshome.keyvaluestore.common;
 
 import com.bteshome.keyvaluestore.common.entities.*;
 import com.bteshome.keyvaluestore.common.entities.Replica;
 import lombok.Getter;
 import org.apache.ratis.util.AutoCloseableLock;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -36,6 +37,12 @@ public class MetadataCache {
         }
     }
 
+    public Map<String, Object> getConfigurations() {
+        try (AutoCloseableLock l = readLock()) {
+            return state.get(EntityType.CONFIGURATION);
+        }
+    }
+
     public String getHeartbeatEndpoint() {
         try (AutoCloseableLock l = readLock()) {
             return heartbeatEndpoint;
@@ -50,7 +57,7 @@ public class MetadataCache {
 
     public void setState(Map<EntityType, Map<String, Object>> state) {
         try (AutoCloseableLock l = writeLock()) {
-            this.state = state;
+            this.state = new HashMap<>(state);
         }
     }
 

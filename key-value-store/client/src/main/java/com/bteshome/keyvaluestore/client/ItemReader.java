@@ -1,10 +1,18 @@
 package com.bteshome.keyvaluestore.client;
 
+import com.bteshome.keyvaluestore.client.requests.ItemCountRequest;
+import com.bteshome.keyvaluestore.client.requests.ItemGetRequest;
+import com.bteshome.keyvaluestore.client.requests.ItemListRequest;
+import com.bteshome.keyvaluestore.client.responses.ItemCountResponse;
+import com.bteshome.keyvaluestore.client.responses.ItemGetResponse;
+import com.bteshome.keyvaluestore.client.responses.ItemListResponse;
+import com.bteshome.keyvaluestore.common.MetadataCache;
+import com.bteshome.keyvaluestore.common.MetadataRefresher;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -17,9 +25,19 @@ public class ItemReader {
     @Value("${client.storage-node-endpoints}")
     private String endpoints;
 
+    @Autowired
+    MetadataRefresher metadataRefresher;
+
+    @Autowired
+    KeyToPartitionMapper keyToPartitionMapper;
+
     public String get(ItemGetRequest request) {
         request.setTable(Validator.notEmpty(request.getTable(), "Table name"));
         request.setKey(Validator.notEmpty(request.getKey(), "Key"));
+
+        int partition = keyToPartitionMapper.map(request.getTable(), request.getKey());
+        request.setPartition(partition);
+
         for (String endpoint : endpoints.split(",")) {
             try {
                 return get(endpoint, request);
@@ -42,6 +60,7 @@ public class ItemReader {
                 .getBody();
 
         if (response.getHttpStatus() == HttpStatus.MOVED_PERMANENTLY.value()) {
+            metadataRefresher.fetch();
             return get(response.getLeaderEndpoint(), request);
         }
 
@@ -82,6 +101,7 @@ public class ItemReader {
                 .getBody();
 
         if (response.getHttpStatus() == HttpStatus.MOVED_PERMANENTLY.value()) {
+            metadataRefresher.fetch();
             return list(response.getLeaderEndpoint(), request);
         }
 
@@ -120,6 +140,7 @@ public class ItemReader {
                 .getBody();
 
         if (response.getHttpStatus() == HttpStatus.MOVED_PERMANENTLY.value()) {
+            metadataRefresher.fetch();
             return count(response.getLeaderEndpoint(), request);
         }
 

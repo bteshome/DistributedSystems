@@ -1,0 +1,18 @@
+package com.bteshome.keyvaluestore.client.responses;
+
+import lombok.*;
+
+import java.util.List;
+import java.util.Map;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class ItemListResponse {
+    private int httpStatus;
+    private String errorMessage;
+    private String leaderEndpoint;
+    private List<Map.Entry<String, String>> items;
+}

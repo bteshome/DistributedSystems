@@ -1,4 +1,4 @@
-package com.bteshome.keyvaluestore.client;
+package com.bteshome.keyvaluestore.client.responses;
 
 import lombok.*;
 
@@ -7,9 +7,9 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ItemGetResponse {
+public class ItemCountResponse {
     private int httpStatus;
     private String errorMessage;
     private String leaderEndpoint;
-    private String value;
+    private int count;
 }

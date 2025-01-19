@@ -1,7 +1,7 @@
 package com.bteshome.keyvaluestore.admindashboard.controller;
 
 import com.bteshome.keyvaluestore.admindashboard.service.TableService;
-import com.bteshome.keyvaluestore.client.ItemCountRequest;
+import com.bteshome.keyvaluestore.client.requests.ItemCountRequest;
 import com.bteshome.keyvaluestore.client.ItemReader;
 import com.bteshome.keyvaluestore.common.entities.Partition;
 import com.bteshome.keyvaluestore.common.entities.Table;

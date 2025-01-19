@@ -1,4 +1,4 @@
-package com.bteshome.keyvaluestore.client;
+package com.bteshome.keyvaluestore.client.requests;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -11,5 +11,6 @@ import lombok.Setter;
 @AllArgsConstructor
 public class ItemGetRequest {
     private String table;
+    private int partition;
     private String key;
 }

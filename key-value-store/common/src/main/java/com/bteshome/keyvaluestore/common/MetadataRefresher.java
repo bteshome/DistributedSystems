@@ -1,6 +1,5 @@
-package com.bteshome.keyvaluestore.storage;
+package com.bteshome.keyvaluestore.common;
 
-import com.bteshome.keyvaluestore.common.*;
 import com.bteshome.keyvaluestore.common.requests.MetadataRefreshRequest;
 import com.bteshome.keyvaluestore.common.responses.MetadataRefreshResponse;
 import lombok.extern.slf4j.Slf4j;

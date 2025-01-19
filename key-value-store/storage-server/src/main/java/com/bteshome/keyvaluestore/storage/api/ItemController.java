@@ -1,8 +1,14 @@
 package com.bteshome.keyvaluestore.storage.api;
 
-import com.bteshome.keyvaluestore.client.*;
-import com.bteshome.keyvaluestore.storage.MetadataCache;
-import com.bteshome.keyvaluestore.storage.KeyToPartitionMapper;
+import com.bteshome.keyvaluestore.client.requests.ItemCountRequest;
+import com.bteshome.keyvaluestore.client.requests.ItemGetRequest;
+import com.bteshome.keyvaluestore.client.requests.ItemListRequest;
+import com.bteshome.keyvaluestore.client.requests.ItemPutRequest;
+import com.bteshome.keyvaluestore.client.responses.ItemCountResponse;
+import com.bteshome.keyvaluestore.client.responses.ItemGetResponse;
+import com.bteshome.keyvaluestore.client.responses.ItemListResponse;
+import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
+import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.storage.states.State;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,11 +17,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/items")
@@ -42,8 +43,7 @@ public class ItemController {
                     .build());
         }
 
-        int partition = KeyToPartitionMapper.map(request.getTable(), request.getKey());
-        return state.getItem(request.getTable(), partition, request.getKey());
+        return state.getItem(request.getTable(), request.getPartition(), request.getKey());
     }
 
     @PostMapping("/list/")
@@ -84,8 +84,7 @@ public class ItemController {
                     .build());
         }
 
-        int partition = KeyToPartitionMapper.map(request.getTable(), request.getKey());
-        return state.putItem(request.getTable(), partition, request.getKey(), request.getValue());
+        return state.putItem(request.getTable(), request.getPartition(), request.getKey(), request.getValue());
     }
 
     @PostMapping("/count/")

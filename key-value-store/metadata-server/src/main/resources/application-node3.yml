@@ -36,7 +36,7 @@ metadata:
   storage-node-replica-monitor-interval-ms: 3000
   storage-node-replica-lag-threshold: 3
   storage-node-replica-fetch-interval-ms: 500
-  storage-node-ring-num-virtual-nodes: 3
+  storage-node-ring-num-virtual-partitions: 3
   num-partitions-default: 1
   num-partitions-max: 10
   replication-factor-default: 1

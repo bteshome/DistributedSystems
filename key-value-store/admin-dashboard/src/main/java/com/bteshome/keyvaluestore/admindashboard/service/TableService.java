@@ -1,10 +1,10 @@
 package com.bteshome.keyvaluestore.admindashboard.service;
 
 import com.bteshome.keyvaluestore.admindashboard.common.AdminDashboardException;
-import com.bteshome.keyvaluestore.admindashboard.common.ConfigurationCache;
 
 import com.bteshome.keyvaluestore.common.ClientBuilder;
 import com.bteshome.keyvaluestore.common.JavaSerDe;
+import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.ResponseStatus;
 import com.bteshome.keyvaluestore.common.entities.Table;
 import com.bteshome.keyvaluestore.common.requests.TableCreateRequest;
@@ -29,11 +29,8 @@ public class TableService {
     @Autowired
     ClientBuilder clientBuilder;
 
-    @Autowired
-    ConfigurationCache configurationCache;
-
     public void createTable(TableCreateRequest request) {
-        request.validate(configurationCache.getConfigurations());
+        request.validate(MetadataCache.getInstance().getConfigurations());
 
         try (RaftClient client = this.clientBuilder.createRaftClient()) {
             final RaftClientReply reply = client.io().send(request);

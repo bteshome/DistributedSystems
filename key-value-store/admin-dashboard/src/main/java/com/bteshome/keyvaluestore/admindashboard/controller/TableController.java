@@ -1,7 +1,7 @@
 package com.bteshome.keyvaluestore.admindashboard.controller;
 
-import com.bteshome.keyvaluestore.admindashboard.common.ConfigurationCache;
 import com.bteshome.keyvaluestore.admindashboard.service.TableService;
+import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.entities.Table;
 import com.bteshome.keyvaluestore.common.requests.TableCreateRequest;
 import com.bteshome.keyvaluestore.common.requests.TableListRequest;
@@ -22,9 +22,6 @@ public class TableController {
     @Autowired
     private TableService tableService;
 
-    @Autowired
-    private ConfigurationCache configurationCache;
-
     @GetMapping("/create/")
     public String create(Model model) {
         TableCreateRequest table = new TableCreateRequest();
@@ -40,7 +37,7 @@ public class TableController {
     @PostMapping("/create/")
     public String create(@ModelAttribute("table") @RequestBody TableCreateRequest table, Model model) {
         try {
-            table.validate(configurationCache.getConfigurations());
+            table.validate(MetadataCache.getInstance().getConfigurations());
             tableService.createTable(table);
             return "redirect:/tables/";
         } catch (Exception e) {

@@ -1,6 +1,7 @@
 package com.bteshome.keyvaluestore.storage;
 
 import com.bteshome.keyvaluestore.common.ClientBuilder;
+import com.bteshome.keyvaluestore.common.MetadataRefresher;
 import com.bteshome.keyvaluestore.common.ResponseStatus;
 import com.bteshome.keyvaluestore.common.requests.StorageNodeJoinRequest;
 import com.bteshome.keyvaluestore.common.responses.GenericResponse;

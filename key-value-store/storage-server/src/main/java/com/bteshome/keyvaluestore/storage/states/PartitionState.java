@@ -1,10 +1,10 @@
 package com.bteshome.keyvaluestore.storage.states;
 
-import com.bteshome.keyvaluestore.client.ItemGetResponse;
-import com.bteshome.keyvaluestore.client.ItemListResponse;
-import com.bteshome.keyvaluestore.client.ItemPutResponse;
+import com.bteshome.keyvaluestore.client.responses.ItemGetResponse;
+import com.bteshome.keyvaluestore.client.responses.ItemListResponse;
+import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
 import com.bteshome.keyvaluestore.common.ConfigKeys;
-import com.bteshome.keyvaluestore.storage.MetadataCache;
+import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;

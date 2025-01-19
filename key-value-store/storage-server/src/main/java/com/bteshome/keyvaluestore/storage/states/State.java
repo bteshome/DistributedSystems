@@ -1,7 +1,10 @@
 package com.bteshome.keyvaluestore.storage.states;
 
-import com.bteshome.keyvaluestore.client.*;
-import com.bteshome.keyvaluestore.storage.MetadataCache;
+import com.bteshome.keyvaluestore.client.responses.ItemCountResponse;
+import com.bteshome.keyvaluestore.client.responses.ItemGetResponse;
+import com.bteshome.keyvaluestore.client.responses.ItemListResponse;
+import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
+import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.Validator;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
@@ -15,12 +18,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @Component
@@ -209,8 +209,7 @@ public class State {
 
         partitionState.getOffsetState().setEndOffset(replicaId, endIndex);
 
-        // TODO - change to trace()
-        log.debug("Persisted a fetch acknowledge from replica '{}' for table '{}' partition '{}' end offset '{}'.",
+        log.trace("Persisted a fetch acknowledge from replica '{}' for table '{}' partition '{}' end offset '{}'.",
                 replicaId,
                 table,
                 partition,

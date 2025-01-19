@@ -1,6 +1,7 @@
 package com.bteshome.keyvaluestore.admindashboard.controller;
 
-import com.bteshome.keyvaluestore.admindashboard.common.ConfigurationCache;
+import com.bteshome.keyvaluestore.common.MetadataCache;
+import com.bteshome.keyvaluestore.common.MetadataRefresher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,11 +18,12 @@ import java.util.Map;
 @Slf4j
 public class ConfigurationController {
     @Autowired
-    ConfigurationCache configurationCache;
+
+    MetadataRefresher metadataRefresher;
 
     @GetMapping("/")
     public String list(Model model) {
-        Map<String, Object> configurations = configurationCache.getConfigurations();
+        Map<String, Object> configurations = MetadataCache.getInstance().getConfigurations();
         model.addAttribute("configurations", configurations.entrySet().stream().toList());
         model.addAttribute("page", "configurations");
         return "configurations.html";
