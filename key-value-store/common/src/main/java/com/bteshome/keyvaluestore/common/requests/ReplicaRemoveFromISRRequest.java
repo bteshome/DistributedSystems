@@ -11,8 +11,6 @@ import org.apache.ratis.util.ProtoUtils;
 import java.io.Serial;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 @Getter
@@ -29,7 +27,7 @@ public class ReplicaRemoveFromISRRequest implements Serializable, Message {
 
     @Override
     public ByteString getContent() {
-        final String message = RequestType.REPLICA_REMOVE_FROM_ISR + " " + JavaSerDe.serialize(this);
+        final String message = MetadataRequestType.REPLICA_REMOVE_FROM_ISR + " " + JavaSerDe.serialize(this);
         byte[] bytes = message.getBytes(StandardCharsets.UTF_8);
         return ProtoUtils.toByteString(bytes);
     }

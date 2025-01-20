@@ -15,11 +15,12 @@ import org.springframework.http.HttpStatus;
 import java.nio.charset.StandardCharsets;
 
 @Slf4j
-public class StorageNodeHeartbeatMonitor {
+public class StorageNodeMonitor {
     private MetadataSettings metadataSettings;
 
     private void checkStatus(String nodeId) {
-        Long lastHeartbeatTime = UnmanagedState.getInstance().getHeartbeat(nodeId);
+        Long lastHeartbeatTime = UnmanagedState.getInstance().getHeartbeatTime(nodeId);
+        Long lastMetadataFetchTime = UnmanagedState.getInstance().getMetadataFetchTime(nodeId);
 
         if (lastHeartbeatTime == null) {
             return;
@@ -27,17 +28,23 @@ public class StorageNodeHeartbeatMonitor {
 
         StorageNodeStatus nodeStatus = UnmanagedState.getInstance().getStorageNodeStatus(nodeId);
         long expectIntervalMs = (Long)UnmanagedState.getInstance().getConfiguration(ConfigKeys.STORAGE_NODE_HEARTBEAT_EXPECT_INTERVAL_MS_KEY);
+        long metadataRefreshIntervalMs = (Long)UnmanagedState.getInstance().getConfiguration(ConfigKeys.STORAGE_NODE_METADATA_REFRESH_INTERVAL_MS_KEY);
         boolean isLaggingOnHeartbeats = lastHeartbeatTime < System.nanoTime() - 1000000L * expectIntervalMs;
+        boolean isLaggingOnMetadata = lastMetadataFetchTime < System.nanoTime() - 1000000L * metadataRefreshIntervalMs;
+
+        if (isLaggingOnMetadata) {
+            log.warn("Storage node '{}' has not fetched metadata in '{}' ms.", nodeId, metadataRefreshIntervalMs);
+        }
 
         if (isLaggingOnHeartbeats) {
-            if (nodeStatus == StorageNodeStatus.ACTIVE) {
+            if (nodeStatus.equals(StorageNodeStatus.ACTIVE)) {
                 log.warn("Storage node '{}' has not sent a heartbeat in '{}' ms. Preparing to mark it as inactive.", nodeId, expectIntervalMs);
                 deactivate(nodeId);
             }
             return;
         }
 
-        if (nodeStatus == StorageNodeStatus.INACTIVE) {
+        if (nodeStatus.equals(StorageNodeStatus.INACTIVE)) {
             log.info("Started receiving heartbeat from storage node '{}'. Preparing to mark it as active.", nodeId);
             activate(nodeId);
         }

@@ -24,7 +24,7 @@ public class WALController {
     State state;
 
     @PostMapping("/fetch/")
-    public ResponseEntity<?> fetch(@RequestBody WALFetchRequest request) {
+    public ResponseEntity<WALFetchResponse> fetch(@RequestBody WALFetchRequest request) {
         if (!state.getLastHeartbeatSucceeded()) {
             String errorMessage = "Node '%s' is not active.".formatted(state.getNodeId());
             log.warn("{} from replica '{}' failed. {}", "WAL_FETCH", request.getId(), errorMessage);
@@ -42,7 +42,7 @@ public class WALController {
                     .build());
         }
 
-        int maxNumRecordsAllowed = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.STORAGE_NODE_REPLICA_FETCH_MAX_NUM_RECORDS_KEY);
+        int maxNumRecordsAllowed = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_FETCH_MAX_NUM_RECORDS_KEY);
         if (request.getMaxNumRecords() > maxNumRecordsAllowed) {
             String errorMessage = "Max number of records allowed is %d.".formatted(maxNumRecordsAllowed);
             return ResponseEntity.ok(WALFetchResponse.builder()

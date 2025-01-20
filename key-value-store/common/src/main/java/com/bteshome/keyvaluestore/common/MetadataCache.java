@@ -5,10 +5,9 @@ import com.bteshome.keyvaluestore.common.entities.Replica;
 import lombok.Getter;
 import org.apache.ratis.util.AutoCloseableLock;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 
 public class MetadataCache {
     private Map<EntityType, Map<String, Object>> state = Map.of();
@@ -95,6 +94,15 @@ public class MetadataCache {
                     .getReplicas()
                     .stream()
                     .toList();
+        }
+    }
+
+    public Set<String> getInSyncReplicas(String tableName, int partition) {
+        try (AutoCloseableLock l = readLock()) {
+            Table table = (Table)state.get(EntityType.TABLE).get(tableName);
+            return new HashSet<>(table.getPartitions()
+                    .get(partition)
+                    .getInSyncReplicas());
         }
     }
 

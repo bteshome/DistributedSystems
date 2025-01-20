@@ -28,7 +28,7 @@ public class HeartbeatSender {
     MetadataClientBuilder metadataClientBuilder;
 
     @Autowired
-    MetadataRefresher metadataRefresher;
+    ClientMetadataRefresher metadataRefresher;
 
     @Autowired
     State state;
@@ -67,7 +67,7 @@ public class HeartbeatSender {
             log.debug("Sent heartbeat successfully");
             state.setLastHeartbeatSucceeded(true);
             if (response.isLaggingOnMetadata()) {
-                log.warn("The node is lagging behind on metadata. Now issuing a fetch request.");
+                log.debug("The node is lagging behind on metadata. Now issuing a fetch request.");
                 metadataRefresher.fetch();
             }
         } catch (Exception e) {

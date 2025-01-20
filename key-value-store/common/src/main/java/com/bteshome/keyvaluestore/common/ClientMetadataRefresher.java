@@ -1,7 +1,9 @@
 package com.bteshome.keyvaluestore.common;
 
-import com.bteshome.keyvaluestore.common.requests.MetadataRefreshRequest;
-import com.bteshome.keyvaluestore.common.responses.MetadataRefreshResponse;
+import com.bteshome.keyvaluestore.common.requests.ClientMetadataRefreshRequest;
+import com.bteshome.keyvaluestore.common.requests.StorageNodeMetadataRefreshRequest;
+import com.bteshome.keyvaluestore.common.responses.ClientMetadataRefreshResponse;
+import com.bteshome.keyvaluestore.common.responses.StorageNodeMetadataRefreshResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.client.RaftClient;
 import org.apache.ratis.protocol.RaftClientReply;
@@ -16,7 +18,7 @@ import java.util.concurrent.TimeUnit;
 
 @Component
 @Slf4j
-public class MetadataRefresher {
+public class ClientMetadataRefresher {
     private ScheduledExecutorService executor = null;
 
     @Autowired
@@ -46,17 +48,14 @@ public class MetadataRefresher {
 
     public void fetch() {
         try (RaftClient client = this.metadataClientBuilder.createRaftClient()) {
-            MetadataRefreshRequest request = new MetadataRefreshRequest(
-                    metadataClientSettings.getClientId(),
-                    MetadataCache.getInstance().getLastFetchedVersion());
+            ClientMetadataRefreshRequest request = new ClientMetadataRefreshRequest(MetadataCache.getInstance().getLastFetchedVersion());
             final RaftClientReply reply = client.io().sendReadOnly(request);
 
             if (reply.isSuccess()) {
                 String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);
 
                 if (ResponseStatus.extractStatusCode(messageString) == HttpStatus.OK.value()) {
-                    MetadataRefreshResponse response = JavaSerDe.deserialize(messageString.split(" ")[1]);
-                    MetadataCache.getInstance().setHeartbeatEndpoint(response.getHeartbeatEndpoint());
+                    ClientMetadataRefreshResponse response = JavaSerDe.deserialize(messageString.split(" ")[1]);
                     if (response.isModified()) {
                         MetadataCache.getInstance().setState(response.getState());
                         log.debug("Refreshed metadata successfully.");

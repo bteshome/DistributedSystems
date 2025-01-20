@@ -8,13 +8,12 @@ public class ConfigKeys {
     public static final String STORAGE_NODE_HEARTBEAT_MONITOR_INTERVAL_MS_KEY = "storage-node-heartbeat-monitor-interval-ms";
     public static final String STORAGE_NODE_HEARTBEAT_EXPECT_INTERVAL_MS_KEY = "storage-node-heartbeat-expect-interval-ms";
     public static final String STORAGE_NODE_HEARTBEAT_SEND_INTERVAL_MS_KEY = "storage-node-heartbeat-send-interval-ms";
-    public static final String STORAGE_NODE_METADATA_LAG_THRESHOLD_KEY = "storage-node-metadata-lag-threshold";
-    public static final String STORAGE_NODE_METADATA_LAG_MS_KEY = "storage-node-metadata-lag-ms";
-    public static final String STORAGE_NODE_REPLICA_MONITOR_INTERVAL_MS_KEY = "storage-node-replica-monitor-interval-ms";
-    public static final String STORAGE_NODE_REPLICA_LAG_THRESHOLD_KEY = "storage-node-replica-lag-threshold";
-    public static final String STORAGE_NODE_REPLICA_FETCH_INTERVAL_MS_KEY = "storage-node-replica-fetch-interval-ms";
-    public static final String STORAGE_NODE_REPLICA_FETCH_MAX_NUM_RECORDS_KEY = "storage-node-replica-fetch-max-num-records";
+    public static final String STORAGE_NODE_METADATA_REFRESH_INTERVAL_MS_KEY = "storage-node-metadata-refresh-interval-ms";
+    public static final String REPLICA_MONITOR_INTERVAL_MS_KEY = "replica-monitor-interval-ms";
+    public static final String REPLICA_LAG_THRESHOLD_RECORDS_KEY = "replica-lag-threshold-records";
+    public static final String REPLICA_LAG_THRESHOLD_MS_KEY = "replica-lag-threshold-ms";
+    public static final String REPLICA_FETCH_INTERVAL_MS_KEY = "replica-fetch-interval-ms";
+    public static final String REPLICA_FETCH_MAX_NUM_RECORDS_KEY = "replica-fetch-max-num-records";
     public static final String RING_NUM_VIRTUAL_PARTITIONS_KEY = "ring-num-virtual-partitions";
     public static final String WRITE_TIMEOUT_MS_KEY = "write-timeout-ms";
-    public static final String WAL_FETCH_INTERVAL_MS_KEY = "wal-fetch-interval-ms";
 }

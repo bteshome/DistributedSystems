@@ -12,9 +12,10 @@ import java.util.stream.Collectors;
 
 public class UnmanagedState {
     private boolean leader = false;
-    private Map<String, Long> heartbeats = new ConcurrentHashMap<>();
-    private Map<String, UnmanagedState.StorageNode> storageNodes = new ConcurrentHashMap<>();
-    private Map<String, Object> configuration = new ConcurrentHashMap<>();
+    private final Map<String, Long> heartbeatTimes = new ConcurrentHashMap<>();
+    private final Map<String, Long> metadataFetchTimes = new ConcurrentHashMap<>();
+    private final Map<String, UnmanagedState.StorageNode> storageNodes = new ConcurrentHashMap<>();
+    private final Map<String, Object> configuration = new ConcurrentHashMap<>();
     private Long version = 0L;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
     @Getter
@@ -43,16 +44,20 @@ public class UnmanagedState {
         }
     }
 
-    public Long getHeartbeat(String nodeId) {
-        try (AutoCloseableLock l = readLock()) {
-            return heartbeats.getOrDefault(nodeId, null);
-        }
+    public Long getHeartbeatTime(String nodeId) {
+        return heartbeatTimes.getOrDefault(nodeId, null);
     }
 
-    public void setHeartbeat(String nodeId, long timestamp) {
-        try (AutoCloseableLock l = writeLock()) {
-            heartbeats.put(nodeId, timestamp);
-        }
+    public void setHeartbeatTime(String nodeId, long timestamp) {
+        heartbeatTimes.put(nodeId, timestamp);
+    }
+
+    public Long getMetadataFetchTime(String nodeId) {
+        return metadataFetchTimes.getOrDefault(nodeId, null);
+    }
+
+    public void setMetadataFetchTime(String nodeId, long timestamp) {
+        metadataFetchTimes.put(nodeId, timestamp);
     }
 
     public long getVersion() {
@@ -68,15 +73,11 @@ public class UnmanagedState {
     }
 
     public Object getConfiguration(String key) {
-        try (AutoCloseableLock l = readLock()) {
-            return configuration.get(key);
-        }
+        return configuration.get(key);
     }
 
     public void setConfiguration(Map<String, Object> configuration) {
-        try (AutoCloseableLock l = writeLock()) {
-            this.configuration.putAll(configuration);
-        }
+        this.configuration.putAll(configuration);
     }
 
     public Set<String> getStorageNodeIds() {
@@ -125,7 +126,7 @@ public class UnmanagedState {
 
     public void clear() {
         try (AutoCloseableLock l = writeLock()) {
-            heartbeats.clear();
+            heartbeatTimes.clear();
             storageNodes.clear();
             configuration.clear();
             version = 0L;

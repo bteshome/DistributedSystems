@@ -23,7 +23,7 @@ public class StorageNodeLeaveRequest implements Serializable, Message {
 
     @Override
     public ByteString getContent() {
-        final String message = RequestType.STORAGE_NODE_LEAVE + " " + JavaSerDe.serialize(this);
+        final String message = MetadataRequestType.STORAGE_NODE_LEAVE + " " + JavaSerDe.serialize(this);
         byte[] bytes = message.getBytes(StandardCharsets.UTF_8);
         return ProtoUtils.toByteString(bytes);
     }

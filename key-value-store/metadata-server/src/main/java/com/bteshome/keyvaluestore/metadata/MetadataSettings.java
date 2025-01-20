@@ -25,21 +25,19 @@ public class MetadataSettings {
     @Value("${server.port}")
     private int restPort;
     private List<MetadataClientSettings.PeerInfo> peers;
-    private int numPartitionsMax;
-    private int numPartitionsDefault;
-    private int replicationFactorDefault;
-    private int minInSyncReplicasDefault;
     private long storageNodeHeartbeatMonitorIntervalMs;
     private long storageNodeHeartbeatExpectIntervalMs;
     private long storageNodeHeartbeatSendIntervalMs;
-    private long storageNodeMetadataLagThreshold;
-    private long storageNodeMetadataLagMs;
-    private long storageNodeReplicaMonitorIntervalMs;
-    private long storageNodeReplicaLagThreshold;
-    private long storageNodeReplicaFetchIntervalMs;
-    private int storageNodeReplicaFetchMaxNumRecords;
+    private long storageNodeMetadataRefreshIntervalMs;
+    private long replicaMonitorIntervalMs;
+    private long replicaLagThresholdRecords;
+    private long replicaFetchIntervalMs;
+    private int replicaFetchMaxNumRecords;
+    private int numPartitionsDefault;
+    private int numPartitionsMax;
+    private int replicationFactorDefault;
+    private int minInSyncReplicasDefault;
     private int ringNumVirtualPartitions;
     private long writeTimeoutMs;
-    private long walFetchIntervalMs;
     private UUID localClientId;
 }

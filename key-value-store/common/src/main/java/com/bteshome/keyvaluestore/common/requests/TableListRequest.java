@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
 public class TableListRequest implements Serializable, Message {
     @Override
     public ByteString getContent() {
-        final String message = RequestType.TABLE_LIST + " " + JavaSerDe.serialize(this);
+        final String message = MetadataRequestType.TABLE_LIST + " " + JavaSerDe.serialize(this);
         byte[] bytes = message.getBytes(StandardCharsets.UTF_8);
         return ProtoUtils.toByteString(bytes);
     }

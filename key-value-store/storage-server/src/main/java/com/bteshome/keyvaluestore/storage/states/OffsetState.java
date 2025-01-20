@@ -19,24 +19,24 @@ public class OffsetState {
     private final String table;
     private final int partition;
     private final String nodeId;
-    private final Map<String, Long> endOffsets;
-    private int lastFetchedLeaderTerm;
-    private long commitedOffset;
+    private final Map<String, Long> replicaEndOffsets;
+    private int lastFetchLeaderTerm;
+    private long fullyReplicatedOffset;
     private final ReentrantReadWriteLock lock;
-    private final String endOffsetsFile;
-    private final String commitedOffsetFile;
+    private final String replicaEndOffsetsFile;
+    private final String fullyReplicatedOffsetFile;
     private final String leaderTermFile;
 
     public OffsetState(String table, int partition, StorageSettings storageSettings) {
         this.table = table;
         this.partition = partition;
         this.nodeId = storageSettings.getNode().getId();
-        endOffsets = new ConcurrentHashMap<>();
-        lastFetchedLeaderTerm = 0;
-        commitedOffset = 0L;
+        replicaEndOffsets = new ConcurrentHashMap<>();
+        lastFetchLeaderTerm = 0;
+        fullyReplicatedOffset = 0L;
         lock = new ReentrantReadWriteLock(true);
-        endOffsetsFile = "%s/%s-%s/endOffsets.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
-        commitedOffsetFile = "%s/%s-%s/commitedOffset.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
+        replicaEndOffsetsFile = "%s/%s-%s/replicaEndOffsets.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
+        fullyReplicatedOffsetFile = "%s/%s-%s/fullyReplicatedOffset.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
         leaderTermFile = "%s/%s-%s/leaderTerm.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
     }
 
@@ -48,47 +48,47 @@ public class OffsetState {
         return AutoCloseableLock.acquire(lock.writeLock());
     }
 
-    public Map<String, Long> getEndOffsets() {
+    public Map<String, Long> getReplicaEndOffsets() {
         Map<String, Long> copy;
         try (AutoCloseableLock l = readLock()) {
-            copy = new HashMap<>(endOffsets);
+            copy = new HashMap<>(replicaEndOffsets);
         }
         return copy;
     }
 
-    public long getCommitedOffset() {
+    public long getFullyReplicatedOffset() {
         try (AutoCloseableLock l = readLock()) {
-            return commitedOffset;
+            return fullyReplicatedOffset;
         }
     }
 
-    public void setEndOffset(String replica, long offset) {
-        BufferedWriter writer = createEndOffsetsWriter();
+    public void setReplicaEndOffset(String replicaNodeId, long offset) {
+        BufferedWriter writer = createReplicaEndOffsetsWriter();
         try (writer; AutoCloseableLock l = writeLock()) {
-            endOffsets.put(replica, offset);
-            writer.write(endOffsets.toString());
+            replicaEndOffsets.put(replicaNodeId, offset);
+            writer.write(replicaEndOffsets.toString());
         } catch (IOException e) {
-            String errorMessage = "Error writing end offset for table '%s' partition '%s'.".formatted(table, partition);
+            String errorMessage = "Error writing replica end offset for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
         }
     }
 
-    private BufferedWriter createEndOffsetsWriter() {
+    private BufferedWriter createReplicaEndOffsetsWriter() {
         try {
-            return new BufferedWriter(new FileWriter(endOffsetsFile, false));
+            return new BufferedWriter(new FileWriter(replicaEndOffsetsFile, false));
         } catch (IOException e) {
-            String errorMessage = "Error creating end offsets writer for table '%s' partition '%s'.".formatted(table, partition);
+            String errorMessage = "Error creating replica end offsets writer for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
         }
     }
 
-    private BufferedWriter createCommitedOffsetWriter() {
+    private BufferedWriter createFullyReplicatedOffsetWriter() {
         try {
-            return new BufferedWriter(new FileWriter(commitedOffsetFile, false));
+            return new BufferedWriter(new FileWriter(fullyReplicatedOffsetFile, false));
         } catch (IOException e) {
-            String errorMessage = "Error creating commited offset writer for table '%s' partition '%s'.".formatted(table, partition);
+            String errorMessage = "Error creating fully replicated offset writer for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
         }
@@ -104,39 +104,39 @@ public class OffsetState {
         }
     }
 
-    public Collection<Long> getEndOffsetValues() {
+    public Collection<Long> getReplicaEndOffsetValues() {
         try (AutoCloseableLock l = readLock()) {
-            return endOffsets.values();
+            return replicaEndOffsets.values();
         }
     }
 
-    public long getEndOffset(String replica) {
+    public long getReplicaEndOffset(String replicaNodeId) {
         try (AutoCloseableLock l = readLock()) {
-            return endOffsets.getOrDefault(replica, 0L);
+            return replicaEndOffsets.getOrDefault(replicaNodeId, 0L);
         }
     }
 
-    public int getLastFetchedLeaderTerm() {
+    public int getLastFetchLeaderTerm() {
         try (AutoCloseableLock l = readLock()) {
-            return lastFetchedLeaderTerm;
+            return lastFetchLeaderTerm;
         }
     }
 
-    public void setEndOffsets(Map<String, Long> endOffsets) {
-        for (Map.Entry<String, Long> replicaOffset : endOffsets.entrySet()) {
-            if (!replicaOffset.getKey().equals(nodeId)) {
-                setEndOffset(replicaOffset.getKey(), replicaOffset.getValue());
+    public void setReplicaEndOffsets(Map<String, Long> offsets) {
+        for (Map.Entry<String, Long> offset : offsets.entrySet()) {
+            if (!offset.getKey().equals(nodeId)) {
+                setReplicaEndOffset(offset.getKey(), offset.getValue());
             }
         }
     }
 
-    public void setCommitedOffset(long offset) {
-        BufferedWriter writer = createCommitedOffsetWriter();
+    public void setFullyReplicatedOffset(long offset) {
+        BufferedWriter writer = createFullyReplicatedOffsetWriter();
         try (writer; AutoCloseableLock l = writeLock()) {
-            commitedOffset = offset;
+            fullyReplicatedOffset = offset;
             writer.write(Long.toString(offset));
         } catch (IOException e) {
-            String errorMessage = "Error writing commited offset for table '%s' partition '%s'.".formatted(table, partition);
+            String errorMessage = "Error writing fully replicated offset for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
         }
@@ -145,7 +145,7 @@ public class OffsetState {
     public void setLeaderTerm(int leaderTerm) {
         BufferedWriter writer = createLeaderTermWriter();
         try (writer; AutoCloseableLock l = writeLock()) {
-            this.lastFetchedLeaderTerm = leaderTerm;
+            this.lastFetchLeaderTerm = leaderTerm;
             writer.write(Long.toString(leaderTerm));
         } catch (IOException e) {
             String errorMessage = "Error writing leader term for table '%s' partition '%s'.".formatted(table, partition);

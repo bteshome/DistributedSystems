@@ -5,6 +5,7 @@ import com.bteshome.keyvaluestore.common.ConfigKeys;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.ResponseStatus;
 import com.bteshome.keyvaluestore.common.entities.Replica;
+import com.bteshome.keyvaluestore.common.requests.ReplicaAddToISRRequest;
 import com.bteshome.keyvaluestore.common.requests.ReplicaRemoveFromISRRequest;
 import com.bteshome.keyvaluestore.common.responses.GenericResponse;
 import com.bteshome.keyvaluestore.storage.states.State;
@@ -42,7 +43,7 @@ public class ReplicaMonitor {
 
     public void schedule() {
         try {
-            long interval = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.STORAGE_NODE_REPLICA_MONITOR_INTERVAL_MS_KEY);
+            long interval = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_MONITOR_INTERVAL_MS_KEY);
             executor = Executors.newSingleThreadScheduledExecutor();
             executor.scheduleAtFixedRate(this::checkStatus, interval, interval, TimeUnit.MILLISECONDS);
             log.info("Scheduled replica monitor. The interval is {} ms.", interval);
@@ -52,48 +53,59 @@ public class ReplicaMonitor {
     }
 
     private void checkStatus() {
-        //log.info("Replica monitor fired. Checking...");
+        log.debug("Replica monitor about to check replica status ...");
 
-        /*try {
-            String leaderNodeId = replicationState.getId();
+        try {
+            String leaderNodeId = state.getNodeId();
             List<Replica> ownedReplicas = MetadataCache.getInstance().getOwnedReplicas(leaderNodeId);
             Set<Replica> laggingReplicas = new HashSet<>();
-            long threshold = (Long) MetadataCache.getInstance().getConfiguration(ConfigKeys.STORAGE_NODE_REPLICA_LAG_THRESHOLD_KEY);
+            Set<Replica> caughtUpReplicas = new HashSet<>();
+
+            long recordThreshold = (Long) MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_LAG_THRESHOLD_RECORDS_KEY);
 
             for (Replica ownedReplica : ownedReplicas) {
                 List<String> allReplicaNodeIds = MetadataCache.getInstance().getReplicaNodeIds(ownedReplica.getTable(), ownedReplica.getPartition());
-                long leaderOffset = states.getOffset(ownedReplica.getTable(), ownedReplica.getPartition(), leaderNodeId);
+                Set<String> inSyncReplicaNodeIds = MetadataCache.getInstance().getInSyncReplicas(ownedReplica.getTable(), ownedReplica.getPartition());
+                long fullyReplicatedOffset = state.getFullyReplicatedOffset(ownedReplica.getTable(), ownedReplica.getPartition());
 
                 for (String replicaId : allReplicaNodeIds) {
                     if (replicaId.equals(leaderNodeId)) {
                         continue;
                     }
-                    long replicaOffset = replicationState.getOffset(ownedReplica.getTable(), ownedReplica.getPartition(), replicaId);
-                    if (leaderOffset - replicaOffset > threshold) {
-                        laggingReplicas.add(new Replica(replicaId, ownedReplica.getTable(), ownedReplica.getPartition()));
+
+                    long replicaOffset = state.getReplicaEndOffset(ownedReplica.getTable(), ownedReplica.getPartition(), replicaId);
+                    boolean isLaggingOnFetch = fullyReplicatedOffset - replicaOffset > recordThreshold;
+
+                    if (inSyncReplicaNodeIds.contains(replicaId)) {
+                        if (isLaggingOnFetch) {
+                            laggingReplicas.add(new Replica(replicaId, ownedReplica.getTable(), ownedReplica.getPartition()));
+                        }
+                    } else {
+                        if (!isLaggingOnFetch) {
+                            caughtUpReplicas.add(new Replica(replicaId, ownedReplica.getTable(), ownedReplica.getPartition()));
+                        }
                     }
                 }
             }
 
-            if (laggingReplicas.isEmpty()) {
-                return;
+            if (!laggingReplicas.isEmpty()) {
+                log.warn("These replicas are lagging on fetch beyond the threshold '{}'. Preparing to remove them from ISR lists: '{}'",
+                        recordThreshold,
+                        laggingReplicas);
+                removeFromInSyncReplicaLists(laggingReplicas);
             }
 
-            for (Replica laggingReplica : laggingReplicas) {
-                log.warn("Some replicas are lagging on data fetch beyond the threshold. Preparing to remove them from ISR lists: {}", laggingReplica);
+            if (!caughtUpReplicas.isEmpty()) {
+                log.warn("These replicas have caught up on fetch. Preparing to add them to ISR lists: '{}'",
+                        caughtUpReplicas);
+                addToInSyncReplicaLists(caughtUpReplicas);
             }
-
-            removeFromISRs(laggingReplicas);
         } catch (Exception e) {
-            log.error("Error checking replicas", e);
-        }*/
+            log.error("Error checking replica status", e);
+        }
     }
 
-    private void addToISR() {
-        // TODO
-    }
-
-    private void removeFromISRs(Set<Replica> laggingReplicas) {
+    private void removeFromInSyncReplicaLists(Set<Replica> laggingReplicas) {
         ReplicaRemoveFromISRRequest request = new ReplicaRemoveFromISRRequest(laggingReplicas);
 
         try (RaftClient client = this.metadataClientBuilder.createRaftClient()) {
@@ -109,6 +121,25 @@ public class ReplicaMonitor {
             }
         } catch (Exception e) {
             log.error("Error removing replicas from ISR lists: ", e);
+        }
+    }
+
+    private void addToInSyncReplicaLists(Set<Replica> caughtUpReplicas) {
+        ReplicaAddToISRRequest request = new ReplicaAddToISRRequest(caughtUpReplicas);
+
+        try (RaftClient client = this.metadataClientBuilder.createRaftClient()) {
+            final RaftClientReply reply = client.io().send(request);
+            if (reply.isSuccess()) {
+                String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);
+                GenericResponse response = ResponseStatus.toGenericResponse(messageString);
+                if (response.getHttpStatusCode() != HttpStatus.OK.value()) {
+                    log.error("Error adding replicas to ISR lists: {}", response.getMessage());
+                }
+            } else {
+                log.error("Error adding replicas to ISR lists:", reply.getException());
+            }
+        } catch (Exception e) {
+            log.error("Error adding replicas to ISR lists: ", e);
         }
     }
 }

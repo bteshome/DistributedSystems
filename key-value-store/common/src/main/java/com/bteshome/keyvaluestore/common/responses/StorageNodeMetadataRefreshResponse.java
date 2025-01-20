@@ -15,14 +15,14 @@ import java.util.Map;
 
 @Getter
 @Setter
-public class MetadataRefreshResponse implements Serializable, Message {
+public class StorageNodeMetadataRefreshResponse implements Serializable, Message {
     private Map<EntityType, Map<String, Object>> state;
     private String heartbeatEndpoint;
     private boolean modified;
     @Serial
     private static final long serialVersionUID = 1L;
 
-    public MetadataRefreshResponse(
+    public StorageNodeMetadataRefreshResponse(
             Map<EntityType, Map<String, Object>> state,
             String heartbeatEndpoint) {
         this.state = state;
@@ -30,8 +30,7 @@ public class MetadataRefreshResponse implements Serializable, Message {
         this.modified = true;
     }
 
-    public MetadataRefreshResponse(
-            String heartbeatEndpoint) {
+    public StorageNodeMetadataRefreshResponse(String heartbeatEndpoint) {
         this.heartbeatEndpoint = heartbeatEndpoint;
         this.modified = false;
     }

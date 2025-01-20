@@ -1,7 +1,9 @@
 package com.bteshome.keyvaluestore.common.requests;
 
 import com.bteshome.keyvaluestore.common.JavaSerDe;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.apache.ratis.protocol.Message;
 import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
@@ -13,18 +15,16 @@ import java.nio.charset.StandardCharsets;
 
 @Getter
 @Setter
-public class StorageNodeDeactivateRequest implements Serializable, Message {
-    private final String id;
+@NoArgsConstructor
+@AllArgsConstructor
+public class ClientMetadataRefreshRequest implements Serializable, Message {
+    private long lastFetchedVersion;
     @Serial
     private static final long serialVersionUID = 1L;
 
-    public StorageNodeDeactivateRequest(String id) {
-        this.id = id;
-    }
-
     @Override
     public ByteString getContent() {
-        final String message = MetadataRequestType.STORAGE_NODE_DEACTIVATE + " " + JavaSerDe.serialize(this);
+        final String message = MetadataRequestType.CLIENT_METADATA_REFRESH + " " + JavaSerDe.serialize(this);
         byte[] bytes = message.getBytes(StandardCharsets.UTF_8);
         return ProtoUtils.toByteString(bytes);
     }

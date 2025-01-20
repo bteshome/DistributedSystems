@@ -36,7 +36,7 @@ public class WALFetcher {
 
     public void schedule() {
         try {
-            long interval = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.WAL_FETCH_INTERVAL_MS_KEY);
+            long interval = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_FETCH_INTERVAL_MS_KEY);
             executor = Executors.newSingleThreadScheduledExecutor();
             executor.scheduleAtFixedRate(this::fetch, interval, interval, TimeUnit.MILLISECONDS);
             log.info("Scheduled replica WAL fetcher. The interval is {} ms.", interval);
@@ -59,9 +59,9 @@ public class WALFetcher {
                     continue;
                 }
 
-                long lastFetchedOffset = store.getEndOffset(followedReplica.getTable(), followedReplica.getPartition(), store.getNodeId());
+                long lastFetchedOffset = store.getReplicaEndOffset(followedReplica.getTable(), followedReplica.getPartition(), store.getNodeId());
                 int lastFetchedLeaderTerm = store.getLastFetchedLeaderTerm(followedReplica.getTable(), followedReplica.getPartition(), store.getNodeId());
-                int maxNumRecords = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.STORAGE_NODE_REPLICA_FETCH_MAX_NUM_RECORDS_KEY);
+                int maxNumRecords = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_FETCH_MAX_NUM_RECORDS_KEY);
 
                 WALFetchRequest request = new WALFetchRequest(
                         store.getNodeId(),

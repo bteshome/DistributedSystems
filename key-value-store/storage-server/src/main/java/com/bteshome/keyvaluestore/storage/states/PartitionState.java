@@ -55,11 +55,12 @@ public class PartitionState implements AutoCloseable {
         log.debug("PUT '{}'='{}' to table '{}' partition '{}'.", key, value, table, partition);
 
         try (AutoCloseableLock l = writeLock()) {
+            int leaderTerm = MetadataCache.getInstance().getLeaderTerm(table, partition);
             long offset;
 
             try {
-                offset = wal.appendLog("PUT", key, value);
-                offsetState.setLeaderTerm(MetadataCache.getInstance().getLeaderTerm(table, partition));
+                offset = wal.appendLog(leaderTerm, "PUT", key, value);
+                offsetState.setLeaderTerm(leaderTerm);
             } catch (Exception e) {
                 return ResponseEntity.ok(ItemPutResponse.builder()
                         .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
@@ -68,7 +69,7 @@ public class PartitionState implements AutoCloseable {
             }
 
             try {
-                offsetState.setEndOffset(nodeId, offset);
+                offsetState.setReplicaEndOffset(nodeId, offset);
             } catch (StorageServerException e) {
                 return ResponseEntity.ok(ItemPutResponse.builder()
                         .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
@@ -82,10 +83,10 @@ public class PartitionState implements AutoCloseable {
             log.debug("Waiting for {} replicas to commit log entry at offset {}.", minInSyncReplicas, offset);
 
             while (System.nanoTime() - start < timeoutNanos) {
-                long countOfReplicasThatCommited = offsetState.getEndOffsetValues().stream().filter(o -> o >= offset).count();
+                long countOfReplicasThatCommited = offsetState.getReplicaEndOffsetValues().stream().filter(o -> o >= offset).count();
                 if (countOfReplicasThatCommited >= minInSyncReplicas) {
                     try {
-                        offsetState.setCommitedOffset(offset);
+                        offsetState.setFullyReplicatedOffset(offset);
                     } catch (StorageServerException e) {
                         return ResponseEntity.ok(ItemPutResponse.builder()
                                 .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
@@ -145,14 +146,27 @@ public class PartitionState implements AutoCloseable {
     public void appendLogEntries(List<String> logEntries) {
         if (logEntries.isEmpty()) { return; }
         wal.appendLogs(logEntries);
-        offsetState.setEndOffset(nodeId, wal.getEndIndex());
+        offsetState.setReplicaEndOffset(nodeId, wal.getEndIndex());
     }
 
-    public ResponseEntity<?> getLogEntries(long lastFetchedEndOffset, int lastFetchedLeaderTerm, int maxNumRecords) {
+    public ResponseEntity<WALFetchResponse> getLogEntries(long lastFetchedEndOffset, int lastFetchedLeaderTerm, int maxNumRecords) {
         try {
+            // TODO
+            /*int currentLeaderTerm = MetadataCache.getInstance().getLeaderTerm(table, partition);
+            if (lastFetchedLeaderTerm < currentLeaderTerm) {
+                long endIndexForLastFetchedLeaderTerm = wal.getEndIndexForLeaderTerm(lastFetchedLeaderTerm);
+                if (lastFetchedEndOffset > endIndexForLastFetchedLeaderTerm) {
+
+                }
+                return ResponseEntity.ok(WALFetchResponse.builder()
+                        .httpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
+                        .leaderEndpoint(MetadataCache.getInstance().getLeaderEndpoint(table, partition))
+                        .build());
+            }*/
+
             List<String> entries = wal.readLog(lastFetchedEndOffset, maxNumRecords);
-            Map<String, Long> endOffsets = offsetState.getEndOffsets();
-            long commitedOffset = offsetState.getCommitedOffset();
+            Map<String, Long> endOffsets = offsetState.getReplicaEndOffsets();
+            long commitedOffset = offsetState.getFullyReplicatedOffset();
 
             return ResponseEntity.ok(WALFetchResponse.builder()
                     .httpStatusCode(HttpStatus.OK.value())

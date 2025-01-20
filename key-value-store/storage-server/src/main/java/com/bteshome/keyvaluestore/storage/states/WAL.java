@@ -78,10 +78,10 @@ public class WAL implements AutoCloseable {
         }
     }*/
 
-    public long appendLog(String operation, String key, String value) {
+    public long appendLog(int leaderTerm, String operation, String key, String value) {
         try (AutoCloseableLock l = writeLock()) {
             endIndex++;
-            String logEntry = "%s %s %s %s".formatted(endIndex, operation, key, value);
+            String logEntry = "%s %s %s %s %s".formatted(endIndex, leaderTerm, operation, key, value);
             writer.write(logEntry);
             writer.newLine();
             writer.flush();
@@ -124,6 +124,32 @@ public class WAL implements AutoCloseable {
             }
 
             return lines;
+        } catch (IOException e) {
+            String errorMessage = "Error reading WAL for table '%s' partition '%s'.".formatted(tableName, partition);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }
+
+    public long getEndIndexForLeaderTerm(int leaderTerm) {
+        try (AutoCloseableLock l = readLock();
+            BufferedReader reader = new BufferedReader(new FileReader(logFile));) {
+            String line;
+            long endIndex = 0L;
+
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.split(" ");
+                long index = Long.parseLong(parts[0]);
+                int term = Integer.parseInt(parts[1]);
+                if (term > leaderTerm) {
+                    break;
+                }
+                if (term == leaderTerm) {
+                    endIndex = Math.max(endIndex, index);
+                }
+            }
+
+            return endIndex;
         } catch (IOException e) {
             String errorMessage = "Error reading WAL for table '%s' partition '%s'.".formatted(tableName, partition);
             log.error(errorMessage, e);

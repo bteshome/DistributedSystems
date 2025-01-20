@@ -35,7 +35,7 @@ public class TableCreateRequest implements Serializable, Message {
 
     @Override
     public ByteString getContent() {
-        final String message = RequestType.TABLE_CREATE + " " + JavaSerDe.serialize(this);
+        final String message = MetadataRequestType.TABLE_CREATE + " " + JavaSerDe.serialize(this);
         byte[] bytes = message.getBytes(StandardCharsets.UTF_8);
         return ProtoUtils.toByteString(bytes);
     }

@@ -2,7 +2,6 @@ package com.bteshome.keyvaluestore.client;
 
 import com.bteshome.keyvaluestore.client.requests.ItemPutRequest;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
-import com.bteshome.keyvaluestore.common.MetadataRefresher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;

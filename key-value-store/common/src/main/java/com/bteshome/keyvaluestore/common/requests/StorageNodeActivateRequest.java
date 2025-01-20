@@ -1,7 +1,6 @@
 package com.bteshome.keyvaluestore.common.requests;
 
 import com.bteshome.keyvaluestore.common.JavaSerDe;
-import com.bteshome.keyvaluestore.common.entities.StorageNodeStatus;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.ratis.protocol.Message;
@@ -25,7 +24,7 @@ public class StorageNodeActivateRequest implements Serializable, Message {
 
     @Override
     public ByteString getContent() {
-        final String message = RequestType.STORAGE_NODE_ACTIVATE + " " + JavaSerDe.serialize(this);
+        final String message = MetadataRequestType.STORAGE_NODE_ACTIVATE + " " + JavaSerDe.serialize(this);
         byte[] bytes = message.getBytes(StandardCharsets.UTF_8);
         return ProtoUtils.toByteString(bytes);
     }

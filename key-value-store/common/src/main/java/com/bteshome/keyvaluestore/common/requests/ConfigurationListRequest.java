@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
 public class ConfigurationListRequest implements Serializable, Message {
     @Override
     public ByteString getContent() {
-        final String message = RequestType.CONFIGURATION_LIST + " " + JavaSerDe.serialize(this);
+        final String message = MetadataRequestType.CONFIGURATION_LIST + " " + JavaSerDe.serialize(this);
         byte[] bytes = message.getBytes(StandardCharsets.UTF_8);
         return ProtoUtils.toByteString(bytes);
     }
