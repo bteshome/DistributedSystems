@@ -112,8 +112,7 @@ public class WALFetcher {
                         followedReplica.getPartition(),
                         response.getEntries(),
                         response.getReplicaEndOffsets(),
-                        response.getCommitedOffset(),
-                        response.getLeaderTerm());
+                        response.getCommitedOffset());
 
                 if (response.getEntries().isEmpty()) {
                     continue;

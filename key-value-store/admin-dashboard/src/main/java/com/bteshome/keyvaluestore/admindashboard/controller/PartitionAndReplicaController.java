@@ -44,7 +44,7 @@ public class PartitionAndReplicaController {
             TableGetRequest tableGetRequest = new TableGetRequest(request.getTable());
             Table table = tableService.getTable(tableGetRequest);
             Map<Integer, Integer> counts = null;
-            Map<Integer, Long> commitedOffsets = null;
+            Map<Integer, Long> fullyReplicatedOffsets = null;
             Map<Integer, Map<String, Long>> replicaEndOffsets = null;
 
             for (Partition partition : table.getPartitions().values()) {
@@ -56,14 +56,14 @@ public class PartitionAndReplicaController {
                     if (counts == null) {
                         counts = new HashMap<>();
                     }
-                    if (commitedOffsets == null) {
-                        commitedOffsets = new HashMap<>();
+                    if (fullyReplicatedOffsets == null) {
+                        fullyReplicatedOffsets = new HashMap<>();
                     }
                     if (replicaEndOffsets == null) {
                         replicaEndOffsets = new HashMap<>();
                     }
                     counts.put(partition.getId(), countAndOffsets.getCount());
-                    commitedOffsets.put(partition.getId(), countAndOffsets.getCommitedOffset());
+                    fullyReplicatedOffsets.put(partition.getId(), countAndOffsets.getCommitedOffset());
                     replicaEndOffsets.put(partition.getId(), countAndOffsets.getReplicaEndOffsets());
                 }
             }
@@ -71,7 +71,7 @@ public class PartitionAndReplicaController {
             model.addAttribute("request", request);
             model.addAttribute("partitions", table.getPartitions().values().stream().toList());
             model.addAttribute("counts", counts);
-            model.addAttribute("commitedOffsets", commitedOffsets);
+            model.addAttribute("fullyReplicatedOffsets", fullyReplicatedOffsets);
             model.addAttribute("replicaEndOffsets", replicaEndOffsets);
             model.addAttribute("page", "partitions-and-replicas");
             return "partitions-and-replicas-list.html";

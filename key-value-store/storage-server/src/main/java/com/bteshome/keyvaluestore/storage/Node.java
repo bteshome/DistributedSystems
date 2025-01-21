@@ -6,6 +6,7 @@ import com.bteshome.keyvaluestore.common.ResponseStatus;
 import com.bteshome.keyvaluestore.common.requests.StorageNodeJoinRequest;
 import com.bteshome.keyvaluestore.common.responses.GenericResponse;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
+import com.bteshome.keyvaluestore.storage.states.State;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.client.RaftClient;
 import org.apache.ratis.protocol.RaftClientReply;
@@ -40,7 +41,8 @@ public class Node implements CommandLineRunner {
     @Autowired
     WALFetcher walFetcher;
 
-    private final Map<String, Map<Integer, Map<String, String>>> state = new HashMap<>();
+    @Autowired
+    State state;
 
     @Override
     public void run(String... args) throws IOException {
@@ -60,6 +62,7 @@ public class Node implements CommandLineRunner {
                 if (response.getHttpStatusCode() == HttpStatus.OK.value()) {
                     log.info(response.getMessage());
                     storageNodeMetadataRefresher.schedule();
+                    state.initialize();
                     heartbeatSender.schedule();
                     replicaMonitor.schedule();
                     walFetcher.schedule();

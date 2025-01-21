@@ -2,6 +2,7 @@ package com.bteshome.keyvaluestore.storage.states;
 
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.util.AutoCloseableLock;
 
@@ -19,6 +20,8 @@ public class WAL implements AutoCloseable {
     private final int partition;
     private BufferedWriter writer;
     private final ReentrantReadWriteLock lock;
+    private long endIndex;
+    private int endLeaderTerm;
 
     private AutoCloseableLock readLock() {
         return AutoCloseableLock.acquire(lock.readLock());
@@ -28,30 +31,18 @@ public class WAL implements AutoCloseable {
         return AutoCloseableLock.acquire(lock.writeLock());
     }
 
-    @Getter
-    private long endIndex;
-
     public WAL(String storageDirectory, String tableName, int partition) {
         try {
             this.tableName = tableName;
             this.partition = partition;
-            String partitionDir = "%s/%s-%s".formatted(storageDirectory, tableName, partition);
-            this.logFile = "%s/wal.log".formatted(partitionDir);
+            this.logFile = "%s/%s-%s/wal.log".formatted(storageDirectory, tableName, partition);
             this.endIndex = 0L;
-            if (Files.notExists(Path.of(storageDirectory))) {
-                Files.createDirectory(Path.of(storageDirectory));
-            }
-            if (Files.notExists(Path.of(partitionDir))) {
-                Files.createDirectory(Path.of(partitionDir));
-            }
+            this.endLeaderTerm = 0;
             if (Files.notExists(Path.of(logFile))) {
                 Files.createFile(Path.of(logFile));
             }
             writer = new BufferedWriter(new FileWriter(logFile, true));
             lock = new ReentrantReadWriteLock(true);
-
-            // TODO
-            //readLogEndIndex();
         } catch (IOException e) {
             String errorMessage = "Error initializing WAL for table '%s' partition '%s'.".formatted(tableName, partition);
             log.error(errorMessage, e);
@@ -59,29 +50,11 @@ public class WAL implements AutoCloseable {
         }
     }
 
-    // TODO - upon restart, if there are already entires,
-    //  - populate WAL state
-    //  - replay
-    /*private void readLogEndIndex() {
-        try (BufferedReader reader = new BufferedReader(new FileReader(logFile));){
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String[] parts = line.split(" ");
-                long index = Long.parseLong(parts[0]);
-                endIndex = Math.max(endIndex, index);
-            }
-        } catch (IOException e) {
-            log.debug("Error reading WAL WAL appended. '{}'='{}' to table '{}' partition '{}'.", key, value, table, partition);
-
-            String errorMessage = "Error reading WAL log file.";
-            throw new StorageServerException(e);
-        }
-    }*/
-
     public long appendLog(int leaderTerm, String operation, String key, String value) {
         try (AutoCloseableLock l = writeLock()) {
-            endIndex++;
-            String logEntry = "%s %s %s %s %s".formatted(endIndex, leaderTerm, operation, key, value);
+            this.endIndex++;
+            this.endLeaderTerm = leaderTerm;
+            String logEntry = new WALEntry(endIndex, leaderTerm, operation, key, value).toString();
             writer.write(logEntry);
             writer.newLine();
             writer.flush();
@@ -97,7 +70,9 @@ public class WAL implements AutoCloseable {
     public void appendLogs(List<String> logEntries) {
         try (AutoCloseableLock l = writeLock()) {
             for (String logEntry : logEntries) {
-                endIndex++;
+                WALEntry walEntry = WALEntry.fromString(logEntry);
+                this.endIndex = walEntry.getIndex();
+                this.endLeaderTerm = walEntry.getLeaderTerm();
                 writer.write(logEntry);
                 writer.newLine();
             }
@@ -111,14 +86,13 @@ public class WAL implements AutoCloseable {
 
     public List<String> readLog(long afterIndex, int limit) {
         try (AutoCloseableLock l = readLock();
-             BufferedReader reader = new BufferedReader(new FileReader(logFile));) {
+            BufferedReader reader = new BufferedReader(new FileReader(logFile));) {
             String line;
             List<String> lines = new ArrayList<>();
 
             while (lines.size() < limit && (line = reader.readLine()) != null) {
-                String[] parts = line.split(" ");
-                long index = Long.parseLong(parts[0]);
-                if (index > afterIndex) {
+                WALEntry walEntry = WALEntry.fromString(line);
+                if (walEntry.getIndex() > afterIndex) {
                     lines.add(line);
                 }
             }
@@ -131,25 +105,41 @@ public class WAL implements AutoCloseable {
         }
     }
 
+    public long getEndIndex() {
+        try (AutoCloseableLock l = readLock()) {
+            return endIndex;
+        }
+    }
+
+    public void setEndIndex(long index) {
+        try (AutoCloseableLock l = writeLock()) {
+            endIndex = index;
+        }
+    }
+
+    public int getEndLeaderTerm() {
+        try (AutoCloseableLock l = readLock()) {
+            return endLeaderTerm;
+        }
+    }
+
     public long getEndIndexForLeaderTerm(int leaderTerm) {
         try (AutoCloseableLock l = readLock();
             BufferedReader reader = new BufferedReader(new FileReader(logFile));) {
             String line;
-            long endIndex = 0L;
 
+            long index = 0L;
             while ((line = reader.readLine()) != null) {
-                String[] parts = line.split(" ");
-                long index = Long.parseLong(parts[0]);
-                int term = Integer.parseInt(parts[1]);
-                if (term > leaderTerm) {
+                WALEntry walEntry = WALEntry.fromString(line);
+                if (walEntry.getLeaderTerm() > leaderTerm) {
                     break;
                 }
-                if (term == leaderTerm) {
-                    endIndex = Math.max(endIndex, index);
+                if (walEntry.getLeaderTerm() == leaderTerm) {
+                    index = walEntry.getIndex();
                 }
             }
 
-            return endIndex;
+            return index;
         } catch (IOException e) {
             String errorMessage = "Error reading WAL for table '%s' partition '%s'.".formatted(tableName, partition);
             log.error(errorMessage, e);

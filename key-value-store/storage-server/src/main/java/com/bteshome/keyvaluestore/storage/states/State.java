@@ -4,8 +4,10 @@ import com.bteshome.keyvaluestore.client.responses.ItemCountAndOffsetsResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemGetResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemListResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
+import com.bteshome.keyvaluestore.common.ConfigKeys;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.Validator;
+import com.bteshome.keyvaluestore.storage.common.StorageServerException;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
 import jakarta.annotation.PostConstruct;
@@ -18,10 +20,17 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Stream;
 
 @Component
 @Slf4j
@@ -31,29 +40,10 @@ public class State {
     private Map<String, Map<Integer, PartitionState>> partitionStates;
     private boolean lastHeartbeatSucceeded;
     private ReentrantReadWriteLock lock;
+    private ScheduledExecutorService executor = null;
 
     @Autowired
     StorageSettings storageSettings;
-
-    @PostConstruct
-    public void init() {
-        nodeId = Validator.notEmpty(storageSettings.getNode().getId());
-        partitionStates = new ConcurrentHashMap<>();
-        lock = new ReentrantReadWriteLock(true);
-    }
-
-    @PreDestroy
-    public void destroy() {
-        try {
-            for (Map<Integer, PartitionState> p : partitionStates.values()) {
-                for (PartitionState ps : p.values()) {
-                    ps.close();
-                }
-            }
-        } catch (Exception e) {
-            log.error("Error closing WAL files.", e);
-        }
-    }
 
     private AutoCloseableLock readLock() { return AutoCloseableLock.acquire(lock.readLock()); }
 
@@ -81,13 +71,92 @@ public class State {
         }
         try (AutoCloseableLock l = writeLock()) {
             if (!tableState.containsKey(partition)) {
-                try {
-                    tableState.put(partition, new PartitionState(table, partition, storageSettings));
-                } catch (Exception e) {
-                    log.error("Error creating PartitionState.", e);
-                }
+                tableState.put(partition, new PartitionState(table, partition, storageSettings));
             }
             return tableState.get(partition);
+        }
+    }
+
+    private void createStorageDirectoryIfNotExists() {
+        Path storageDirectory = Path.of(storageSettings.getNode().getStorageDir());
+        try {
+            if (Files.notExists(storageDirectory)) {
+                Files.createDirectory(storageDirectory);
+                log.info("Storage directory '%s' created.".formatted(storageDirectory));
+            }
+        } catch (Exception e) {
+            String errorMessage = "Error creating storage directory '%s'.".formatted(storageDirectory);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }
+
+    private void loadFromSnapshotsAndWALFiles() {
+        Path storageDirectory = Path.of(storageSettings.getNode().getStorageDir());
+
+        try (Stream<Path> partitionDirectories = Files.list(storageDirectory)) {
+            partitionDirectories.forEach(partitionDirectory -> {
+                if (Files.isDirectory(partitionDirectory)) {
+                    String[] parts = partitionDirectory.getFileName().toString().split("-");
+                    String table = parts[0];
+                    int partition = Integer.parseInt(parts[1]);
+                    if (!partitionStates.containsKey(table)) {
+                        partitionStates.put(table, new ConcurrentHashMap<>());
+                    }
+                    if (!partitionStates.get(table).containsKey(partition)) {
+                        partitionStates.get(table).put(partition, new PartitionState(table, partition, storageSettings));
+                    }
+                }
+            });
+        } catch (IOException e) {
+            String errorMessage = "Error loading snapshots and WAL files.";
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }
+
+    public void scheduleReplicaEndOffsetSnapshots() {
+        try {
+            long interval = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_END_OFFSETS_SNAPSHOT_INTERVAL_MS_KEY);
+            executor = Executors.newSingleThreadScheduledExecutor();
+            executor.scheduleAtFixedRate(this::takeSnapshot, interval, interval, TimeUnit.MILLISECONDS);
+            log.info("Scheduled replica end offset snapshots. The interval is {} ms.", interval);
+        } catch (Exception e) {
+            log.error("Error scheduling replica end offset snapshots.", e);
+        }
+    }
+
+    private void takeSnapshot() {
+        log.debug("Taking a snapshot of replica end offsets.");
+        for (Map<Integer, PartitionState> tableState : partitionStates.values()) {
+            for (PartitionState partitionState : tableState.values()) {
+                partitionState.getOffsetState().takeSnapshot();
+            }
+        }
+    }
+
+    public void initialize() {
+        nodeId = Validator.notEmpty(storageSettings.getNode().getId());
+        partitionStates = new ConcurrentHashMap<>();
+        lock = new ReentrantReadWriteLock(true);
+        createStorageDirectoryIfNotExists();
+        loadFromSnapshotsAndWALFiles();
+        scheduleReplicaEndOffsetSnapshots();
+    }
+
+    @PreDestroy
+    public void destroy() {
+        try {
+            if (executor != null) {
+                executor.close();
+            }
+            for (Map<Integer, PartitionState> tableState : partitionStates.values()) {
+                for (PartitionState partitionState : tableState.values()) {
+                    partitionState.close();
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error closing state.", e);
         }
     }
 
@@ -221,14 +290,12 @@ public class State {
             int partition,
             List<String> logEntries,
             Map<String, Long> endOffsets,
-            long commitedOffset,
-            int leaderTerm) {
+            long commitedOffset) {
         Map<Integer, PartitionState> tableState = ensureTableStateExists(table);
         PartitionState partitionState = ensurePartitionStateExists(tableState, table, partition);
         partitionState.appendLogEntries(logEntries);
         partitionState.getOffsetState().setReplicaEndOffsets(endOffsets);
         partitionState.getOffsetState().setFullyReplicatedOffset(commitedOffset);
-        partitionState.getOffsetState().setLeaderTerm(leaderTerm);
     }
 
     public void applyLogEntries(String table, int partition, List<String> entries) {
@@ -326,6 +393,6 @@ public class State {
             partitionState = partitionStates.get(table).get(partition);
         }
 
-        return partitionState.getOffsetState().getLastFetchLeaderTerm();
+        return partitionState.getWal().getEndLeaderTerm();
     }
 }

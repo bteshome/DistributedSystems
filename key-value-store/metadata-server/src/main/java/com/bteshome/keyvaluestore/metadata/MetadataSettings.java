@@ -33,6 +33,7 @@ public class MetadataSettings {
     private long replicaLagThresholdRecords;
     private long replicaFetchIntervalMs;
     private int replicaFetchMaxNumRecords;
+    private long replicaEndOffsetsSnapshotIntervalMs;
     private int numPartitionsDefault;
     private int numPartitionsMax;
     private int replicationFactorDefault;

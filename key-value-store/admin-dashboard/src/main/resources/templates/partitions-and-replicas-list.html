@@ -54,7 +54,7 @@
                             <th>Replicas</th>
                             <th>In Sync Replicas</th>
                             <th>Item Count</th>
-                            <th>Commited Offset</th>
+                            <th>Fully Replicated Offset</th>
                             <th>Replica End Offsets</th>
                         </tr>
                         </thead>
@@ -65,7 +65,7 @@
                             <td th:text="${partition.replicas}"></td>
                             <td th:text="${partition.inSyncReplicas}"></td>
                             <td th:text="${counts == null ? '' : counts[partition.id]}"></td>
-                            <td th:text="${commitedOffsets == null ? '' : commitedOffsets[partition.id]}"></td>
+                            <td th:text="${fullyReplicatedOffsets == null ? '' : fullyReplicatedOffsets[partition.id]}"></td>
                             <td th:text="${replicaEndOffsets == null ? null : replicaEndOffsets[partition.id]}"></td>
                         </tr>
                         </tbody>

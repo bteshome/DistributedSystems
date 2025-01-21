@@ -14,6 +14,8 @@ import org.apache.ratis.util.AutoCloseableLock;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,21 +28,48 @@ public class PartitionState implements AutoCloseable {
     private final int partition;
     private final String nodeId;
     private final Map<String, String> data;
+    @Getter
     private final WAL wal;
     @Getter
     private final OffsetState offsetState;
     private final ReentrantReadWriteLock lock;
-    private final ReentrantReadWriteLock putLock;
+    private final StorageSettings storageSettings;
 
     public PartitionState(String table, int partition, StorageSettings storageSettings) {
         this.table = table;
         this.partition = partition;
         this.nodeId = storageSettings.getNode().getId();
-        data = new ConcurrentHashMap<>();
-        wal = new WAL(storageSettings.getNode().getStorageDir(), table, partition);
-        offsetState = new OffsetState(table, partition, storageSettings);
         lock = new ReentrantReadWriteLock(true);
-        putLock = new ReentrantReadWriteLock(true);
+        data = new ConcurrentHashMap<>();
+        this.storageSettings = storageSettings;
+        createPartitionDirectoryIfNotExists();
+        wal = new WAL(storageSettings.getNode().getStorageDir(), table, partition);
+        loadFromWALFile();
+        offsetState = new OffsetState(table, partition, storageSettings);
+    }
+
+    private void createPartitionDirectoryIfNotExists() {
+        Path partitionDir = Path.of("%s/%s-%s".formatted(storageSettings.getNode().getStorageDir(), table, partition));
+        try {
+            if (Files.notExists(partitionDir)) {
+                Files.createDirectory(partitionDir);
+                log.debug("Partition directory '%s' created.".formatted(partitionDir));
+            }
+        } catch (Exception e) {
+            String errorMessage = "Error creating partition directory '%s'.".formatted(partitionDir);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }
+
+    private void loadFromWALFile() {
+        List<String> logEntriesFromFile = wal.readLog(0, Integer.MAX_VALUE);
+        if (!logEntriesFromFile.isEmpty()) {
+            int endIndex = Integer.parseInt(logEntriesFromFile.getLast().split(" ")[0]);
+            wal.setEndIndex(endIndex);
+            applyLogEntries(logEntriesFromFile);
+            log.debug("Loaded {} log entries from WAL file for table '{}' partition '{}'.", logEntriesFromFile.size(), table, partition);
+        }
     }
 
     private AutoCloseableLock readLock() {
@@ -52,7 +81,7 @@ public class PartitionState implements AutoCloseable {
     }
 
     public ResponseEntity<ItemPutResponse> putItem(String key, String value) {
-        log.debug("PUT '{}'='{}' to table '{}' partition '{}'.", key, value, table, partition);
+        log.debug("Received PUT '{}'='{}' to table '{}' partition '{}'.", key, value, table, partition);
 
         try (AutoCloseableLock l = writeLock()) {
             int leaderTerm = MetadataCache.getInstance().getLeaderTerm(table, partition);
@@ -60,7 +89,6 @@ public class PartitionState implements AutoCloseable {
 
             try {
                 offset = wal.appendLog(leaderTerm, "PUT", key, value);
-                offsetState.setLeaderTerm(leaderTerm);
             } catch (Exception e) {
                 return ResponseEntity.ok(ItemPutResponse.builder()
                         .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
@@ -80,7 +108,7 @@ public class PartitionState implements AutoCloseable {
             int minInSyncReplicas = MetadataCache.getInstance().getMinInSyncReplicas(table);
             long timeoutNanos = TimeUnit.MILLISECONDS.toNanos((Long) MetadataCache.getInstance().getConfiguration(ConfigKeys.WRITE_TIMEOUT_MS_KEY));
             long start = System.nanoTime();
-            log.debug("Waiting for {} replicas to commit log entry at offset {}.", minInSyncReplicas, offset);
+            log.debug("Waiting for {} replicas to acknowledge log entry at offset {}.", minInSyncReplicas, offset);
 
             while (System.nanoTime() - start < timeoutNanos) {
                 long countOfReplicasThatCommited = offsetState.getReplicaEndOffsetValues().stream().filter(o -> o >= offset).count();
@@ -94,6 +122,7 @@ public class PartitionState implements AutoCloseable {
                                 .build());
                     }
                     data.put(key, value);
+                    log.debug("Successfully commited PUT '{}'='{}' to table '{}' partition '{}'.", key, value, table, partition);
                     return ResponseEntity.ok(ItemPutResponse.builder()
                             .httpStatusCode(HttpStatus.OK.value())
                             .build());
@@ -185,11 +214,12 @@ public class PartitionState implements AutoCloseable {
 
     public void applyLogEntries(List<String> entries) {
         try (AutoCloseableLock l = writeLock()) {
-            for (String entry : entries) {
-                String[] parts = entry.split(" ");
-                String key = parts[2];
-                String value = parts[3];
-                data.put(key, value);
+            for (String logEntry : entries) {
+                WALEntry walEntry = WALEntry.fromString(logEntry);
+                switch (walEntry.getOperation()) {
+                    case "PUT" -> data.put(walEntry.getKey(), walEntry.getValue());
+                    case "DELETE" -> data.remove(walEntry.getKey());
+                }
             }
         }
     }
