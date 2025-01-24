@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -78,5 +79,9 @@ public class StorageNodeMetadataRefresher {
         } catch (Exception e) {
             log.error("Error refreshing metadata.", e);
         }
+    }
+
+    public CompletableFuture<Void> fetchAsync() {
+        return CompletableFuture.runAsync(this::fetch);
     }
 }

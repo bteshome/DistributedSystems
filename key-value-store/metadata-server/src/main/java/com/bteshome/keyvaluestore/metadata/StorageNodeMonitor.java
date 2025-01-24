@@ -21,20 +21,20 @@ public class StorageNodeMonitor {
     private void checkStatus(String nodeId) {
         Long lastHeartbeatTime = UnmanagedState.getInstance().getHeartbeatTime(nodeId);
         Long lastMetadataFetchTime = UnmanagedState.getInstance().getMetadataFetchTime(nodeId);
-
-        if (lastHeartbeatTime == null) {
-            return;
-        }
-
         StorageNodeStatus nodeStatus = UnmanagedState.getInstance().getStorageNodeStatus(nodeId);
+
+        if (lastHeartbeatTime == null)
+            return;
+        if (nodeStatus.equals(StorageNodeStatus.REMOVED))
+            return;
+
         long expectIntervalMs = (Long)UnmanagedState.getInstance().getConfiguration(ConfigKeys.STORAGE_NODE_HEARTBEAT_EXPECT_INTERVAL_MS_KEY);
         long metadataRefreshIntervalMs = (Long)UnmanagedState.getInstance().getConfiguration(ConfigKeys.STORAGE_NODE_METADATA_REFRESH_INTERVAL_MS_KEY);
         boolean isLaggingOnHeartbeats = lastHeartbeatTime < System.nanoTime() - 1000000L * expectIntervalMs;
         boolean isLaggingOnMetadata = lastMetadataFetchTime < System.nanoTime() - 1000000L * metadataRefreshIntervalMs;
 
-        if (isLaggingOnMetadata) {
+        if (isLaggingOnMetadata)
             log.warn("Storage node '{}' has not fetched metadata in '{}' ms.", nodeId, metadataRefreshIntervalMs);
-        }
 
         if (isLaggingOnHeartbeats) {
             if (nodeStatus.equals(StorageNodeStatus.ACTIVE)) {
@@ -58,17 +58,15 @@ public class StorageNodeMonitor {
 
     private void activate(String nodeId) {
         StorageNodeActivateRequest request = new StorageNodeActivateRequest(nodeId);
-        try (RaftClient client = MetadataClientBuilder.createRaftClient(
-                metadataSettings.getPeers(),
-                metadataSettings.getGroupId(),
-                metadataSettings.getLocalClientId())) {
+        try (RaftClient client = MetadataClientBuilder.createRaftClient(metadataSettings.getPeers(),
+                                                                        metadataSettings.getGroupId(),
+                                                                        metadataSettings.getLocalClientId())) {
             final RaftClientReply reply = client.io().send(request);
             if (reply.isSuccess()) {
                 String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);
                 GenericResponse response = ResponseStatus.toGenericResponse(messageString);
-                if (response.getHttpStatusCode() != HttpStatus.OK.value()) {
+                if (response.getHttpStatusCode() != HttpStatus.OK.value())
                     log.error(response.getMessage());
-                }
             } else {
                 log.error("Error activating node '{}'.", nodeId, reply.getException());
             }
@@ -79,17 +77,15 @@ public class StorageNodeMonitor {
 
     private void deactivate(String nodeId) {
         StorageNodeDeactivateRequest request = new StorageNodeDeactivateRequest(nodeId);
-        try (RaftClient client = MetadataClientBuilder.createRaftClient(
-                metadataSettings.getPeers(),
-                metadataSettings.getGroupId(),
-                metadataSettings.getLocalClientId())) {
+        try (RaftClient client = MetadataClientBuilder.createRaftClient(metadataSettings.getPeers(),
+                                                                        metadataSettings.getGroupId(),
+                                                                        metadataSettings.getLocalClientId())) {
             final RaftClientReply reply = client.io().send(request);
             if (reply.isSuccess()) {
                 String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);
                 GenericResponse response = ResponseStatus.toGenericResponse(messageString);
-                if (response.getHttpStatusCode() != HttpStatus.OK.value()) {
+                if (response.getHttpStatusCode() != HttpStatus.OK.value())
                     log.error(response.getMessage());
-                }
             } else {
                 log.error("Error deactivating node '{}'.", nodeId, reply.getException());
             }

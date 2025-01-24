@@ -30,4 +30,9 @@ public class Partition implements Serializable {
         this.replicas = new ArrayList<>();
         this.inSyncReplicas = new ArrayList<>();
     }
+
+    @Override
+    public String toString() {
+        return "%s-%s".formatted(tableName, id);
+    }
 }

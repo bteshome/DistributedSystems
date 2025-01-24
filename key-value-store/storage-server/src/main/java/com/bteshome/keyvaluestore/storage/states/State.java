@@ -4,9 +4,15 @@ import com.bteshome.keyvaluestore.common.ConfigKeys;
 import com.bteshome.keyvaluestore.common.LogPosition;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.Validator;
+import com.bteshome.keyvaluestore.common.entities.Table;
+import com.bteshome.keyvaluestore.common.requests.NewLeaderElectedRequest;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
+import com.bteshome.keyvaluestore.storage.core.StorageNodeMetadataRefresher;
+import com.bteshome.keyvaluestore.storage.requests.WALFetchRequest;
+import com.bteshome.keyvaluestore.storage.requests.WALGetCommittedOffsetRequest;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
+import com.bteshome.keyvaluestore.storage.responses.WALGetCommittedOffsetResponse;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.Getter;
@@ -14,8 +20,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.util.AutoCloseableLock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -40,6 +48,9 @@ public class State {
     private ScheduledExecutorService executor = null;
     @Autowired
     StorageSettings storageSettings;
+
+    @Autowired
+    StorageNodeMetadataRefresher storageNodeMetadataRefresher;
 
     @PostConstruct
     public void postConstruct() {
@@ -145,22 +156,71 @@ public class State {
         }
     }
 
-    // TODO
-    /*public int getLastFetchedLeaderTerm(String table, int partition, String replica) {
-        PartitionState partitionState;
+    public void newLeaderElected(NewLeaderElectedRequest request) {
+        MetadataCache.getInstance().pauseFetch(request.getTableName(), request.getPartitionId());
 
-        try (AutoCloseableLock l = readLock()) {
-            if (!partitionStates.containsKey(table)) {
-                return 0;
+        if (storageSettings.getNode().getId().equals(request.getNewLeaderId())) {
+            log.info("This node elected as the new leader for table '{}' partition '{}'. Now performing offset synchronization and truncation.",
+                    request.getTableName(),
+                    request.getPartitionId());
+            PartitionState partitionState = getPartitionState(request.getTableName(), request.getPartitionId(), true);
+            List<String> replicaEndpoints = MetadataCache.getInstance().getReplicaEndpoints(request.getTableName(), request.getPartitionId());
+            WALGetCommittedOffsetRequest getCommittedOffsetRequest = new WALGetCommittedOffsetRequest(request.getTableName(), request.getPartitionId());
+            LogPosition thisReplicaEndOffset = partitionState.getOffsetState().getReplicaEndOffset(getNodeId());
+            LogPosition thisReplicaCommittedOffset = partitionState.getOffsetState().getCommittedOffset();
+            LogPosition latestCommittedOffset = thisReplicaCommittedOffset;
+            String latestCommittedOffsetSourceEndpoint = null;
+
+            for (String replicaEndpoint : replicaEndpoints) {
+                WALGetCommittedOffsetResponse response = RestClient.builder()
+                        .build()
+                        .post()
+                        .uri("http://%s/api/wal/get-committed-offset/".formatted(replicaEndpoint))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(getCommittedOffsetRequest)
+                        .retrieve()
+                        .toEntity(WALGetCommittedOffsetResponse.class)
+                        .getBody();
+
+                if (response.getCommittedOffset().compareTo(latestCommittedOffset) > 0) {
+                    latestCommittedOffset = response.getCommittedOffset();
+                    latestCommittedOffsetSourceEndpoint = replicaEndpoint;
+                }
             }
-            if (!partitionStates.get(table).containsKey(partition)) {
-                return 0;
+
+            if (latestCommittedOffset.compareTo(thisReplicaCommittedOffset) > 0) {
+                WALFetchRequest fetchRequest = new WALFetchRequest(nodeId,
+                        request.getTableName(),
+                        request.getPartitionId(),
+                        thisReplicaEndOffset,
+                        Integer.MAX_VALUE);
+                WALFetchResponse fetchResponse = RestClient.builder()
+                        .build()
+                        .post()
+                        .uri("http://%s/api/wal/fetch/".formatted(latestCommittedOffsetSourceEndpoint))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(fetchRequest)
+                        .retrieve()
+                        .toEntity(WALFetchResponse.class)
+                        .getBody();
+
+                appendLogEntries(
+                        request.getTableName(),
+                        request.getPartitionId(),
+                        fetchResponse.getEntries(),
+                        fetchResponse.getReplicaEndOffsets(),
+                        fetchResponse.getCommitedOffset());
+
+                partitionState.applyLogEntries(fetchResponse.getEntries());
             }
-            partitionState = partitionStates.get(table).get(partition);
+
+            partitionState.getWal().truncate(latestCommittedOffset.leaderTerm(), latestCommittedOffset.index());
+            partitionState.getOffsetState().setReplicaEndOffset(getNodeId(), latestCommittedOffset);
         }
 
-        return partitionState.getWal().getEndLeaderTerm();
-    }*/
+        storageNodeMetadataRefresher.fetchAsync().thenRun(() ->
+                MetadataCache.getInstance().resumeFetch(request.getTableName(), request.getPartitionId()));
+    }
 
     private AutoCloseableLock readLock() {
         return AutoCloseableLock.acquire(lock.readLock());

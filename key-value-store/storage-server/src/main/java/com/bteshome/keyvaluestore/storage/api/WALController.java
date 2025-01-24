@@ -4,6 +4,7 @@ import com.bteshome.keyvaluestore.common.ConfigKeys;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.storage.requests.WALGetCommittedOffsetRequest;
 import com.bteshome.keyvaluestore.storage.responses.WALGetCommittedOffsetResponse;
+import com.bteshome.keyvaluestore.storage.states.PartitionState;
 import com.bteshome.keyvaluestore.storage.states.State;
 import com.bteshome.keyvaluestore.storage.requests.WALFetchRequest;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
@@ -62,7 +63,7 @@ public class WALController {
     }
 
     // TODO - send the new leader log & committed offset
-    /*@PostMapping("/get-committed-index/")
+    @PostMapping("/get-committed-offset/")
     public ResponseEntity<WALGetCommittedOffsetResponse> fetch(@RequestBody WALGetCommittedOffsetRequest request) {
         if (!MetadataCache.getInstance().tableExists(request.getTable())) {
             String errorMessage = "Table '%s' does not exist.".formatted(request.getTable());
@@ -72,7 +73,17 @@ public class WALController {
                     .build());
         }
 
-        return state.getCommittedOffset(request.getTable(), request.getPartition());
+        PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition(), false);
 
-    }*/
+        if (partitionState == null) {
+            return ResponseEntity.ok(WALGetCommittedOffsetResponse.builder()
+                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
+                    .build());
+        }
+
+        return ResponseEntity.ok(WALGetCommittedOffsetResponse.builder()
+                .httpStatusCode(HttpStatus.OK.value())
+                .committedOffset(partitionState.getOffsetState().getCommittedOffset())
+                .build());
+    }
 }

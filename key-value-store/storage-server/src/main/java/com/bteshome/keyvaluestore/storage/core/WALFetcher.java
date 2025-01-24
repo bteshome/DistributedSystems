@@ -53,6 +53,9 @@ public class WALFetcher {
         List<Replica> followedReplicas = MetadataCache.getInstance().getFollowedReplicas(state.getNodeId());
 
         for (Replica followedReplica : followedReplicas) {
+            if (MetadataCache.getInstance().isFetchPaused(followedReplica.getTable(), followedReplica.getPartition()))
+                continue;
+
             try {
                 String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(followedReplica.getTable(), followedReplica.getPartition());
 

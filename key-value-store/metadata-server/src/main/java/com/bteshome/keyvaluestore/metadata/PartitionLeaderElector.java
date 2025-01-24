@@ -17,8 +17,8 @@ public class PartitionLeaderElector {
         }
     }
 
-    public static void oustAndReelect(StorageNode storageNode, Map<String, Object> tables, Map<String, Object> storageNodes) {
-        var partitionsThatNeedReelection = storageNode.getReplicaAssignmentSet()
+    public static List<Partition> oustAndReelect(StorageNode storageNode, Map<String, Object> tables, Map<String, Object> storageNodes) {
+        Stream<Partition> partitionsThatNeedReelection = storageNode.getReplicaAssignmentSet()
                 .stream()
                 .filter(ReplicaAssignment::isLeader)
                 .flatMap(replicaAssignment -> {
@@ -38,11 +38,9 @@ public class PartitionLeaderElector {
                             });
                 });
 
-        elect(partitionsThatNeedReelection, storageNodes);
-    }
-
-    private static void elect(Stream<Partition> partitionStream, Map<String, Object> storageNodes) {
-        partitionStream.forEach(partition -> { elect(partition, storageNodes); });
+        return partitionsThatNeedReelection
+                .peek( partition  -> elect(partition, storageNodes))
+                .toList();
     }
 
     private static void elect(Partition partition, Map<String, Object> storageNodes) {

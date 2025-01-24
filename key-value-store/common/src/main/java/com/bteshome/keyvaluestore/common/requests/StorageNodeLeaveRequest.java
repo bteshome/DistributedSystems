@@ -17,8 +17,8 @@ import java.util.Map;
 public class StorageNodeLeaveRequest implements Serializable, Message {
     private String id;
 
-    public StorageNodeLeaveRequest(Map<String, String> nodeInfo) {
-        this.id = Validator.notEmpty(nodeInfo.get("id"));
+    public void validate() {
+        this.id = Validator.notEmpty(id);
     }
 
     @Override

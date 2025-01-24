@@ -6,6 +6,7 @@ import com.bteshome.keyvaluestore.common.JavaSerDe;
 import com.bteshome.keyvaluestore.common.ResponseStatus;
 import com.bteshome.keyvaluestore.common.entities.StorageNode;
 import com.bteshome.keyvaluestore.common.requests.StorageNodeGetRequest;
+import com.bteshome.keyvaluestore.common.requests.StorageNodeLeaveRequest;
 import com.bteshome.keyvaluestore.common.requests.StorageNodeListRequest;
 import com.bteshome.keyvaluestore.common.responses.GenericResponse;
 import com.bteshome.keyvaluestore.common.responses.StorageNodeGetResponse;
@@ -36,9 +37,8 @@ public class NodeService {
                     return response.getStorageNodeCopy();
                 }
                 GenericResponse response = ResponseStatus.toGenericResponse(messageString);
-                if (response.getHttpStatusCode() == HttpStatus.NOT_FOUND.value()) {
+                if (response.getHttpStatusCode() == HttpStatus.NOT_FOUND.value())
                     return null;
-                }
                 throw new AdminDashboardException(response.getMessage());
             } else {
                 throw new AdminDashboardException(reply.getException());
@@ -59,6 +59,22 @@ public class NodeService {
                 }
                 GenericResponse response = ResponseStatus.toGenericResponse(messageString);
                 throw new AdminDashboardException(response.getMessage());
+            } else {
+                throw new AdminDashboardException(reply.getException());
+            }
+        } catch (Exception e) {
+            throw new AdminDashboardException(e);
+        }
+    }
+
+    public void removeNode(StorageNodeLeaveRequest request) {
+        try (RaftClient client = this.metadataClientBuilder.createRaftClient()) {
+            final RaftClientReply reply = client.io().send(request);
+            if (reply.isSuccess()) {
+                String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);
+                GenericResponse response = ResponseStatus.toGenericResponse(messageString);
+                if (response.getHttpStatusCode() != HttpStatus.OK.value())
+                    throw new AdminDashboardException(response.getMessage());
             } else {
                 throw new AdminDashboardException(reply.getException());
             }

@@ -3,22 +3,40 @@ package com.bteshome.keyvaluestore.common;
 import com.bteshome.keyvaluestore.common.entities.*;
 import com.bteshome.keyvaluestore.common.entities.Replica;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.util.AutoCloseableLock;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+@Slf4j
 public class MetadataCache {
     private Map<EntityType, Map<String, Object>> state = Map.of();
+    private Map<String, Map<Integer, Boolean>> partitionsWithPausedFetch = new ConcurrentHashMap<>();
     private String heartbeatEndpoint;
     private static final String CURRENT = "current";
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
     @Getter
     private final static MetadataCache instance = new MetadataCache();
 
-    private AutoCloseableLock readLock() { return AutoCloseableLock.acquire(lock.readLock()); }
+    public void pauseFetch(String table, int partition) {
+        if (!partitionsWithPausedFetch.containsKey(table))
+            partitionsWithPausedFetch.put(table, new ConcurrentHashMap<>());
+        partitionsWithPausedFetch.get(table).put(partition, true);
+        log.info("Paused fetch for table '{}' partition '{}'.", table, partition);
+    }
 
-    private AutoCloseableLock writeLock() { return AutoCloseableLock.acquire(lock.writeLock()); }
+    public void resumeFetch(String table, int partition) {
+        partitionsWithPausedFetch.get(table).remove(partition);
+        log.info("Resumed fetch for table '{}' partition '{}'.", table, partition);
+    }
+
+    public boolean isFetchPaused(String table, int partition) {
+        if (!partitionsWithPausedFetch.containsKey(table))
+            return false;
+        return partitionsWithPausedFetch.get(table).containsKey(partition);
+    }
 
     public long getLastFetchedVersion() {
         try (AutoCloseableLock l = readLock()) {
@@ -159,4 +177,8 @@ public class MetadataCache {
             return ((Table)state.get(EntityType.TABLE).get(tableName)).getMinInSyncReplicas();
         }
     }
+
+    private AutoCloseableLock readLock() { return AutoCloseableLock.acquire(lock.readLock()); }
+
+    private AutoCloseableLock writeLock() { return AutoCloseableLock.acquire(lock.writeLock()); }
 }

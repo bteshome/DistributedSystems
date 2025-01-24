@@ -58,4 +58,10 @@ public class StorageNode implements Serializable {
                 replicaAssignment.getTableName().equals(tableName) &&
                 replicaAssignment.getPartitionIid() == partition);
     }
+
+    public ReplicaAssignment getReplicaAssignmentFor(String tableName, int partition) {
+        return replicaAssignmentSet.stream().filter(replicaAssignment ->
+                replicaAssignment.getTableName().equals(tableName) &&
+                replicaAssignment.getPartitionIid() == partition).findFirst().get();
+    }
 }

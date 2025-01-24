@@ -9,7 +9,7 @@ import java.util.Map;
 
 @Slf4j
 public class ConfigurationLoader {
-    public void load(Map<EntityType, Map<String, Object>> state, MetadataSettings metadataSettings) {
+    public static void load(Map<EntityType, Map<String, Object>> state, MetadataSettings metadataSettings) {
         log.info("Loading configuration ...");
 
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.STORAGE_NODE_HEARTBEAT_MONITOR_INTERVAL_MS_KEY,

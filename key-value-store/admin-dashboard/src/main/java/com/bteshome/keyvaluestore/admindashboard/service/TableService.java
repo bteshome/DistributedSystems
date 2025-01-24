@@ -37,9 +37,8 @@ public class TableService {
             if (reply.isSuccess()) {
                 String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);
                 GenericResponse response = ResponseStatus.toGenericResponse(messageString);
-                if (response.getHttpStatusCode() != HttpStatus.OK.value()) {
+                if (response.getHttpStatusCode() != HttpStatus.OK.value())
                     throw new AdminDashboardException(response.getMessage());
-                }
             } else {
                 throw new AdminDashboardException(reply.getException());
             }
@@ -58,9 +57,8 @@ public class TableService {
                     return response.getTableCopy();
                 }
                 GenericResponse response = ResponseStatus.toGenericResponse(messageString);
-                if (response.getHttpStatusCode() == HttpStatus.NOT_FOUND.value()) {
+                if (response.getHttpStatusCode() == HttpStatus.NOT_FOUND.value())
                     return null;
-                }
                 throw new AdminDashboardException(response.getMessage());
             } else {
                 throw new AdminDashboardException(reply.getException());
