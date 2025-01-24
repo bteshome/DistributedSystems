@@ -1,4 +1,4 @@
-package com.bteshome.keyvaluestore.storage;
+package com.bteshome.keyvaluestore.storage.core;
 
 import com.bteshome.keyvaluestore.common.*;
 import com.bteshome.keyvaluestore.common.requests.StorageNodeMetadataRefreshRequest;

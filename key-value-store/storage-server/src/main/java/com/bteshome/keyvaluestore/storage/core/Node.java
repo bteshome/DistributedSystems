@@ -1,7 +1,6 @@
-package com.bteshome.keyvaluestore.storage;
+package com.bteshome.keyvaluestore.storage.core;
 
 import com.bteshome.keyvaluestore.common.MetadataClientBuilder;
-import com.bteshome.keyvaluestore.common.ClientMetadataRefresher;
 import com.bteshome.keyvaluestore.common.ResponseStatus;
 import com.bteshome.keyvaluestore.common.requests.StorageNodeJoinRequest;
 import com.bteshome.keyvaluestore.common.responses.GenericResponse;
@@ -17,8 +16,6 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
 
 @Component
 @Slf4j

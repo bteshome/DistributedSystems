@@ -1,12 +1,12 @@
 package com.bteshome.keyvaluestore.storage.states;
 
+import com.bteshome.keyvaluestore.common.LogPosition;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
-import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.util.AutoCloseableLock;
 
 import java.io.*;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -20,27 +20,16 @@ public class WAL implements AutoCloseable {
     private final int partition;
     private BufferedWriter writer;
     private final ReentrantReadWriteLock lock;
-    private long endIndex;
-    private int endLeaderTerm;
-
-    private AutoCloseableLock readLock() {
-        return AutoCloseableLock.acquire(lock.readLock());
-    }
-
-    private AutoCloseableLock writeLock() {
-        return AutoCloseableLock.acquire(lock.writeLock());
-    }
+    private long endIndex = 0;
+    private int endLeaderTerm = 0;
 
     public WAL(String storageDirectory, String tableName, int partition) {
         try {
             this.tableName = tableName;
             this.partition = partition;
             this.logFile = "%s/%s-%s/wal.log".formatted(storageDirectory, tableName, partition);
-            this.endIndex = 0L;
-            this.endLeaderTerm = 0;
-            if (Files.notExists(Path.of(logFile))) {
+            if (Files.notExists(Path.of(logFile)))
                 Files.createFile(Path.of(logFile));
-            }
             writer = new BufferedWriter(new FileWriter(logFile, true));
             lock = new ReentrantReadWriteLock(true);
         } catch (IOException e) {
@@ -50,15 +39,56 @@ public class WAL implements AutoCloseable {
         }
     }
 
+    public void truncate(int toTerm, long toEndIndex) {
+        try (AutoCloseableLock l = writeLock();
+             RandomAccessFile raf = new RandomAccessFile(logFile, "rw");
+             FileChannel channel = raf.getChannel()) {
+            String line;
+            long position = 0;
+
+            while ((line = raf.readLine()) != null) {
+                String[] parts = line.split(" ");
+                int term = Integer.parseInt(parts[0]);
+                long index = Long.parseLong(parts[1]);
+
+                if (term < toTerm || (term == toTerm && index <= toEndIndex)) {
+                    position = channel.position();
+                    continue;
+                }
+
+                channel.truncate(position);
+                break;
+            }
+            String errorMessage = "Truncated WAL for table '%s' partition '%s' to term '%s' and index '%s'."
+                    .formatted(tableName,
+                               partition,
+                               toTerm,
+                               toEndIndex);
+            log.info(errorMessage);
+        } catch (IOException e) {
+            String errorMessage = "Error truncating WAL for table '%s' partition '%s' to term '%s' and index '%s'."
+                    .formatted(tableName,
+                               partition,
+                               toTerm,
+                               toEndIndex);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }
+
     public long appendLog(int leaderTerm, String operation, String key, String value) {
         try (AutoCloseableLock l = writeLock()) {
-            this.endIndex++;
-            this.endLeaderTerm = leaderTerm;
-            String logEntry = new WALEntry(endIndex, leaderTerm, operation, key, value).toString();
+            if (leaderTerm == this.endLeaderTerm) {
+                this.endIndex++;
+            } else {
+                this.endLeaderTerm = leaderTerm;
+                this.endIndex = 1;
+            }
+            String logEntry = new WALEntry(leaderTerm, endIndex, operation, key, value).toString();
             writer.write(logEntry);
             writer.newLine();
             writer.flush();
-            log.trace("WAL appended. '{}'='{}' to table '{}' partition '{}'.", key, value, tableName, partition);
+            log.trace("Log entry '{}'='{}' appended for table '{}' partition '{}'.", key, value, tableName, partition);
             return endIndex;
         } catch (IOException e) {
             String errorMessage = "Error appending entry to WAL for table '%s' partition '%s'.".formatted(tableName, partition);
@@ -71,12 +101,13 @@ public class WAL implements AutoCloseable {
         try (AutoCloseableLock l = writeLock()) {
             for (String logEntry : logEntries) {
                 WALEntry walEntry = WALEntry.fromString(logEntry);
-                this.endIndex = walEntry.getIndex();
-                this.endLeaderTerm = walEntry.getLeaderTerm();
                 writer.write(logEntry);
                 writer.newLine();
+                this.endIndex = walEntry.index();
+                this.endLeaderTerm = walEntry.leaderTerm();
             }
             writer.flush();
+            log.trace("'{}' log entries appended for table '{}' partition '{}'.", logEntries.size(), tableName, partition);
         } catch (IOException e) {
             String errorMessage = "Error appending entries to WAL for table '%s' partition '%s'.".formatted(tableName, partition);
             log.error(errorMessage, e);
@@ -84,7 +115,7 @@ public class WAL implements AutoCloseable {
         }
     }
 
-    public List<String> readLog(long afterIndex, int limit) {
+    public List<String> readLogs(LogPosition afterOffset, int limit) {
         try (AutoCloseableLock l = readLock();
             BufferedReader reader = new BufferedReader(new FileReader(logFile));) {
             String line;
@@ -92,9 +123,9 @@ public class WAL implements AutoCloseable {
 
             while (lines.size() < limit && (line = reader.readLine()) != null) {
                 WALEntry walEntry = WALEntry.fromString(line);
-                if (walEntry.getIndex() > afterIndex) {
-                    lines.add(line);
-                }
+                if (walEntry.compareTo(afterOffset) <= 0)
+                    continue;
+                lines.add(line);
             }
 
             return lines;
@@ -105,15 +136,30 @@ public class WAL implements AutoCloseable {
         }
     }
 
-    public long getEndIndex() {
-        try (AutoCloseableLock l = readLock()) {
-            return endIndex;
+    public List<String> loadFromFile() {
+        try (AutoCloseableLock l = writeLock();
+             BufferedReader reader = new BufferedReader(new FileReader(logFile));) {
+            String line;
+            List<String> lines = new ArrayList<>();
+
+            while ((line = reader.readLine()) != null) {
+                WALEntry walEntry = WALEntry.fromString(line);
+                this.endLeaderTerm = walEntry.leaderTerm();
+                this.endIndex = walEntry.index();
+                lines.add(line);
+            }
+
+            return lines;
+        } catch (IOException e) {
+            String errorMessage = "Error loading from WAL file for table '%s' partition '%s'.".formatted(tableName, partition);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
         }
     }
 
-    public void setEndIndex(long index) {
-        try (AutoCloseableLock l = writeLock()) {
-            endIndex = index;
+    public LogPosition getEndOffset() {
+        try (AutoCloseableLock l = readLock()) {
+            return LogPosition.of(endLeaderTerm, endIndex);
         }
     }
 
@@ -131,17 +177,44 @@ public class WAL implements AutoCloseable {
             long index = 0L;
             while ((line = reader.readLine()) != null) {
                 WALEntry walEntry = WALEntry.fromString(line);
-                if (walEntry.getLeaderTerm() > leaderTerm) {
+                if (walEntry.leaderTerm() > leaderTerm)
                     break;
-                }
-                if (walEntry.getLeaderTerm() == leaderTerm) {
-                    index = walEntry.getIndex();
-                }
+                if (walEntry.leaderTerm() == leaderTerm)
+                    index = walEntry.index();
             }
 
             return index;
         } catch (IOException e) {
-            String errorMessage = "Error reading WAL for table '%s' partition '%s'.".formatted(tableName, partition);
+            String errorMessage = "Error reading leader term end index for table '%s' partition '%s'.".formatted(tableName, partition);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }
+
+    public long getLag(LogPosition of, LogPosition comparedTo) {
+        if (of.compareTo(comparedTo) >= 0)
+            return 0L;
+
+        if (of.leaderTerm() == comparedTo.leaderTerm())
+            return comparedTo.index() - of.index();
+
+        try (AutoCloseableLock l = readLock();
+             BufferedReader reader = new BufferedReader(new FileReader(logFile));) {
+            String line;
+            long difference = 0L;
+
+            while ((line = reader.readLine()) != null) {
+                WALEntry walEntry = WALEntry.fromString(line);
+                if (walEntry.compareTo(of) < 0)
+                    continue;
+                if (walEntry.compareTo(comparedTo) > 0)
+                    break;
+                difference++;
+            }
+
+            return difference;
+        } catch (IOException e) {
+            String errorMessage = "Error comparing WAL offsets for table '%s' partition '%s'.".formatted(tableName, partition);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
         }
@@ -150,9 +223,8 @@ public class WAL implements AutoCloseable {
     @Override
     public void close() {
         try {
-            if (writer != null) {
+            if (writer != null)
                 writer.close();
-            }
         } catch (IOException e) {
             String errorMessage = "Error closing WAL file for table '%s' partition '%s'.".formatted(tableName, partition);
             log.error(errorMessage, e);
@@ -160,5 +232,13 @@ public class WAL implements AutoCloseable {
         } finally {
             writer = null;
         }
+    }
+
+    private AutoCloseableLock readLock() {
+        return AutoCloseableLock.acquire(lock.readLock());
+    }
+
+    private AutoCloseableLock writeLock() {
+        return AutoCloseableLock.acquire(lock.writeLock());
     }
 }

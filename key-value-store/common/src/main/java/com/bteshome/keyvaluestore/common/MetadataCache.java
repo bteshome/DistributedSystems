@@ -7,7 +7,6 @@ import org.apache.ratis.util.AutoCloseableLock;
 
 import java.util.*;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.stream.Collectors;
 
 public class MetadataCache {
     private Map<EntityType, Map<String, Object>> state = Map.of();
@@ -86,6 +85,21 @@ public class MetadataCache {
         }
     }
 
+    public List<String> getReplicaEndpoints(String tableName, int partition) {
+        try (AutoCloseableLock l = readLock()) {
+            Table table = (Table)state.get(EntityType.TABLE).get(tableName);
+            return table.getPartitions()
+                    .get(partition)
+                    .getReplicas()
+                    .stream()
+                    .map(nodeId -> {
+                        StorageNode node = (StorageNode)state.get(EntityType.STORAGE_NODE).get(nodeId);
+                        return "%s:%s".formatted(node.getHost(), node.getPort());
+                    })
+                    .toList();
+        }
+    }
+
     public List<String> getReplicaNodeIds(String tableName, int partition) {
         try (AutoCloseableLock l = readLock()) {
             Table table = (Table)state.get(EntityType.TABLE).get(tableName);
@@ -106,13 +120,13 @@ public class MetadataCache {
         }
     }
 
-    public List<Replica> getOwnedReplicas(String nodeId) {
+    public List<Tuple<String, Integer>> getOwnedPartitions(String nodeId) {
         try (AutoCloseableLock l = readLock()) {
             StorageNode node = (StorageNode)state.get(EntityType.STORAGE_NODE).get(nodeId);
             return node.getReplicaAssignmentSet()
                     .stream()
                     .filter(ReplicaAssignment::isLeader)
-                    .map(a -> new Replica(nodeId, a.getTableName(), a.getPartitionIid()))
+                    .map(a -> new Tuple<>(a.getTableName(), a.getPartitionIid()))
                     .toList();
         }
     }

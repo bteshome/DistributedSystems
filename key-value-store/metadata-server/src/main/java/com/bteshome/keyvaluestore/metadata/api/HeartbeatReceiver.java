@@ -20,16 +20,21 @@ public class HeartbeatReceiver {
     MetadataSettings metadataSettings;
 
     @PostMapping("/")
-    public ResponseEntity<?> receive(@RequestBody StorageNodeHeartbeatRequest request) {
+    public ResponseEntity<StorageNodeHeartbeatResponse> receive(@RequestBody StorageNodeHeartbeatRequest request) {
         if (!UnmanagedState.getInstance().isLeader()) {
-            String errorMessage = "Not leader. Refresh metadata.";
-            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(errorMessage);
+            return ResponseEntity.ok(StorageNodeHeartbeatResponse.builder()
+                    .httpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
+                    .errorMessage("Not leader. Refresh metadata.")
+                    .build());
         }
 
         if (!UnmanagedState.getInstance().getStorageNodeIds().contains(request.getId())) {
             String errorMessage = "Node '%s' is unrecognized.".formatted(request.getId());
             log.warn("{} failed. {}.", MetadataRequestType.STORAGE_NODE_HEARTBEAT, errorMessage);
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMessage);
+            return ResponseEntity.ok(StorageNodeHeartbeatResponse.builder()
+                    .httpStatusCode(HttpStatus.UNAUTHORIZED.value())
+                    .errorMessage(errorMessage)
+                    .build());
         }
 
         long currentMetadataVersion = UnmanagedState.getInstance().getVersion();
@@ -42,6 +47,9 @@ public class HeartbeatReceiver {
                 currentMetadataVersion);
 
         UnmanagedState.getInstance().setHeartbeatTime(request.getId(), System.nanoTime());
-        return ResponseEntity.ok(new StorageNodeHeartbeatResponse(isLaggingOnMetadata));
+        return ResponseEntity.ok(StorageNodeHeartbeatResponse.builder()
+                .httpStatusCode(HttpStatus.OK.value())
+                .laggingOnMetadata(isLaggingOnMetadata)
+                .build());
     }
 }

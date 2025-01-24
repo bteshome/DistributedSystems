@@ -1,7 +1,9 @@
 package com.bteshome.keyvaluestore.metadata;
 
 import com.bteshome.keyvaluestore.common.entities.StorageNodeStatus;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.apache.ratis.util.AutoCloseableLock;
 
@@ -23,6 +25,8 @@ public class UnmanagedState {
 
     @Getter
     @Setter
+    @AllArgsConstructor
+    @NoArgsConstructor
     public static class StorageNode {
         private String id;
         private StorageNodeStatus status;
@@ -82,7 +86,10 @@ public class UnmanagedState {
 
     public Set<String> getStorageNodeIds() {
         try (AutoCloseableLock l = readLock()) {
-            return storageNodes.values().stream().map(StorageNode::getId).collect(Collectors.toSet());
+            return storageNodes.values()
+                    .stream()
+                    .map(StorageNode::getId)
+                    .collect(Collectors.toSet());
         }
     }
 
@@ -98,22 +105,14 @@ public class UnmanagedState {
         }
     }
 
-    public void setStorageNodes(Collection<com.bteshome.keyvaluestore.common.entities.StorageNode> storageNodes) {
+    public void setStorageNodes(Collection<StorageNode> storageNodes) {
         try (AutoCloseableLock l = writeLock()) {
-            storageNodes.stream().map(node -> {
-                UnmanagedState.StorageNode storageNode = new UnmanagedState.StorageNode();
-                storageNode.setId(node.getId());
-                storageNode.setStatus(node.getStatus());
-                return storageNode;
-            }).forEach(node -> this.storageNodes.put(node.getId(), node));
+            storageNodes.forEach(node -> this.storageNodes.put(node.getId(), node));
         }
     }
 
-    public void addStorageNode(com.bteshome.keyvaluestore.common.entities.StorageNode storageNode) {
+    public void addStorageNode(StorageNode node) {
         try (AutoCloseableLock l = writeLock()) {
-            UnmanagedState.StorageNode node = new UnmanagedState.StorageNode();
-            node.setId(storageNode.getId());
-            node.setStatus(storageNode.getStatus());
             this.storageNodes.put(node.getId(), node);
         }
     }

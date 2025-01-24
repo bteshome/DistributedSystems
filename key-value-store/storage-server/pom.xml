@@ -54,6 +54,11 @@
 			<artifactId>spring-cloud-starter-config</artifactId>
 		</dependency>
 		<dependency>
+			<groupId>org.apache.kafka</groupId>
+			<artifactId>kafka-clients</artifactId>
+			<version>${kafka-clients-version}</version>
+		</dependency>
+		<dependency>
 			<groupId>org.apache.ratis</groupId>
 			<artifactId>ratis-server</artifactId>
 			<version>${ratis-version}</version>
@@ -78,7 +83,6 @@
 			<groupId>org.apache.ratis</groupId>
 			<version>${ratis-version}</version>
 		</dependency>
-		<!-- https://mvnrepository.com/artifact/io.netty/netty-all -->
 		<!--<dependency>
 			<groupId>io.netty</groupId>
 			<artifactId>netty-all</artifactId>

@@ -1,5 +1,6 @@
 package com.bteshome.keyvaluestore.client.responses;
 
+import com.bteshome.keyvaluestore.common.LogPosition;
 import lombok.*;
 
 import java.util.Map;
@@ -14,6 +15,6 @@ public class ItemCountAndOffsetsResponse {
     private String errorMessage;
     private String leaderEndpoint;
     private int count;
-    private long commitedOffset;
-    private Map<String, Long> replicaEndOffsets;
+    private LogPosition commitedOffset;
+    private Map<String, LogPosition> replicaEndOffsets;
 }

@@ -52,4 +52,10 @@ public class StorageNode implements Serializable {
     public boolean hasReplicasFor(String tableName) {
         return replicaAssignmentSet.stream().anyMatch(replicaAssignment -> replicaAssignment.getTableName().equals(tableName));
     }
+
+    public boolean hasAReplicaFor(String tableName, int partition) {
+        return replicaAssignmentSet.stream().anyMatch(replicaAssignment ->
+                replicaAssignment.getTableName().equals(tableName) &&
+                replicaAssignment.getPartitionIid() == partition);
+    }
 }

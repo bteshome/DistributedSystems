@@ -41,7 +41,7 @@ public class ConfigurationLoader {
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.RING_NUM_VIRTUAL_PARTITIONS_KEY,
                 Validator.setDefault(metadataSettings.getRingNumVirtualPartitions(), 3));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.WRITE_TIMEOUT_MS_KEY,
-                Validator.setDefault(metadataSettings.getWriteTimeoutMs(), 30000));
+                Validator.setDefault(metadataSettings.getWriteTimeoutMs(), 30000L));
 
         log.info("Configuration loaded.");
     }

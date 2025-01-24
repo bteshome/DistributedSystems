@@ -118,7 +118,8 @@ public class ItemReader {
                 log.trace(e.getMessage());
             }
         }
-        throw new RuntimeException("Unable to read from any endpoint.");
+        //throw new RuntimeException("Unable to read from any endpoint.");
+        return null;
     }
 
     private ItemCountAndOffsetsResponse getCountAndOffsets(String endpoint, ItemCountAndOffsetsRequest request) {

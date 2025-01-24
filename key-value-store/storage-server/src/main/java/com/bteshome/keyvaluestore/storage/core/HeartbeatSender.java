@@ -1,4 +1,4 @@
-package com.bteshome.keyvaluestore.storage;
+package com.bteshome.keyvaluestore.storage.core;
 
 import com.bteshome.keyvaluestore.common.*;
 import com.bteshome.keyvaluestore.common.requests.StorageNodeHeartbeatRequest;
@@ -8,6 +8,7 @@ import com.bteshome.keyvaluestore.storage.states.State;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -56,6 +57,7 @@ public class HeartbeatSender {
             StorageNodeHeartbeatRequest request = new StorageNodeHeartbeatRequest(
                     storageSettings.getNode().getId(),
                     MetadataCache.getInstance().getLastFetchedVersion());
+
             StorageNodeHeartbeatResponse response = RestClient.builder()
                     .build()
                     .post()
@@ -64,11 +66,20 @@ public class HeartbeatSender {
                     .body(request)
                     .retrieve()
                     .body(StorageNodeHeartbeatResponse.class);
-            log.debug("Sent heartbeat successfully");
-            state.setLastHeartbeatSucceeded(true);
-            if (response.isLaggingOnMetadata()) {
-                log.debug("The node is lagging behind on metadata. Now issuing a fetch request.");
-                metadataRefresher.fetch();
+
+            switch (HttpStatus.valueOf(response.getHttpStatusCode())) {
+                case OK -> {
+                    log.debug("Sent heartbeat successfully");
+                    state.setLastHeartbeatSucceeded(true);
+                    if (response.isLaggingOnMetadata()) {
+                        log.debug("The node is lagging on metadata. Now issuing a fetch request.");
+                        metadataRefresher.fetch();
+                    }
+                }
+                case MOVED_PERMANENTLY -> metadataRefresher.fetch();
+                default -> log.error("Heartbeat request failed. The response status is '{}', error message is '{}'.",
+                        response.getHttpStatusCode(),
+                        response.getErrorMessage());
             }
         } catch (Exception e) {
             state.setLastHeartbeatSucceeded(false);

@@ -1,5 +1,6 @@
 package com.bteshome.keyvaluestore.storage.requests;
 
+import com.bteshome.keyvaluestore.common.LogPosition;
 import com.bteshome.keyvaluestore.common.Validator;
 import lombok.Getter;
 import lombok.Setter;
@@ -10,8 +11,7 @@ public class WALFetchRequest {
     private String id;
     private String table;
     private int partition;
-    private long lastFetchedEndOffset;
-    private int lastFetchedLeaderTerm;
+    private LogPosition lastFetchOffset;
     private int maxNumRecords;
 
     public WALFetchRequest() {}
@@ -20,14 +20,12 @@ public class WALFetchRequest {
             String nodeId,
             String table,
             int partition,
-            long lastFetchedEndOffset,
-            int lastFetchedLeaderTerm,
+            LogPosition lastFetchOffset,
             int maxNumRecords) {
         this.id = Validator.notEmpty(nodeId);
         this.table = table;
         this.partition = partition;
-        this.lastFetchedEndOffset = lastFetchedEndOffset;
-        this.lastFetchedLeaderTerm = lastFetchedLeaderTerm;
+        this.lastFetchOffset = lastFetchOffset;
         this.maxNumRecords = maxNumRecords;
     }
 }

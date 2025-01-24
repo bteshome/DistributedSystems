@@ -1,7 +1,7 @@
 package com.bteshome.keyvaluestore.storage.states;
 
-import com.bteshome.keyvaluestore.common.JavaSerDe;
 import com.bteshome.keyvaluestore.common.JsonSerDe;
+import com.bteshome.keyvaluestore.common.LogPosition;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -22,93 +22,84 @@ public class OffsetState {
     private final String table;
     private final int partition;
     private final String nodeId;
-    private final Map<String, Long> replicaEndOffsets;
-    private long fullyReplicatedOffset;
+    private final Map<String, LogPosition> replicaEndOffsets;
+    private LogPosition committedOffset;
     private final ReentrantReadWriteLock lock;
     private final String replicaEndOffsetsFile;
-    StorageSettings storageSettings;
+    private final String committedOffsetFile;
 
     public OffsetState(String table, int partition, StorageSettings storageSettings) {
         this.table = table;
         this.partition = partition;
         this.nodeId = storageSettings.getNode().getId();
         replicaEndOffsets = new ConcurrentHashMap<>();
-        fullyReplicatedOffset = 0L;
+        committedOffset = LogPosition.empty();
         lock = new ReentrantReadWriteLock(true);
         replicaEndOffsetsFile = "%s/%s-%s/replicaEndOffsets.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
-        this.storageSettings = storageSettings;
-        loadFromSnapshot();
+        committedOffsetFile = "%s/%s-%s/committedOffset.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
+        loadReplicaEndOffsetsFromSnapshot();
+        loadCommittedOffsetFromSnapshot();
     }
 
-    private AutoCloseableLock readLock() {
-        return AutoCloseableLock.acquire(lock.readLock());
-    }
-
-    private AutoCloseableLock writeLock() {
-        return AutoCloseableLock.acquire(lock.writeLock());
-    }
-
-    public Map<String, Long> getReplicaEndOffsets() {
-        Map<String, Long> copy;
+    public Map<String, LogPosition> getReplicaEndOffsets() {
+        Map<String, LogPosition> copy;
         try (AutoCloseableLock l = readLock()) {
             copy = new HashMap<>(replicaEndOffsets);
         }
         return copy;
     }
 
-    public long getFullyReplicatedOffset() {
-        try (AutoCloseableLock l = readLock()) {
-            return fullyReplicatedOffset;
-        }
-    }
-
-    public Collection<Long> getReplicaEndOffsetValues() {
+    public Collection<LogPosition> getReplicaEndOffsetValues() {
         try (AutoCloseableLock l = readLock()) {
             return replicaEndOffsets.values();
         }
     }
 
-    public long getReplicaEndOffset(String replicaNodeId) {
+    public LogPosition getReplicaEndOffset(String replicaNodeId) {
         try (AutoCloseableLock l = readLock()) {
-            return replicaEndOffsets.getOrDefault(replicaNodeId, 0L);
+            return replicaEndOffsets.getOrDefault(replicaNodeId, LogPosition.empty());
         }
     }
 
-    public void setReplicaEndOffset(String replicaNodeId, long offset) {
-        replicaEndOffsets.put(replicaNodeId, offset);
+    public void setReplicaEndOffset(String replicaNodeId, LogPosition offset) {
+        try (AutoCloseableLock l = writeLock()) {
+            replicaEndOffsets.put(replicaNodeId, offset);
+        }
     }
 
-    public void setReplicaEndOffsets(Map<String, Long> offsets) {
-        for (Map.Entry<String, Long> offset : offsets.entrySet()) {
-            if (!offset.getKey().equals(nodeId)) {
+    public void setReplicaEndOffsets(Map<String, LogPosition> offsets) {
+        for (Map.Entry<String, LogPosition> offset : offsets.entrySet()) {
+            if (!offset.getKey().equals(nodeId))
                 replicaEndOffsets.put(offset.getKey(), offset.getValue());
-            }
         }
     }
 
-    // TODO - write to a kafka topic instead.
-    public void setFullyReplicatedOffset(long offset) {
-        String fullyReplicatedOffsetFile = "%s/%s-%s/fullyReplicatedOffset.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
-        BufferedWriter writer = createWriter(fullyReplicatedOffsetFile);
+    public LogPosition getCommittedOffset() {
+        try (AutoCloseableLock l = readLock()) {
+            return committedOffset;
+        }
+    }
+
+    public void setCommittedOffset(LogPosition offset) {
+        BufferedWriter writer = createWriter(committedOffsetFile);
         try (writer; AutoCloseableLock l = writeLock()) {
-            fullyReplicatedOffset = offset;
-            writer.write(Long.toString(offset));
+            committedOffset = offset;
+            // TODO - 1. change to Java serialization if desired 2. add checksum
+            writer.write(JsonSerDe.serialize(offset));
         } catch (IOException e) {
-            String errorMessage = "Error writing fully replicated offset for table '%s' partition '%s'.".formatted(table, partition);
+            String errorMessage = "Error writing committed index for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
         }
     }
 
     public void takeSnapshot() {
-        if (replicaEndOffsets.isEmpty()) {
+        if (replicaEndOffsets.isEmpty())
             return;
-        }
 
         BufferedWriter writer = createWriter(replicaEndOffsetsFile);
         try (writer) {
-            // TODO - once done testing, go back to Java serialization
-            //writer.write(JavaSerDe.serialize(replicaEndOffsets));
+            // TODO - 1. change to Java serialization if desired 2. add checksum
             writer.write(JsonSerDe.serialize(replicaEndOffsets));
             log.debug("Took a snapshot of replica end offsets for table '{}' partition '{}'.", table, partition);
         } catch (IOException e) {
@@ -118,25 +109,48 @@ public class OffsetState {
         }
     }
 
-    public void loadFromSnapshot() {
-        if (Files.notExists(Path.of(replicaEndOffsetsFile))) {
+    public void loadReplicaEndOffsetsFromSnapshot() {
+        if (Files.notExists(Path.of(replicaEndOffsetsFile)))
             return;
-        }
 
-        BufferedReader replicaEndOffsetsReader = createReader(replicaEndOffsetsFile);
-        try (replicaEndOffsetsReader) {
-            String replicaEndOffsetsLine = replicaEndOffsetsReader.readLine();
-            if (replicaEndOffsetsLine != null) {
-                // TODO - once done testing, go back to Java serialization
-                //replicaEndOffsets.putAll(JavaSerDe.deserialize(replicaEndOffsetsLine));
-                replicaEndOffsets.putAll(JsonSerDe.deserialize(replicaEndOffsetsLine, new TypeReference<HashMap<String, Long>>(){}));
-                log.debug("Loaded replica end offsets from snapshot for table '{}' partition '{}'.", table, table);
+        BufferedReader reader = createReader(replicaEndOffsetsFile);
+        try (reader) {
+            String line = reader.readLine();
+            if (line != null) {
+                replicaEndOffsets.putAll(JsonSerDe.deserialize(line, new TypeReference<HashMap<String, LogPosition>>(){}));
+                log.debug("Loaded replica end offsets from snapshot for table '{}' partition '{}'.", table, partition);
             }
         } catch (IOException e) {
             String errorMessage = "Error loading from a snapshot of replica end offsets for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
         }
+    }
+
+    public void loadCommittedOffsetFromSnapshot() {
+        if (Files.notExists(Path.of(committedOffsetFile)))
+            return;
+
+        BufferedReader reader = createReader(committedOffsetFile);
+        try (reader) {
+            String line = reader.readLine();
+            if (line != null) {
+                committedOffset = JsonSerDe.deserialize(line, LogPosition.class);
+                log.debug("Loaded replica committed offset from snapshot for table '{}' partition '{}'.", table, partition);
+            }
+        } catch (IOException e) {
+            String errorMessage = "Error loading from a snapshot of committed offset for table '%s' partition '%s'.".formatted(table, partition);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }
+
+    private AutoCloseableLock readLock() {
+        return AutoCloseableLock.acquire(lock.readLock());
+    }
+
+    private AutoCloseableLock writeLock() {
+        return AutoCloseableLock.acquire(lock.writeLock());
     }
 
     private BufferedWriter createWriter(String fileName) {

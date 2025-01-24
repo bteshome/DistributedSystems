@@ -9,6 +9,7 @@ import com.bteshome.keyvaluestore.client.responses.ItemGetResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemListResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
 import com.bteshome.keyvaluestore.common.MetadataCache;
+import com.bteshome.keyvaluestore.storage.states.PartitionState;
 import com.bteshome.keyvaluestore.storage.states.State;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,7 +44,15 @@ public class ItemController {
                     .build());
         }
 
-        return state.getItem(request.getTable(), request.getPartition(), request.getKey());
+        PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition(), false);
+
+        if (partitionState == null) {
+            return ResponseEntity.ok(ItemGetResponse.builder()
+                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
+                    .build());
+        }
+
+        return partitionState.getItem(request.getKey());
     }
 
     @PostMapping("/list/")
@@ -63,7 +72,15 @@ public class ItemController {
                     .build());
         }
 
-        return state.listItems(request.getTable(), request.getPartition(), request.getLimit());
+        PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition(), false);
+
+        if (partitionState == null) {
+            return ResponseEntity.ok(ItemListResponse.builder()
+                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
+                    .build());
+        }
+
+        return partitionState.listItems(request.getLimit());
     }
 
     @PostMapping("/put/")
@@ -84,7 +101,9 @@ public class ItemController {
                     .build());
         }
 
-        return state.putItem(request.getTable(), request.getPartition(), request.getKey(), request.getValue());
+        PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition(), true);
+
+        return partitionState.putItem(request.getKey(), request.getValue());
     }
 
     @PostMapping("/count-and-offsets/")
@@ -104,6 +123,14 @@ public class ItemController {
                     .build());
         }
 
-        return state.countItems(request.getTable(), request.getPartition());
+        PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition(), false);
+
+        if (partitionState == null) {
+            return ResponseEntity.ok(ItemCountAndOffsetsResponse.builder()
+                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
+                    .build());
+        }
+
+        return partitionState.countItems();
     }
 }

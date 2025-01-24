@@ -1,6 +1,5 @@
 package com.bteshome.keyvaluestore.storage.responses;
 
-import com.bteshome.keyvaluestore.common.LogPosition;
 import lombok.*;
 
 import java.util.List;
@@ -11,10 +10,9 @@ import java.util.Map;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class WALFetchResponse {
+public class WALGetCommittedOffsetResponse {
     private int httpStatusCode;
     private String errorMessage;
-    private List<String> entries;
-    private Map<String, LogPosition> replicaEndOffsets;
-    private LogPosition commitedOffset;
+    private long commitedOffset;
+    private int leaderTerm;
 }

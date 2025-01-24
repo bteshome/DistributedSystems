@@ -2,7 +2,9 @@ package com.bteshome.keyvaluestore.common.responses;
 
 import com.bteshome.keyvaluestore.common.JavaSerDe;
 import com.bteshome.keyvaluestore.common.entities.EntityType;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.apache.ratis.protocol.Message;
 import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
@@ -15,25 +17,14 @@ import java.util.Map;
 
 @Getter
 @Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class StorageNodeMetadataRefreshResponse implements Serializable, Message {
     private Map<EntityType, Map<String, Object>> state;
     private String heartbeatEndpoint;
     private boolean modified;
     @Serial
     private static final long serialVersionUID = 1L;
-
-    public StorageNodeMetadataRefreshResponse(
-            Map<EntityType, Map<String, Object>> state,
-            String heartbeatEndpoint) {
-        this.state = state;
-        this.heartbeatEndpoint = heartbeatEndpoint;
-        this.modified = true;
-    }
-
-    public StorageNodeMetadataRefreshResponse(String heartbeatEndpoint) {
-        this.heartbeatEndpoint = heartbeatEndpoint;
-        this.modified = false;
-    }
 
     @Override
     public ByteString getContent() {

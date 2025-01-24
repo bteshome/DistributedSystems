@@ -1,10 +1,12 @@
-package com.bteshome.keyvaluestore.storage;
+package com.bteshome.keyvaluestore.storage.core;
 
 import com.bteshome.keyvaluestore.common.ConfigKeys;
+import com.bteshome.keyvaluestore.common.LogPosition;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.entities.Replica;
 import com.bteshome.keyvaluestore.storage.requests.WALFetchRequest;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
+import com.bteshome.keyvaluestore.storage.states.PartitionState;
 import com.bteshome.keyvaluestore.storage.states.State;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +27,7 @@ public class WALFetcher {
     private ScheduledExecutorService executor = null;
 
     @Autowired
-    State store;
+    State state;
 
     @PreDestroy
     public void close() {
@@ -48,7 +50,7 @@ public class WALFetcher {
     private void fetch() {
         log.trace("WAL fetcher triggered. Fetching ...");
 
-        List<Replica> followedReplicas = MetadataCache.getInstance().getFollowedReplicas(store.getNodeId());
+        List<Replica> followedReplicas = MetadataCache.getInstance().getFollowedReplicas(state.getNodeId());
 
         for (Replica followedReplica : followedReplicas) {
             try {
@@ -59,16 +61,17 @@ public class WALFetcher {
                     continue;
                 }
 
-                long lastFetchedOffset = store.getReplicaEndOffset(followedReplica.getTable(), followedReplica.getPartition(), store.getNodeId());
-                int lastFetchedLeaderTerm = store.getLastFetchedLeaderTerm(followedReplica.getTable(), followedReplica.getPartition(), store.getNodeId());
+                PartitionState partitionState = state.getPartitionState(followedReplica.getTable(), followedReplica.getPartition(), false);
+                LogPosition lastFetchOffset = partitionState == null ?
+                        LogPosition.empty() :
+                        partitionState.getOffsetState().getReplicaEndOffset(state.getNodeId());
                 int maxNumRecords = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_FETCH_MAX_NUM_RECORDS_KEY);
 
                 WALFetchRequest request = new WALFetchRequest(
-                        store.getNodeId(),
+                        state.getNodeId(),
                         followedReplica.getTable(),
                         followedReplica.getPartition(),
-                        lastFetchedOffset,
-                        lastFetchedLeaderTerm,
+                        lastFetchOffset,
                         maxNumRecords
                 );
 
@@ -83,44 +86,46 @@ public class WALFetcher {
                         .getBody();
 
                 if (response == null) {
-                    log.error("Error fetching WAL for table '{}' partition '{}'. Response is null.", followedReplica.getTable(), followedReplica.getPartition());
+                    // TODO - change to error
+                    log.trace("Error fetching WAL for table '{}' partition '{}'. Response is null.", followedReplica.getTable(), followedReplica.getPartition());
                     continue;
                 }
 
                 if (response.getHttpStatusCode() == HttpStatus.INTERNAL_SERVER_ERROR.value() || response.getHttpStatusCode() == HttpStatus.BAD_REQUEST.value()) {
-                    log.error("Error fetching WAL for table '{}' partition '{}'. Http status: {}, error: {}.",
+                    // TODO - change to error
+                    log.trace("Error fetching WAL for table '{}' partition '{}'. Http status: {}, error: {}.",
                             followedReplica.getTable(),
                             followedReplica.getPartition(),
                             response.getHttpStatusCode(),
                             response.getErrorMessage());
                 }
 
-                if (response.getHttpStatusCode() != HttpStatus.OK.value()) {
+                if (response.getHttpStatusCode() != HttpStatus.OK.value())
                     continue;
-                }
 
-                log.debug("Fetched WAL for table '{}' partition '{}' lastFetchedOffset '{}'. entries={}, endOffsets={}, commited offset={}.",
+                log.trace("Fetched WAL for table '{}' partition '{}' lastFetchedOffset '{}'. entries={}, endOffsets={}, commited index={}.",
                         followedReplica.getTable(),
                         followedReplica.getPartition(),
-                        lastFetchedOffset,
+                        lastFetchOffset,
                         response.getEntries(),
                         response.getReplicaEndOffsets(),
                         response.getCommitedOffset());
 
-                store.appendLogEntries(
+                state.appendLogEntries(
                         followedReplica.getTable(),
                         followedReplica.getPartition(),
                         response.getEntries(),
                         response.getReplicaEndOffsets(),
                         response.getCommitedOffset());
 
-                if (response.getEntries().isEmpty()) {
+                if (response.getEntries().isEmpty())
                     continue;
-                }
 
-                store.applyLogEntries(request.getTable(), request.getPartition(), response.getEntries());
+                partitionState = state.getPartitionState(request.getTable(), request.getPartition(), true);
+                partitionState.applyLogEntries(response.getEntries());
             } catch (Exception e) {
-                log.error("Error fetching WAL for table '{}' partition '{}'.", followedReplica.getTable(), followedReplica.getPartition(), e);
+                // TODO - change to error
+                log.trace("Error fetching WAL for table '{}' partition '{}'.", followedReplica.getTable(), followedReplica.getPartition(), e);
             }
         }
     }

@@ -21,6 +21,7 @@ import org.apache.ratis.statemachine.impl.SimpleStateMachineStorage;
 import org.apache.ratis.statemachine.impl.SingleFileSnapshotInfo;
 import org.apache.ratis.util.*;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 
 import java.io.*;
@@ -28,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class MetadataStateMachine extends BaseStateMachine {
@@ -57,7 +59,7 @@ public class MetadataStateMachine extends BaseStateMachine {
     }
 
     private void incrementVersion(RaftProtos.LogEntryProto entry) {
-        long version = Long.parseLong(state.get(EntityType.VERSION).get(CURRENT).toString());
+        long version = (Long) state.get(EntityType.VERSION).get(CURRENT);
         version++;
         state.get(EntityType.VERSION).put(CURRENT, version);
         UnmanagedState.getInstance().setVersion(version);
@@ -65,7 +67,7 @@ public class MetadataStateMachine extends BaseStateMachine {
     }
 
     private void scheduleStorageMonitor() {
-        long monitorIntervalMs = (Long)state.get(EntityType.CONFIGURATION).get(ConfigKeys.STORAGE_NODE_HEARTBEAT_MONITOR_INTERVAL_MS_KEY);
+        long monitorIntervalMs = (Long) state.get(EntityType.CONFIGURATION).get(ConfigKeys.STORAGE_NODE_HEARTBEAT_MONITOR_INTERVAL_MS_KEY);
         try {
             heartBeatMonitorExecutor = Executors.newSingleThreadScheduledExecutor();
             heartBeatMonitorExecutor.scheduleAtFixedRate(
@@ -82,7 +84,22 @@ public class MetadataStateMachine extends BaseStateMachine {
     private void reset() {
         state.get(EntityType.TABLE).clear();
         state.get(EntityType.STORAGE_NODE).clear();
+        state.get(EntityType.CONFIGURATION).clear();
+        state.get(EntityType.VERSION).put(CURRENT, 0L);
         setLastAppliedTermIndex(null);
+    }
+
+    private void loadUnmanagedState() {
+        List<UnmanagedState.StorageNode> unmanagedStorageNodes = state.get(EntityType.STORAGE_NODE)
+                .values()
+                .stream()
+                .map(StorageNode.class::cast)
+                .map(node -> new UnmanagedState.StorageNode(node.getId(), node.getStatus()))
+                .toList();
+        UnmanagedState.getInstance().setStorageNodes(unmanagedStorageNodes);
+        UnmanagedState.getInstance().setConfiguration(state.get(EntityType.CONFIGURATION));
+        UnmanagedState.getInstance().setVersion((Long) state.get(EntityType.VERSION).get(CURRENT));
+        UnmanagedState.getInstance().setLeader();
     }
 
     @Override
@@ -103,32 +120,23 @@ public class MetadataStateMachine extends BaseStateMachine {
         super.notifyLeaderChanged(groupMemberId, newLeaderId);
         if (!newLeaderId.equals(groupMemberId.getPeerId())) {
             UnmanagedState.getInstance().clear();
-            if (heartBeatMonitorExecutor != null) heartBeatMonitorExecutor.close();
-            log.info("Stopped storage node heartbeat monitor");
+            if (heartBeatMonitorExecutor != null) {
+                heartBeatMonitorExecutor.close();
+                log.info("Stopped storage node heartbeat monitor.");
+            }
         }
     }
 
     @Override
     public LeaderEventApi leaderEvent() {
-        if (state.get(EntityType.CONFIGURATION).isEmpty()) {
-            try (AutoCloseableLock lock = writeLock()) {
+        try (AutoCloseableLock l = readLock()) {
+            if (state.get(EntityType.CONFIGURATION).isEmpty()) {
                 new ConfigurationLoader().load(state, metadataSettings);
             }
+            loadUnmanagedState();
+            scheduleStorageMonitor();
+            return super.leaderEvent();
         }
-        loadUnmanagedState();
-        scheduleStorageMonitor();
-        return super.leaderEvent();
-    }
-
-    private void loadUnmanagedState() {
-        UnmanagedState.getInstance().setStorageNodes(state.get(EntityType.STORAGE_NODE)
-                .values()
-                .stream()
-                .map(StorageNode.class::cast)
-                .toList());
-        UnmanagedState.getInstance().setConfiguration(state.get(EntityType.CONFIGURATION));
-        UnmanagedState.getInstance().setVersion((Long)state.get(EntityType.VERSION).get(CURRENT));
-        UnmanagedState.getInstance().setLeader();
     }
 
     @Override
@@ -169,7 +177,6 @@ public class MetadataStateMachine extends BaseStateMachine {
             setLastAppliedTermIndex(last);
             log.info("Loading snapshot file {}", snapshotFile);
             state.putAll(JavaUtils.cast(in.readObject()));
-            log.info("State is now: {}", state);
         } catch (ClassNotFoundException e) {
             throw new IllegalStateException("Failed to load " + snapshot, e);
         }
@@ -179,21 +186,18 @@ public class MetadataStateMachine extends BaseStateMachine {
 
     @Override
     public long takeSnapshot() {
-        final Map<EntityType, Map<String, Object>> copy;
         final TermIndex last;
+        final File snapshotFile;
 
         try (AutoCloseableLock lock = readLock()) {
-            copy = new HashMap<>(state);
             last = getLastAppliedTermIndex();
-        }
-
-        final File snapshotFile =  storage.getSnapshotFile(last.getTerm(), last.getIndex());
-        log.info("Taking a snapshot to file {}", snapshotFile);
-
-        try (ObjectOutputStream out = new ObjectOutputStream(new BufferedOutputStream(FileUtils.newOutputStream(snapshotFile)))) {
-            out.writeObject(copy);
-        } catch(IOException ioe) {
-            log.error("Failed to write snapshot file \"" + snapshotFile + "\", last applied index=" + last, ioe);
+            snapshotFile = storage.getSnapshotFile(last.getTerm(), last.getIndex());
+            log.info("Taking a snapshot to file {}", snapshotFile);
+            try (ObjectOutputStream out = new ObjectOutputStream(new BufferedOutputStream(FileUtils.newOutputStream(snapshotFile)))) {
+                out.writeObject(state);
+            } catch (IOException ioe) {
+                log.error("Failed to write snapshot file \"" + snapshotFile + "\", last applied index=" + last, ioe);
+            }
         }
 
         final MD5Hash md5 = MD5FileUtil.computeAndSaveMd5ForFile(snapshotFile);
@@ -215,7 +219,7 @@ public class MetadataStateMachine extends BaseStateMachine {
                 List<StorageNode> activeStorageNodes;
                 log.info("%s request received. Table = '%s'.".formatted(MetadataRequestType.TABLE_CREATE, request.getTableName()));
 
-                try (AutoCloseableLock lock = readLock()) {
+                try (AutoCloseableLock lock = writeLock()) {
                     boolean tableExists = state.get(EntityType.TABLE).containsKey(request.getTableName());
                     if (tableExists) {
                         String errorMessage = "Table '%s' exists.".formatted(request.getTableName());
@@ -229,60 +233,48 @@ public class MetadataStateMachine extends BaseStateMachine {
                             .map(StorageNode.class::cast)
                             .filter(StorageNode::isActive)
                             .toList();
-                }
 
-                if (activeStorageNodes.size() < request.getReplicationFactor()) {
-                    String errorMessage = "Replication factor '%s' exceeds the number of available storage nodes '%s'."
-                            .formatted(request.getReplicationFactor(), activeStorageNodes.size());
-                    log.error("{} failed for table '{}'. {}", MetadataRequestType.TABLE_CREATE, request.getTableName(), errorMessage);
-                    yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.BAD_REQUEST.value(), errorMessage));
-                }
+                    if (activeStorageNodes.size() < request.getReplicationFactor()) {
+                        String errorMessage = "Replication factor '%s' exceeds the number of available storage nodes '%s'."
+                                .formatted(request.getReplicationFactor(), activeStorageNodes.size());
+                        log.error("{} failed for table '{}'. {}", MetadataRequestType.TABLE_CREATE, request.getTableName(), errorMessage);
+                        yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.BAD_REQUEST.value(), errorMessage));
+                    }
 
-                Table table = Table.toTable(request);
-
-                try (AutoCloseableLock lock = writeLock()) {
+                    Table table = Table.toTable(request);
                     ReplicaAssigner.assign(table, activeStorageNodes);
                     PartitionLeaderElector.elect(table, state.get(EntityType.STORAGE_NODE));
                     state.get(EntityType.TABLE).put(request.getTableName(), table);
                     incrementVersion(entry);
-                }
 
-                if (trx.getServerRole().equals(RaftProtos.RaftPeerRole.LEADER)) {
-                    var replicaEndpoints = state.get(EntityType.STORAGE_NODE)
-                            .values()
-                            .stream()
-                            .map(StorageNode.class::cast)
-                            .filter(node -> node.hasReplicasFor(table.getName()))
-                            .filter(StorageNode::isActive)
-                            .map(node -> "%s:%s".formatted(node.getHost(), node.getPort()));
+                    if (trx.getServerRole().equals(RaftProtos.RaftPeerRole.LEADER)) {
+                        Set<String> replicaEndpoints = state.get(EntityType.STORAGE_NODE)
+                                .values()
+                                .stream()
+                                .map(StorageNode.class::cast)
+                                .filter(node -> node.hasReplicasFor(table.getName()))
+                                .map(node -> "%s:%s".formatted(node.getHost(), node.getPort()))
+                                .collect(Collectors.toSet());
 
-                    List<CompletableFuture<Void>> futures = new ArrayList<>();
+                        List<CompletableFuture<Void>> futures = new ArrayList<>();
 
-                    replicaEndpoints.forEach(endpoint -> {
-                        futures.add(CompletableFuture.runAsync(() -> {
-                            try {
-                                Long response = RestClient.builder()
+                        replicaEndpoints.forEach(endpoint -> {
+                            futures.add(CompletableFuture.runAsync(() -> {
+                                RestClient.builder()
                                         .build()
                                         .post()
-                                        .uri("http://%s/api/metadata/leader-elected/".formatted(endpoint))
+                                        .uri("http://%s/api/metadata/table-created/".formatted(endpoint))
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .body(table)
                                         .retrieve()
-                                        .toEntity(Long.class)
-                                        .getBody();
-                                if (response < UnmanagedState.getInstance().getVersion()) {
-                                    log.error("Error sending leader-elected message to a replica for table '{}' at endpoint '{}'. The replica is still at an older version '{}'.",
-                                            table.getName(),
-                                            endpoint,
-                                            response);
-                                }
-                            } catch (Exception e) {
-                                log.error("Error sending leader-elected message to replica for table '{}'.", table.getName(), e);
-                            }
-                        }));
-                    });
+                                        .toBodilessEntity();
+                            }));
+                        });
 
-                    CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+                        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
 
-                    log.info("Sent leader-elected message to replicas for table '{}'..", request.getTableName());
+                        log.info("Sent table-created message to replicas for table '{}'..", request.getTableName());
+                    }
                 }
 
                 log.info("{} succeeded. Table = '{}'.", MetadataRequestType.TABLE_CREATE, request.getTableName());
@@ -295,10 +287,10 @@ public class MetadataStateMachine extends BaseStateMachine {
                 try (AutoCloseableLock lock = writeLock()) {
                     boolean nodeExists = state.get(EntityType.STORAGE_NODE).containsKey(request.getId());
                     if (nodeExists) {
-                        StorageNode existingNodeInfo = (StorageNode)state.get(EntityType.STORAGE_NODE).get(request.getId());
+                        StorageNode existingNodeInfo = (StorageNode) state.get(EntityType.STORAGE_NODE).get(request.getId());
 
                         if (!(request.getHost().equals(existingNodeInfo.getHost()) &&
-                            request.getPort() == existingNodeInfo.getPort())) {
+                                request.getPort() == existingNodeInfo.getPort())) {
                             log.warn("{} failed. {}.", MetadataRequestType.STORAGE_NODE_JOIN, "Node info does not match what is registered.");
                             yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.UNAUTHORIZED.value()));
                         }
@@ -310,13 +302,13 @@ public class MetadataStateMachine extends BaseStateMachine {
 
                     StorageNode storageNode = StorageNode.toStorageNode(request);
                     state.get(EntityType.STORAGE_NODE).put(storageNode.getId(), storageNode);
-                    UnmanagedState.getInstance().addStorageNode(storageNode);
+                    UnmanagedState.getInstance().addStorageNode(new UnmanagedState.StorageNode(storageNode.getId(), storageNode.getStatus()));
                     incrementVersion(entry);
-
-                    String infoMessage = "Node '%s' has joined the cluster.".formatted(storageNode.getId());
-                    log.info("{} succeeded. {}", MetadataRequestType.STORAGE_NODE_JOIN, infoMessage);
-                    yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.OK.value(), infoMessage));
                 }
+
+                String infoMessage = "Node '%s' has joined the cluster.".formatted(request.getId());
+                log.info("{} succeeded. {}", MetadataRequestType.STORAGE_NODE_JOIN, infoMessage);
+                yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.OK.value(), infoMessage));
             }
             case STORAGE_NODE_LEAVE -> {
                 // TODO - send leader-elected message to replicas of all partitions of all tables
@@ -331,8 +323,10 @@ public class MetadataStateMachine extends BaseStateMachine {
                         yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.UNAUTHORIZED.value(), errorMessage));
                     }
 
-                    StorageNode storageNode = (StorageNode)state.get(EntityType.STORAGE_NODE).get(request.getId());
+                    StorageNode storageNode = (StorageNode) state.get(EntityType.STORAGE_NODE).get(request.getId());
+                    storageNode.setStatus(StorageNodeStatus.INACTIVE);
                     PartitionLeaderElector.oustAndReelect(storageNode, state.get(EntityType.TABLE), state.get(EntityType.STORAGE_NODE));
+                    // TODO - move the replicas
                     state.get(EntityType.STORAGE_NODE).remove(request.getId());
                     UnmanagedState.getInstance().removeStorageNode(request.getId());
                     incrementVersion(entry);
@@ -352,7 +346,7 @@ public class MetadataStateMachine extends BaseStateMachine {
                         yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.UNAUTHORIZED.value(), errorMessage));
                     }
 
-                    StorageNode storageNode = (StorageNode)state.get(EntityType.STORAGE_NODE).get(request.getId());
+                    StorageNode storageNode = (StorageNode) state.get(EntityType.STORAGE_NODE).get(request.getId());
                     storageNode.setStatus(StorageNodeStatus.ACTIVE);
                     UnmanagedState.getInstance().setStorageNodeStatus(request.getId(), StorageNodeStatus.ACTIVE);
                     incrementVersion(entry);
@@ -374,11 +368,64 @@ public class MetadataStateMachine extends BaseStateMachine {
                         yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.UNAUTHORIZED.value(), errorMessage));
                     }
 
-                    StorageNode storageNode = (StorageNode)state.get(EntityType.STORAGE_NODE).get(request.getId());
+                    StorageNode storageNode = (StorageNode) state.get(EntityType.STORAGE_NODE).get(request.getId());
+                    List<Tuple<String, Integer>> affectedPartitions = storageNode.getReplicaAssignmentSet()
+                            .stream()
+                            .filter(ReplicaAssignment::isLeader)
+                            .map(assignment -> new Tuple<>(assignment.getTableName(), assignment.getPartitionIid()))
+                            .toList();
+
                     storageNode.setStatus(StorageNodeStatus.INACTIVE);
                     UnmanagedState.getInstance().setStorageNodeStatus(request.getId(), StorageNodeStatus.INACTIVE);
                     PartitionLeaderElector.oustAndReelect(storageNode, state.get(EntityType.TABLE), state.get(EntityType.STORAGE_NODE));
                     incrementVersion(entry);
+
+                    if (trx.getServerRole().equals(RaftProtos.RaftPeerRole.LEADER)) {
+                        affectedPartitions.forEach(partition -> {
+                            String newLeaderId = ((Table)state.get(EntityType.TABLE)).getPartitions().get(partition.getValue()).getLeader();
+                            NewLeaderElectedRequest newLeaderElectedRequest = new NewLeaderElectedRequest(
+                                    partition.getKey(),
+                                    partition.getValue(),
+                                    newLeaderId);
+                            List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+                            /*List<String> replicaEndpoints = state.get(EntityType.STORAGE_NODE)
+                                    .values()
+                                    .stream()
+                                    .map(StorageNode.class::cast)
+                                    .filter(node -> node.hasAReplicaFor(partition.getKey(), partition.getValue()))
+                                    .map(node -> "%s:%s".formatted(node.getHost(), node.getPort()))
+                                    .collect(Collectors.toSet());*/
+
+                            Table table = (Table)state.get(EntityType.TABLE).get(partition.getKey());
+                            List<String> replicaEndpoints = table.getPartitions()
+                                    .get(partition.getValue())
+                                    .getReplicas()
+                                    .stream()
+                                    .map(nodeId -> {
+                                        StorageNode node = (StorageNode)state.get(EntityType.STORAGE_NODE).get(nodeId);
+                                        return "%s:%s".formatted(node.getHost(), node.getPort());
+                                    })
+                                    .toList();
+
+                            replicaEndpoints.forEach(endpoint -> {
+                                futures.add(CompletableFuture.runAsync(() -> {
+                                    RestClient.builder()
+                                            .build()
+                                            .post()
+                                            .uri("http://%s/api/metadata/new-leader-elected/".formatted(endpoint))
+                                            .contentType(MediaType.APPLICATION_JSON)
+                                            .body(newLeaderElectedRequest)
+                                            .retrieve()
+                                            .toBodilessEntity();
+                                }));
+                            });
+
+                            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+                        });
+
+                        log.info("Sent new leader elected message to all replicas of partitions '{}'.", affectedPartitions);
+                    }
                 }
 
                 log.info("{} succeeded. Node = '{}'.", MetadataRequestType.STORAGE_NODE_DEACTIVATE, request.getId());
@@ -390,7 +437,7 @@ public class MetadataStateMachine extends BaseStateMachine {
 
                 try (AutoCloseableLock lock = writeLock()) {
                     for (Replica replica : request.getReplicas()) {
-                        Table table = (Table)state.get(EntityType.TABLE).get(replica.getTable());
+                        Table table = (Table) state.get(EntityType.TABLE).get(replica.getTable());
                         Partition partition = table.getPartitions().get(replica.getPartition());
                         partition.getInSyncReplicas().remove(replica.getNodeId());
                         log.warn("'{}' removed from the ISR list of table '{}' partition '{}'.",
@@ -411,7 +458,7 @@ public class MetadataStateMachine extends BaseStateMachine {
 
                 try (AutoCloseableLock lock = writeLock()) {
                     for (Replica replica : request.getReplicas()) {
-                        Table table = (Table)state.get(EntityType.TABLE).get(replica.getTable());
+                        Table table = (Table) state.get(EntityType.TABLE).get(replica.getTable());
                         Partition partition = table.getPartitions().get(replica.getPartition());
                         partition.getInSyncReplicas().add(replica.getNodeId());
                         log.warn("'{}' added to the ISR list of table '{}' partition '{}'.",
@@ -440,107 +487,98 @@ public class MetadataStateMachine extends BaseStateMachine {
             case TABLE_GET -> {
                 TableGetRequest request = JavaSerDe.deserialize(messageParts[1]);
 
-                Table result;
                 try (AutoCloseableLock lock = readLock()) {
-                    result = (Table)state.get(EntityType.TABLE).getOrDefault(request.getTableName(), null);
+                    Table result = (Table) state.get(EntityType.TABLE).getOrDefault(request.getTableName(), null);
+
+                    log.debug("{}: {} = {}", MetadataRequestType.TABLE_GET, request.getTableName(), result);
+
+                    if (result == null) {
+                        yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.NOT_FOUND.value()));
+                    }
+
+                    TableGetResponse response = new TableGetResponse(result);
+                    yield CompletableFuture.completedFuture(response);
                 }
-
-                log.debug("{}: {} = {}", MetadataRequestType.TABLE_GET, request.getTableName(), result);
-
-                if (result == null) {
-                    yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.NOT_FOUND.value()));
-                }
-
-                TableGetResponse response = new TableGetResponse(result);
-                yield CompletableFuture.completedFuture(response);
             }
             case TABLE_LIST -> {
                 // TODO - consider limit and continuation
-                final List<Table> result;
                 try (AutoCloseableLock lock = readLock()) {
-                    result = new ArrayList<>(state.get(EntityType.TABLE).size());
-                    result.addAll(state.get(EntityType.TABLE)
+                    List<Table> result = new ArrayList<>(state.get(EntityType.TABLE)
                             .values()
                             .stream()
                             .map(Table.class::cast)
                             .toList());
+                    log.debug("{}: = {}", MetadataRequestType.TABLE_LIST, result);
+                    yield CompletableFuture.completedFuture(new TableListResponse(result));
                 }
-                log.debug("{}: = {}", MetadataRequestType.TABLE_LIST, result);
-                yield CompletableFuture.completedFuture(new TableListResponse(result));
             }
             case STORAGE_NODE_GET -> {
                 StorageNodeGetRequest request = JavaSerDe.deserialize(messageParts[1]);
 
-                log.error("Config: {}", state.get(EntityType.CONFIGURATION));
-
-                StorageNode result;
                 try (AutoCloseableLock lock = readLock()) {
-                    result = (StorageNode)state.get(EntityType.STORAGE_NODE).getOrDefault(request.getId(), null);
+                    StorageNode result = (StorageNode) state.get(EntityType.STORAGE_NODE).getOrDefault(request.getId(), null);
+                    log.debug("{}: {} = {}", MetadataRequestType.STORAGE_NODE_GET, request.getId(), result);
+                    if (result == null) {
+                        yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.NOT_FOUND.value()));
+                    }
+                    StorageNodeGetResponse response = new StorageNodeGetResponse(result);
+                    yield CompletableFuture.completedFuture(response);
                 }
-
-                log.debug("{}: {} = {}", MetadataRequestType.STORAGE_NODE_GET, request.getId(), result);
-
-                if (result == null) {
-                    yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.NOT_FOUND.value()));
-                }
-
-                StorageNodeGetResponse response = new StorageNodeGetResponse(result);
-                yield CompletableFuture.completedFuture(response);
             }
             case STORAGE_NODE_LIST -> {
                 // TODO - consider limit and continuation
-                final List<StorageNode> result;
                 try (AutoCloseableLock lock = readLock()) {
-                    result = new ArrayList<>(state.get(EntityType.STORAGE_NODE).size());
-                    result.addAll(state.get(EntityType.STORAGE_NODE)
+                    List<StorageNode> result = new ArrayList<>(state.get(EntityType.STORAGE_NODE)
                             .values()
                             .stream()
                             .map(StorageNode.class::cast)
                             .toList());
+                    log.debug("{}: = {}", MetadataRequestType.STORAGE_NODE_LIST, result);
+                    yield CompletableFuture.completedFuture(new StorageNodeListResponse(result));
                 }
-                log.debug("{}: = {}", MetadataRequestType.STORAGE_NODE_LIST, result);
-                yield CompletableFuture.completedFuture(new StorageNodeListResponse(result));
             }
             case STORAGE_NODE_METADATA_REFRESH -> {
                 StorageNodeMetadataRefreshRequest request = JavaSerDe.deserialize(messageParts[1]);
-                long currentVersion;
 
                 try (AutoCloseableLock lock = readLock()) {
-                    currentVersion = (Long)state.get(EntityType.VERSION).get(CURRENT);
-                }
+                    long currentVersion = (Long)state.get(EntityType.VERSION).get(CURRENT);
 
-                log.debug("{}: node = {}, last fetched version = {}, current version = {}",
-                        MetadataRequestType.STORAGE_NODE_METADATA_REFRESH,
-                        request.getId(),
-                        request.getLastFetchedVersion(),
-                        currentVersion);
+                    log.debug("{}: node = {}, last fetched version = {}, current version = {}",
+                            MetadataRequestType.STORAGE_NODE_METADATA_REFRESH,
+                            request.getId(),
+                            request.getLastFetchedVersion(),
+                            currentVersion);
 
-                String heartbeatEndpoint = "%s:%s/api/heartbeat/".formatted(
-                        metadataSettings.getNode().getHost(),
-                        metadataSettings.getRestPort());
+                    String heartbeatEndpoint = "%s:%s/api/heartbeat/".formatted(
+                            metadataSettings.getNode().getHost(),
+                            metadataSettings.getRestPort());
 
-                if (request.getLastFetchedVersion() == 0 || request.getLastFetchedVersion() != currentVersion) {
-                    UnmanagedState.getInstance().setMetadataFetchTime(request.getId(), System.nanoTime());
-                    try (AutoCloseableLock lock = readLock()) {
-                        yield CompletableFuture.completedFuture(new StorageNodeMetadataRefreshResponse(state, heartbeatEndpoint));
+                    if (request.getLastFetchedVersion() == 0 || request.getLastFetchedVersion() != currentVersion) {
+                        UnmanagedState.getInstance().setMetadataFetchTime(request.getId(), System.nanoTime());
+                        yield CompletableFuture.completedFuture(new StorageNodeMetadataRefreshResponse(state, heartbeatEndpoint, true));
+                    } else {
+                        yield CompletableFuture.completedFuture(new StorageNodeMetadataRefreshResponse(null, heartbeatEndpoint, false));
                     }
-                } else {
-                    yield CompletableFuture.completedFuture(new StorageNodeMetadataRefreshResponse(heartbeatEndpoint));
                 }
             }
             case CLIENT_METADATA_REFRESH -> {
                 ClientMetadataRefreshRequest request = JavaSerDe.deserialize(messageParts[1]);
-                long currentVersion = (Long)state.get(EntityType.VERSION).get(CURRENT);
 
-                if (request.getLastFetchedVersion() == 0 || request.getLastFetchedVersion() != currentVersion) {
-                    yield CompletableFuture.completedFuture(new ClientMetadataRefreshResponse(state, true));
-                } else {
-                    yield CompletableFuture.completedFuture(new ClientMetadataRefreshResponse(null, false));
+                try (AutoCloseableLock lock = readLock()) {
+                    long currentVersion = (Long) state.get(EntityType.VERSION).get(CURRENT);
+
+                    if (request.getLastFetchedVersion() == 0 || request.getLastFetchedVersion() != currentVersion) {
+                        yield CompletableFuture.completedFuture(new ClientMetadataRefreshResponse(state, true));
+                    } else {
+                        yield CompletableFuture.completedFuture(new ClientMetadataRefreshResponse(null, false));
+                    }
                 }
             }
             case CONFIGURATION_LIST -> {
-                Map<String, Object> result = state.get(EntityType.CONFIGURATION);
-                yield CompletableFuture.completedFuture(new ConfigurationListResponse(result));
+                try (AutoCloseableLock lock = readLock()) {
+                    Map<String, Object> result = state.get(EntityType.CONFIGURATION);
+                    yield CompletableFuture.completedFuture(new ConfigurationListResponse(result));
+                }
             }
             default -> CompletableFuture.completedFuture(new GenericResponse(HttpStatus.BAD_REQUEST.value()));
         };

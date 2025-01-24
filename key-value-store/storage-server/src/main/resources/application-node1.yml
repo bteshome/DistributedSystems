@@ -28,7 +28,6 @@ client:
       #host: 127.0.0.1
       host: localhost
       port: '9313'
-  metadata-refresh-interval-ms: 10000
 
 storage:
   node:
