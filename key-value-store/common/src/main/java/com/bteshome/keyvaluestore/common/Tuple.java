@@ -1,16 +1,12 @@
 package com.bteshome.keyvaluestore.common;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-
-@Getter
-@AllArgsConstructor
-public class Tuple<T1, T2> {
-    private T1 key;
-    private T2 value;
-
+public record Tuple<T1, T2>(T1 first, T2 second) {
     @Override
     public String toString() {
-        return "%s-%s".formatted(key, value);
+        return "%s-%s".formatted(first, second);
+    }
+
+    public static <T1, T2> Tuple<T1, T2> of(T1 key, T2 value) {
+        return new Tuple<>(key, value);
     }
 }

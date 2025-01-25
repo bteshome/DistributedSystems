@@ -2,8 +2,8 @@ package com.bteshome.keyvaluestore.storage.api;
 
 import com.bteshome.keyvaluestore.common.ConfigKeys;
 import com.bteshome.keyvaluestore.common.MetadataCache;
-import com.bteshome.keyvaluestore.storage.requests.WALGetCommittedOffsetRequest;
-import com.bteshome.keyvaluestore.storage.responses.WALGetCommittedOffsetResponse;
+import com.bteshome.keyvaluestore.storage.requests.WALGetReplicaEndOffsetRequest;
+import com.bteshome.keyvaluestore.storage.responses.WALGetReplicaEndOffsetResponse;
 import com.bteshome.keyvaluestore.storage.states.PartitionState;
 import com.bteshome.keyvaluestore.storage.states.State;
 import com.bteshome.keyvaluestore.storage.requests.WALFetchRequest;
@@ -30,7 +30,7 @@ public class WALController {
     public ResponseEntity<WALFetchResponse> fetch(@RequestBody WALFetchRequest request) {
         if (!state.getLastHeartbeatSucceeded()) {
             String errorMessage = "Node '%s' is not active.".formatted(state.getNodeId());
-            log.warn("{} from replica '{}' failed. {}", "WAL_FETCH", request.getId(), errorMessage);
+            log.debug("{} from replica '{}' failed. {}", "WAL_FETCH", request.getId(), errorMessage);
             return ResponseEntity.ok(WALFetchResponse.builder()
                     .httpStatusCode(HttpStatus.SERVICE_UNAVAILABLE.value())
                     .errorMessage(errorMessage)
@@ -45,29 +45,30 @@ public class WALController {
                     .build());
         }
 
-        int maxNumRecordsAllowed = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_FETCH_MAX_NUM_RECORDS_KEY);
-        if (request.getMaxNumRecords() > maxNumRecordsAllowed) {
-            String errorMessage = "Max number of records allowed is %d.".formatted(maxNumRecordsAllowed);
+        if (MetadataCache.getInstance().isFetchPaused(request.getTable(), request.getPartition())) {
+            String errorMessage = "Fetch is temporarily paused for table '%s' partition '%s'.".formatted(request.getTable(), request.getPartition());
+            log.debug("{} from replica '{}' failed. {}", "WAL_FETCH", request.getId(), errorMessage);
             return ResponseEntity.ok(WALFetchResponse.builder()
-                    .httpStatusCode(HttpStatus.BAD_REQUEST.value())
+                    .httpStatusCode(HttpStatus.SERVICE_UNAVAILABLE.value())
                     .errorMessage(errorMessage)
                     .build());
         }
+
+        int maxNumRecordsAllowed = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_FETCH_MAX_NUM_RECORDS_KEY);
 
         return state.fetch(
                 request.getTable(),
                 request.getPartition(),
                 request.getLastFetchOffset(),
-                request.getMaxNumRecords(),
+                Math.min(request.getMaxNumRecords(), maxNumRecordsAllowed),
                 request.getId());
     }
 
-    // TODO - send the new leader log & committed offset
-    @PostMapping("/get-committed-offset/")
-    public ResponseEntity<WALGetCommittedOffsetResponse> fetch(@RequestBody WALGetCommittedOffsetRequest request) {
+    @PostMapping("/get-end-offset/")
+    public ResponseEntity<WALGetReplicaEndOffsetResponse> fetch(@RequestBody WALGetReplicaEndOffsetRequest request) {
         if (!MetadataCache.getInstance().tableExists(request.getTable())) {
             String errorMessage = "Table '%s' does not exist.".formatted(request.getTable());
-            return ResponseEntity.ok(WALGetCommittedOffsetResponse.builder()
+            return ResponseEntity.ok(WALGetReplicaEndOffsetResponse.builder()
                     .httpStatusCode(HttpStatus.NOT_FOUND.value())
                     .errorMessage(errorMessage)
                     .build());
@@ -76,14 +77,14 @@ public class WALController {
         PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition(), false);
 
         if (partitionState == null) {
-            return ResponseEntity.ok(WALGetCommittedOffsetResponse.builder()
+            return ResponseEntity.ok(WALGetReplicaEndOffsetResponse.builder()
                     .httpStatusCode(HttpStatus.NOT_FOUND.value())
                     .build());
         }
 
-        return ResponseEntity.ok(WALGetCommittedOffsetResponse.builder()
+        return ResponseEntity.ok(WALGetReplicaEndOffsetResponse.builder()
                 .httpStatusCode(HttpStatus.OK.value())
-                .committedOffset(partitionState.getOffsetState().getCommittedOffset())
+                .endOffset(partitionState.getOffsetState().getReplicaEndOffset(state.getNodeId()))
                 .build());
     }
 }

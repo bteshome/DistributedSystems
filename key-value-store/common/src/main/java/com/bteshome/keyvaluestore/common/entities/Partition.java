@@ -8,7 +8,9 @@ import lombok.Setter;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Getter
 @Setter
@@ -19,16 +21,16 @@ public class Partition implements Serializable {
     private String tableName;
     private String leader;
     private int leaderTerm;
-    private List<String> replicas;
-    private List<String> inSyncReplicas;
+    private Set<String> replicas;
+    private Set<String> inSyncReplicas;
     @Serial
     private static final long serialVersionUID = 1L;
 
     public Partition(String tableName, int id) {
         this.tableName = tableName;
         this.id = id;
-        this.replicas = new ArrayList<>();
-        this.inSyncReplicas = new ArrayList<>();
+        this.replicas = new HashSet<>();
+        this.inSyncReplicas = new HashSet<>();
     }
 
     @Override

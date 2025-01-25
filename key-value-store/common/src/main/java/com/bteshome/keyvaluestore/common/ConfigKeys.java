@@ -11,9 +11,9 @@ public class ConfigKeys {
     public static final String STORAGE_NODE_METADATA_REFRESH_INTERVAL_MS_KEY = "storage-node-metadata-refresh-interval-ms";
     public static final String REPLICA_MONITOR_INTERVAL_MS_KEY = "replica-monitor-interval-ms";
     public static final String REPLICA_LAG_THRESHOLD_RECORDS_KEY = "replica-lag-threshold-records";
+    public static final String REPLICA_LAG_THRESHOLD_TIME_MS_KEY = "replica-lag-threshold-time-ms";
     public static final String REPLICA_FETCH_INTERVAL_MS_KEY = "replica-fetch-interval-ms";
     public static final String REPLICA_FETCH_MAX_NUM_RECORDS_KEY = "replica-fetch-max-num-records";
     public static final String REPLICA_END_OFFSETS_SNAPSHOT_INTERVAL_MS_KEY = "replica-end-offsets-snapshot-interval-ms";
     public static final String RING_NUM_VIRTUAL_PARTITIONS_KEY = "ring-num-virtual-partitions";
-    public static final String WRITE_TIMEOUT_MS_KEY = "write-timeout-ms";
 }

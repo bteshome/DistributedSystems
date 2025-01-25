@@ -9,11 +9,12 @@ import org.apache.ratis.util.AutoCloseableLock;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class MetadataCache {
     private Map<EntityType, Map<String, Object>> state = Map.of();
-    private Map<String, Map<Integer, Boolean>> partitionsWithPausedFetch = new ConcurrentHashMap<>();
+    private final Map<String, Map<Integer, Boolean>> partitionsWithPausedFetch = new ConcurrentHashMap<>();
     private String heartbeatEndpoint;
     private static final String CURRENT = "current";
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
@@ -33,9 +34,8 @@ public class MetadataCache {
     }
 
     public boolean isFetchPaused(String table, int partition) {
-        if (!partitionsWithPausedFetch.containsKey(table))
-            return false;
-        return partitionsWithPausedFetch.get(table).containsKey(partition);
+        return partitionsWithPausedFetch.containsKey(table) &&
+                partitionsWithPausedFetch.get(table).containsKey(partition);
     }
 
     public long getLastFetchedVersion() {
@@ -103,7 +103,7 @@ public class MetadataCache {
         }
     }
 
-    public List<String> getReplicaEndpoints(String tableName, int partition) {
+    public Set<String> getReplicaEndpoints(String tableName, int partition) {
         try (AutoCloseableLock l = readLock()) {
             Table table = (Table)state.get(EntityType.TABLE).get(tableName);
             return table.getPartitions()
@@ -114,18 +114,31 @@ public class MetadataCache {
                         StorageNode node = (StorageNode)state.get(EntityType.STORAGE_NODE).get(nodeId);
                         return "%s:%s".formatted(node.getHost(), node.getPort());
                     })
-                    .toList();
+                    .collect(Collectors.toSet());
         }
     }
 
-    public List<String> getReplicaNodeIds(String tableName, int partition) {
+    public Set<String> getISREndpoints(String tableName, int partition) {
         try (AutoCloseableLock l = readLock()) {
             Table table = (Table)state.get(EntityType.TABLE).get(tableName);
             return table.getPartitions()
                     .get(partition)
-                    .getReplicas()
+                    .getInSyncReplicas()
                     .stream()
-                    .toList();
+                    .map(nodeId -> {
+                        StorageNode node = (StorageNode)state.get(EntityType.STORAGE_NODE).get(nodeId);
+                        return "%s:%s".formatted(node.getHost(), node.getPort());
+                    })
+                    .collect(Collectors.toSet());
+        }
+    }
+
+    public Set<String> getReplicaNodeIds(String tableName, int partition) {
+        try (AutoCloseableLock l = readLock()) {
+            Table table = (Table)state.get(EntityType.TABLE).get(tableName);
+            return new HashSet<>(table.getPartitions()
+                    .get(partition)
+                    .getReplicas());
         }
     }
 

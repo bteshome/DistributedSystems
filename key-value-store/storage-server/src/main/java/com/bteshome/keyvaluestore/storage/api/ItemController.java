@@ -9,6 +9,7 @@ import com.bteshome.keyvaluestore.client.responses.ItemGetResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemListResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
 import com.bteshome.keyvaluestore.common.MetadataCache;
+import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
 import com.bteshome.keyvaluestore.storage.states.PartitionState;
 import com.bteshome.keyvaluestore.storage.states.State;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +45,14 @@ public class ItemController {
                     .build());
         }
 
+        if (MetadataCache.getInstance().isFetchPaused(request.getTable(), request.getPartition())) {
+            String errorMessage = "Fetch is temporarily paused for table '%s' partition '%s'.".formatted(request.getTable(), request.getPartition());
+            return ResponseEntity.ok(ItemGetResponse.builder()
+                    .httpStatusCode(HttpStatus.SERVICE_UNAVAILABLE.value())
+                    .errorMessage(errorMessage)
+                    .build());
+        }
+
         PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition(), false);
 
         if (partitionState == null) {
@@ -72,6 +81,14 @@ public class ItemController {
                     .build());
         }
 
+        if (MetadataCache.getInstance().isFetchPaused(request.getTable(), request.getPartition())) {
+            String errorMessage = "Fetch is temporarily paused for table '%s' partition '%s'.".formatted(request.getTable(), request.getPartition());
+            return ResponseEntity.ok(ItemListResponse.builder()
+                    .httpStatusCode(HttpStatus.SERVICE_UNAVAILABLE.value())
+                    .errorMessage(errorMessage)
+                    .build());
+        }
+
         PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition(), false);
 
         if (partitionState == null) {
@@ -97,6 +114,14 @@ public class ItemController {
             String errorMessage = "Table '%s' does not exist.".formatted(request.getTable());
             return ResponseEntity.ok(ItemPutResponse.builder()
                     .httpStatusCode(HttpStatus.NOT_FOUND.value())
+                    .errorMessage(errorMessage)
+                    .build());
+        }
+
+        if (MetadataCache.getInstance().isFetchPaused(request.getTable(), request.getPartition())) {
+            String errorMessage = "Put is temporarily paused for table '%s' partition '%s'.".formatted(request.getTable(), request.getPartition());
+            return ResponseEntity.ok(ItemPutResponse.builder()
+                    .httpStatusCode(HttpStatus.SERVICE_UNAVAILABLE.value())
                     .errorMessage(errorMessage)
                     .build());
         }

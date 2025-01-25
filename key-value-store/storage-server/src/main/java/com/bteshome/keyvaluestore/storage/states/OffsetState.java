@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -47,12 +48,6 @@ public class OffsetState {
             copy = new HashMap<>(replicaEndOffsets);
         }
         return copy;
-    }
-
-    public Collection<LogPosition> getReplicaEndOffsetValues() {
-        try (AutoCloseableLock l = readLock()) {
-            return replicaEndOffsets.values();
-        }
     }
 
     public LogPosition getReplicaEndOffset(String replicaNodeId) {

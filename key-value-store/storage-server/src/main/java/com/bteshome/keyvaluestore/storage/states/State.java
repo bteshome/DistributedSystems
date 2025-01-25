@@ -4,15 +4,15 @@ import com.bteshome.keyvaluestore.common.ConfigKeys;
 import com.bteshome.keyvaluestore.common.LogPosition;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.Validator;
-import com.bteshome.keyvaluestore.common.entities.Table;
 import com.bteshome.keyvaluestore.common.requests.NewLeaderElectedRequest;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
+import com.bteshome.keyvaluestore.storage.core.ISRSynchronizer;
+import com.bteshome.keyvaluestore.storage.core.ReplicaMonitor;
 import com.bteshome.keyvaluestore.storage.core.StorageNodeMetadataRefresher;
-import com.bteshome.keyvaluestore.storage.requests.WALFetchRequest;
-import com.bteshome.keyvaluestore.storage.requests.WALGetCommittedOffsetRequest;
+import com.bteshome.keyvaluestore.storage.requests.WALGetReplicaEndOffsetRequest;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
-import com.bteshome.keyvaluestore.storage.responses.WALGetCommittedOffsetResponse;
+import com.bteshome.keyvaluestore.storage.responses.WALGetReplicaEndOffsetResponse;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.Getter;
@@ -30,6 +30,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -48,6 +49,8 @@ public class State {
     private ScheduledExecutorService executor = null;
     @Autowired
     StorageSettings storageSettings;
+    @Autowired
+    ISRSynchronizer isrSynchronizer;
 
     @Autowired
     StorageNodeMetadataRefresher storageNodeMetadataRefresher;
@@ -102,7 +105,10 @@ public class State {
         if (!partitionStates.get(table).containsKey(partition)) {
             if (!createIfNotExists)
                 return null;
-            partitionStates.get(table).put(partition, new PartitionState(table, partition, storageSettings));
+            partitionStates.get(table).put(partition, new PartitionState(table,
+                                                                         partition,
+                                                                         storageSettings,
+                                                                         isrSynchronizer));
         }
         return partitionStates.get(table).get(partition);
     }
@@ -164,58 +170,33 @@ public class State {
                     request.getTableName(),
                     request.getPartitionId());
             PartitionState partitionState = getPartitionState(request.getTableName(), request.getPartitionId(), true);
-            List<String> replicaEndpoints = MetadataCache.getInstance().getReplicaEndpoints(request.getTableName(), request.getPartitionId());
-            WALGetCommittedOffsetRequest getCommittedOffsetRequest = new WALGetCommittedOffsetRequest(request.getTableName(), request.getPartitionId());
-            LogPosition thisReplicaEndOffset = partitionState.getOffsetState().getReplicaEndOffset(getNodeId());
-            LogPosition thisReplicaCommittedOffset = partitionState.getOffsetState().getCommittedOffset();
-            LogPosition latestCommittedOffset = thisReplicaCommittedOffset;
-            String latestCommittedOffsetSourceEndpoint = null;
+            Set<String> isrEndpoints = MetadataCache.getInstance().getISREndpoints(request.getTableName(), request.getPartitionId());
+            WALGetReplicaEndOffsetRequest walGetReplicaEndOffsetRequest = new WALGetReplicaEndOffsetRequest(request.getTableName(), request.getPartitionId());
+            LogPosition thisReplicaEndOffset = partitionState.getOffsetState().getReplicaEndOffset(nodeId);
+            LogPosition earliestReplicaEndOffset = thisReplicaEndOffset;
 
-            for (String replicaEndpoint : replicaEndpoints) {
-                WALGetCommittedOffsetResponse response = RestClient.builder()
+            for (String isrEndpoint : isrEndpoints) {
+                WALGetReplicaEndOffsetResponse response = RestClient.builder()
                         .build()
                         .post()
-                        .uri("http://%s/api/wal/get-committed-offset/".formatted(replicaEndpoint))
+                        .uri("http://%s/api/wal/get-end-offset/".formatted(isrEndpoint))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .body(getCommittedOffsetRequest)
+                        .body(walGetReplicaEndOffsetRequest)
                         .retrieve()
-                        .toEntity(WALGetCommittedOffsetResponse.class)
+                        .toEntity(WALGetReplicaEndOffsetResponse.class)
                         .getBody();
 
-                if (response.getCommittedOffset().compareTo(latestCommittedOffset) > 0) {
-                    latestCommittedOffset = response.getCommittedOffset();
-                    latestCommittedOffsetSourceEndpoint = replicaEndpoint;
-                }
+                if (response.getEndOffset().compareTo(earliestReplicaEndOffset) < 0)
+                    earliestReplicaEndOffset = response.getEndOffset();
             }
 
-            if (latestCommittedOffset.compareTo(thisReplicaCommittedOffset) > 0) {
-                WALFetchRequest fetchRequest = new WALFetchRequest(nodeId,
-                        request.getTableName(),
-                        request.getPartitionId(),
-                        thisReplicaEndOffset,
-                        Integer.MAX_VALUE);
-                WALFetchResponse fetchResponse = RestClient.builder()
-                        .build()
-                        .post()
-                        .uri("http://%s/api/wal/fetch/".formatted(latestCommittedOffsetSourceEndpoint))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(fetchRequest)
-                        .retrieve()
-                        .toEntity(WALFetchResponse.class)
-                        .getBody();
-
-                appendLogEntries(
-                        request.getTableName(),
-                        request.getPartitionId(),
-                        fetchResponse.getEntries(),
-                        fetchResponse.getReplicaEndOffsets(),
-                        fetchResponse.getCommitedOffset());
-
-                partitionState.applyLogEntries(fetchResponse.getEntries());
+            if (earliestReplicaEndOffset.compareTo(thisReplicaEndOffset) < 0) {
+                log.info("Detected uncommitted offsets from the previous leader. Truncating WAL to offset {}.", earliestReplicaEndOffset);
+                partitionState.getWal().truncateTo(earliestReplicaEndOffset);
+                partitionState.getOffsetState().setReplicaEndOffset(nodeId, earliestReplicaEndOffset);
+                partitionState.getOffsetState().setCommittedOffset(earliestReplicaEndOffset);
+                partitionState.reApplyLogEntries();
             }
-
-            partitionState.getWal().truncate(latestCommittedOffset.leaderTerm(), latestCommittedOffset.index());
-            partitionState.getOffsetState().setReplicaEndOffset(getNodeId(), latestCommittedOffset);
         }
 
         storageNodeMetadataRefresher.fetchAsync().thenRun(() ->
@@ -257,7 +238,10 @@ public class State {
                         partitionStates.put(table, new ConcurrentHashMap<>());
                     }
                     if (!partitionStates.get(table).containsKey(partition)) {
-                        partitionStates.get(table).put(partition, new PartitionState(table, partition, storageSettings));
+                        partitionStates.get(table).put(partition, new PartitionState(table,
+                                                                                     partition,
+                                                                                     storageSettings,
+                                                                                     isrSynchronizer));
                     }
                 }
             });

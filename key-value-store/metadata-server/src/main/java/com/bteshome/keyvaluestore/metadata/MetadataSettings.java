@@ -31,6 +31,7 @@ public class MetadataSettings {
     private long storageNodeMetadataRefreshIntervalMs;
     private long replicaMonitorIntervalMs;
     private long replicaLagThresholdRecords;
+    private long replicaLagThresholdTimeMs;
     private long replicaFetchIntervalMs;
     private int replicaFetchMaxNumRecords;
     private long replicaEndOffsetsSnapshotIntervalMs;
@@ -39,6 +40,5 @@ public class MetadataSettings {
     private int replicationFactorDefault;
     private int minInSyncReplicasDefault;
     private int ringNumVirtualPartitions;
-    private long writeTimeoutMs;
     private UUID localClientId;
 }

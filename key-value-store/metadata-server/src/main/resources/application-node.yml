@@ -21,12 +21,13 @@ metadata:
       host: ${metadata.node.host}
       port: ${metadata.node.port}
   storage-dir: /tmp/raft-server-1
-  storage-node-heartbeat-expect-interval-ms: 10000
+  storage-node-heartbeat-expect-interval-ms: 20000
   storage-node-heartbeat-send-interval-ms: 5000
   storage-node-heartbeat-monitor-interval-ms: 5000
   storage-node-metadata-refresh-interval-ms: 300000
   replica-monitor-interval-ms: 10000
   replica-lag-threshold-records: 4
+  replica-lag-threshold-time-ms: 10000
   replica-fetch-interval-ms: 500
   replica-fetch-max-num-records: 1000
   replica-end-offsets-snapshot-interval-ms: 10000
@@ -35,7 +36,6 @@ metadata:
   replication-factor-default: 1
   min-in-sync-replicas-default: 1
   ring-num-virtual-partitions: 3
-  write-timeout-ms: 30000
   local-client-id: 666fb026-2c85-4efc-9de0-1da5ce38fbbf
 
 info:

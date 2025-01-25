@@ -103,29 +103,41 @@ public class WALFetcher {
                             response.getErrorMessage());
                 }
 
-                if (response.getHttpStatusCode() != HttpStatus.OK.value())
+                if (response.getHttpStatusCode() == HttpStatus.CONFLICT.value()) {
+                    log.info("Received a truncate request from the new leader for table '{}' partition '{}'. Truncating to offset '{}'.",
+                            followedReplica.getTable(),
+                            followedReplica.getPartition(),
+                            response.getTruncateToOffset());
+                    partitionState = state.getPartitionState(request.getTable(), request.getPartition(), true);
+                    partitionState.getWal().truncateTo(response.getTruncateToOffset());
+                    partitionState.getOffsetState().setReplicaEndOffset(state.getNodeId(), response.getTruncateToOffset());
+                    partitionState.getOffsetState().setCommittedOffset(response.getTruncateToOffset());
+                    partitionState.reApplyLogEntries();
                     continue;
+                }
 
-                log.trace("Fetched WAL for table '{}' partition '{}' lastFetchedOffset '{}'. entries={}, endOffsets={}, commited index={}.",
-                        followedReplica.getTable(),
-                        followedReplica.getPartition(),
-                        lastFetchOffset,
-                        response.getEntries(),
-                        response.getReplicaEndOffsets(),
-                        response.getCommitedOffset());
+                if (response.getHttpStatusCode() == HttpStatus.OK.value()) {
+                    log.trace("Fetched WAL for table '{}' partition '{}' lastFetchedOffset '{}'. entries={}, endOffsets={}, commited index={}.",
+                            followedReplica.getTable(),
+                            followedReplica.getPartition(),
+                            lastFetchOffset,
+                            response.getEntries(),
+                            response.getReplicaEndOffsets(),
+                            response.getCommitedOffset());
+                    partitionState = state.getPartitionState(request.getTable(), request.getPartition(), true);
 
-                state.appendLogEntries(
-                        followedReplica.getTable(),
-                        followedReplica.getPartition(),
-                        response.getEntries(),
-                        response.getReplicaEndOffsets(),
-                        response.getCommitedOffset());
+                    state.appendLogEntries(
+                            followedReplica.getTable(),
+                            followedReplica.getPartition(),
+                            response.getEntries(),
+                            response.getReplicaEndOffsets(),
+                            response.getCommitedOffset());
 
-                if (response.getEntries().isEmpty())
-                    continue;
+                    if (response.getEntries().isEmpty())
+                        continue;
 
-                partitionState = state.getPartitionState(request.getTable(), request.getPartition(), true);
-                partitionState.applyLogEntries(response.getEntries());
+                    partitionState.applyLogEntries(response.getEntries());
+                }
             } catch (Exception e) {
                 // TODO - change to error
                 log.trace("Error fetching WAL for table '{}' partition '{}'.", followedReplica.getTable(), followedReplica.getPartition(), e);

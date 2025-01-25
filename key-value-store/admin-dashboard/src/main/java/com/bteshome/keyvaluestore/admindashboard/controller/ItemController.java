@@ -112,8 +112,8 @@ public class ItemController {
                 ItemPutRequest itemPutRequest = new ItemPutRequest();
                 itemPutRequest.setTable(request.getTable());
                 int randonNumber = random.nextInt(1, Integer.MAX_VALUE);
-                itemPutRequest.setKey("key" + randonNumber);
-                itemPutRequest.setValue("value" + randonNumber);
+                itemPutRequest.setKey("first" + randonNumber);
+                itemPutRequest.setValue("second" + randonNumber);
                 itemWriter.put(itemPutRequest);
             }
             return "redirect:/items/";

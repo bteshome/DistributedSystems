@@ -17,4 +17,5 @@ public class WALFetchResponse {
     private List<String> entries;
     private Map<String, LogPosition> replicaEndOffsets;
     private LogPosition commitedOffset;
+    private LogPosition truncateToOffset;
 }

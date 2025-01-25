@@ -24,6 +24,8 @@ public class ConfigurationLoader {
                 Validator.setDefault(metadataSettings.getReplicaMonitorIntervalMs(), 10000L));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.REPLICA_LAG_THRESHOLD_RECORDS_KEY,
                 Validator.setDefault(metadataSettings.getReplicaLagThresholdRecords(), 4000L));
+        state.get(EntityType.CONFIGURATION).put(ConfigKeys.REPLICA_LAG_THRESHOLD_TIME_MS_KEY,
+                Validator.setDefault(metadataSettings.getReplicaLagThresholdTimeMs(), 10000L));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.REPLICA_FETCH_INTERVAL_MS_KEY,
                 Validator.setDefault(metadataSettings.getReplicaFetchIntervalMs(), 500L));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.REPLICA_FETCH_MAX_NUM_RECORDS_KEY,
@@ -40,8 +42,6 @@ public class ConfigurationLoader {
                 Validator.setDefault(metadataSettings.getMinInSyncReplicasDefault(), 1));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.RING_NUM_VIRTUAL_PARTITIONS_KEY,
                 Validator.setDefault(metadataSettings.getRingNumVirtualPartitions(), 3));
-        state.get(EntityType.CONFIGURATION).put(ConfigKeys.WRITE_TIMEOUT_MS_KEY,
-                Validator.setDefault(metadataSettings.getWriteTimeoutMs(), 30000L));
 
         log.info("Configuration loaded.");
     }
