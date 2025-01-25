@@ -8,7 +8,6 @@ import com.bteshome.keyvaluestore.common.requests.NewLeaderElectedRequest;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
 import com.bteshome.keyvaluestore.storage.core.ISRSynchronizer;
-import com.bteshome.keyvaluestore.storage.core.ReplicaMonitor;
 import com.bteshome.keyvaluestore.storage.core.StorageNodeMetadataRefresher;
 import com.bteshome.keyvaluestore.storage.requests.WALGetReplicaEndOffsetRequest;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
@@ -141,7 +140,7 @@ public class State {
 
     public void appendLogEntries(String table,
                                  int partition,
-                                 List<String> logEntries,
+                                 List<WALEntry> logEntries,
                                  Map<String, LogPosition> endOffsets,
                                  LogPosition commitedOffset) {
         PartitionState partitionState = getPartitionState(table, partition, true);

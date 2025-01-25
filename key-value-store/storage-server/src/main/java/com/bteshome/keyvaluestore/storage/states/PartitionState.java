@@ -12,7 +12,6 @@ import com.bteshome.keyvaluestore.common.entities.Replica;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
 import com.bteshome.keyvaluestore.storage.core.ISRSynchronizer;
-import com.bteshome.keyvaluestore.storage.core.ReplicaMonitor;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -200,7 +199,7 @@ public class PartitionState implements AutoCloseable {
         }
     }
 
-    public void appendLogEntries(List<String> logEntries) {
+    public void appendLogEntries(List<WALEntry> logEntries) {
         if (logEntries.isEmpty())
             return;
 
@@ -222,7 +221,7 @@ public class PartitionState implements AutoCloseable {
                 }
             }
 
-            List<String> entries = wal.readLogs(lastFetchOffset, maxNumRecords);
+            List<WALEntry> entries = wal.readLogs(lastFetchOffset, maxNumRecords);
             Map<String, LogPosition> endOffsets = offsetState.getReplicaEndOffsets();
             LogPosition commitedOffset = offsetState.getCommittedOffset();
 
@@ -244,15 +243,10 @@ public class PartitionState implements AutoCloseable {
         try (AutoCloseableLock l = writeDataLock()) {
             data.clear();
         }
-        applyWalEntries(getWal().readLogs());
+        applyLogEntries(getWal().readLogs());
     }
 
-    public void applyLogEntries(List<String> entries) {
-        List<WALEntry> walEntries = entries.stream().map(WALEntry::fromString).toList();
-        applyWalEntries(walEntries);
-    }
-
-    public void applyWalEntries(List<WALEntry> entries) {
+    public void applyLogEntries(List<WALEntry> entries) {
         try (AutoCloseableLock l = writeDataLock()) {
             for (WALEntry walEntry : entries) {
                 switch (walEntry.operation()) {
@@ -302,7 +296,7 @@ public class PartitionState implements AutoCloseable {
     }
 
     private void loadFromWALFile() {
-        List<String> logEntriesFromFile = wal.loadFromFile();
+        List<WALEntry> logEntriesFromFile = wal.loadFromFile();
         if (!logEntriesFromFile.isEmpty()) {
             applyLogEntries(logEntriesFromFile);
             log.debug("Loaded {} log entries from WAL file for table '{}' partition '{}'.", logEntriesFromFile.size(), table, partition);
