@@ -2,6 +2,7 @@ package com.bteshome.keyvaluestore.admindashboard.controller;
 
 import com.bteshome.keyvaluestore.admindashboard.dto.ItemPutBatchDto;
 import com.bteshome.keyvaluestore.client.*;
+import com.bteshome.keyvaluestore.client.clientrequests.BatchWrite;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemGet;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemList;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemWrite;
@@ -119,13 +120,13 @@ public class ItemController {
     public String putBulk(@ModelAttribute("request") @RequestBody ItemPutBatchDto request, Model model) {
         try {
             Random random = new Random();
+            BatchWrite batchWrite = new BatchWrite();
+            batchWrite.setTable(request.getTable());
             for (int i = 0; i < request.getNumItems(); i++) {
-                ItemWrite itemWrite = new ItemWrite();
-                itemWrite.setTable(request.getTable());
                 int randomNumber = random.nextInt(1, Integer.MAX_VALUE);
-                itemWrite.setItem(new Item("key" + randomNumber, "value" + randomNumber));
-                itemWriter.put(itemWrite);
+                batchWrite.getItems().add(new Item("key" + randomNumber, "value" + randomNumber));
             }
+            itemWriter.putBatch(batchWrite);
             return "redirect:/items/get/";
         } catch (Exception e) {
             model.addAttribute("request", request);

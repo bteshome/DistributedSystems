@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Getter
@@ -14,5 +15,5 @@ import java.util.List;
 @AllArgsConstructor
 public class BatchWrite {
     private String table;
-    private List<Item> items;
+    private List<Item> items = new ArrayList<>();
 }
