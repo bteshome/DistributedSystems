@@ -20,7 +20,7 @@
 
         <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
             <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                <h1 class="h2">Items - Put</h1>
+                <h1 class="h2">Items</h1>
                 <div class="btn-toolbar mb-2 mb-md-0">
                     <div class="btn-group me-2">
                         <button type="button" class="btn btn-sm btn-outline-secondary">Share</button>
@@ -31,23 +31,49 @@
 
             <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}"></div>
 
-            <form class="row g-3" method="post" th:action="@{/items/put/}" th:object="${request}">
-                <div class="mb-3">
+            <form class="row g-3" method="post" th:action="@{/items/list/}" th:object="${request}">
+                <div class="col-md-6">
                     <label for="table" class="form-label">Table name</label>
-                    <input type="text" class="form-control" id="table" th:field="*{table}">
+                    <input type="text" class="form-control form-control-sm" id="table" th:field="*{table}">
                 </div>
-                <div class="mb-3">
-                    <label for="key" class="form-label">Key</label>
-                    <input type="text" class="form-control" id="key" th:field="*{item.key}">
-                </div>
-                <div class="mb-3">
-                    <label for="value" class="form-label">Value</label>
-                    <input type="text" class="form-control" id="value" th:field="*{item.value}">
+                <div class="col-md-6">
+                    <label for="limit" class="form-label">Limit</label>
+                    <input type="text" class="form-control form-control-sm" id="limit" th:field="*{limit}">
                 </div>
                 <div class="col-auto">
-                    <button type="submit" class="btn btn-primary mb-3">Put</button>
+                    <button type="submit" class="btn btn-primary mb-3">List</button>
+                </div>
+                <div class="col-auto">
+                    <a class="btn btn-secondary" href="/items/put/">
+                        <span data-feather="plus"></span>
+                        Put
+                    </a>
                 </div>
             </form>
+
+            <div class="no-data" th:if="${items == null}">No Data</div>
+
+            <div th:if="${items != null}">
+                <div th:each="_items: ${items}">
+                    <p>Partition <span th:text="${_items.key}"></span></p>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-sm">
+                            <thead>
+                            <tr>
+                                <th>Key</th>
+                                <th>Value</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="_item: ${_items.value}">
+                                <td th:text="${_item.key}"></td>
+                                <td th:text="${_item.value}"></td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 </div>

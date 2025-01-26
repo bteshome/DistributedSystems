@@ -31,25 +31,17 @@
 
             <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}"></div>
 
-            <form class="row g-3" method="post" th:action="@{/items/}" th:object="${request}">
-                <div class="col-md-3">
+            <form class="row g-3" method="post" th:action="@{/items/get/}" th:object="${request}">
+                <div class="col-md-6">
                     <label for="table" class="form-label">Table name</label>
                     <input type="text" class="form-control form-control-sm" id="table" th:field="*{table}">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-6">
                     <label for="key" class="form-label">Key</label>
                     <input type="text" class="form-control form-control-sm" id="key" th:field="*{key}">
                 </div>
-                <div class="col-md-3">
-                    <label for="partition" class="form-label">Partition</label>
-                    <input type="text" class="form-control form-control-sm" id="partition" th:field="*{partition}">
-                </div>
-                <div class="col-md-3">
-                    <label for="limit" class="form-label">Limit</label>
-                    <input type="text" class="form-control form-control-sm" id="limit" th:field="*{limit}">
-                </div>
                 <div class="col-auto">
-                    <button type="submit" class="btn btn-primary mb-3">Get or List</button>
+                    <button type="submit" class="btn btn-primary mb-3">Get</button>
                 </div>
                 <div class="col-auto">
                     <a class="btn btn-secondary" href="/items/put/">
@@ -59,27 +51,10 @@
                 </div>
             </form>
 
-            <div class="no-data" th:if="${item == null and items == null}">No Data</div>
+            <div class="no-data" th:if="${item == null}">No Data</div>
 
             <div class="table-responsive" th:if="${item != null}">
                 <div th:text="${item}"></div>
-            </div>
-
-            <div class="table-responsive" th:if="${items != null}">
-                <table class="table table-striped table-sm"> <!--th:if="${items.size > 0}">-->
-                    <thead>
-                    <tr>
-                        <th>Key</th>
-                        <th>Value</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <tr th:each="_item: ${items}">
-                        <td th:text="${_item.key}"></td>
-                        <td th:text="${_item.value}"></td>
-                    </tr>
-                    </tbody>
-                </table>
             </div>
         </main>
     </div>

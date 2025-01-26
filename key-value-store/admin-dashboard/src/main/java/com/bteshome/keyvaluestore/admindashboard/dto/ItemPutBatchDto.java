@@ -9,7 +9,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class ItemPutBatchRequest {
+public class ItemPutBatchDto {
     private String table;
     private int numItems;
 }

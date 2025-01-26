@@ -1,6 +1,7 @@
 package com.bteshome.keyvaluestore.storage.states;
 
 import com.bteshome.keyvaluestore.common.LogPosition;
+import com.bteshome.keyvaluestore.common.entities.Item;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.util.AutoCloseableLock;
@@ -74,22 +75,35 @@ public class WAL implements AutoCloseable {
         }
     }
 
-    public long appendLog(int leaderTerm, String operation, String key, String value) {
+    public long appendItem(int leaderTerm, String operation, Item item) {
         try (AutoCloseableLock l = writeLock()) {
-            if (leaderTerm == this.endLeaderTerm) {
-                this.endIndex++;
-            } else {
-                this.endLeaderTerm = leaderTerm;
-                this.endIndex = 1;
-            }
-            String logEntry = new WALEntry(leaderTerm, endIndex, operation, key, value).toString();
+            incrementIndex(leaderTerm);
+            String logEntry = new WALEntry(leaderTerm, endIndex, operation, item.getKey(), item.getValue()).toString();
             writer.write(logEntry);
             writer.newLine();
             writer.flush();
-            log.trace("Log entry '{}'='{}' appended for table '{}' partition '{}'.", key, value, tableName, partition);
+            log.trace("Operation '{}' item '{}' appended to WAL for table '{}' partition '{}'.", operation, item, tableName, partition);
             return endIndex;
         } catch (IOException e) {
-            String errorMessage = "Error appending entry to WAL for table '%s' partition '%s'.".formatted(tableName, partition);
+            String errorMessage = "Error appending item to WAL for table '%s' partition '%s'.".formatted(tableName, partition);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }
+
+    public long appendItems(int leaderTerm, String operation, List<Item> items) {
+        try (AutoCloseableLock l = writeLock()) {
+            for (Item item : items) {
+                incrementIndex(leaderTerm);
+                String logEntry = new WALEntry(leaderTerm, endIndex, operation, item.getKey(), item.getValue()).toString();
+                writer.write(logEntry);
+                writer.newLine();
+            }
+            writer.flush();
+            log.trace("Operation '{}' for '{}' items appended to WAL for table '{}' partition '{}'.", operation, items.size(), tableName, partition);
+            return endIndex;
+        } catch (IOException e) {
+            String errorMessage = "Error appending items to WAL for table '%s' partition '%s'.".formatted(tableName, partition);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
         }
@@ -241,6 +255,15 @@ public class WAL implements AutoCloseable {
             throw new StorageServerException(errorMessage, e);
         } finally {
             writer = null;
+        }
+    }
+
+    private void incrementIndex(int leaderTerm) {
+        if (leaderTerm == this.endLeaderTerm) {
+            this.endIndex++;
+        } else {
+            this.endLeaderTerm = leaderTerm;
+            this.endIndex = 1;
         }
     }
 

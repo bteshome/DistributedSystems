@@ -68,6 +68,15 @@
                             <td th:text="${committedOffsets == null ? '' : committedOffsets[partition.id]}"></td>
                             <td th:text="${replicaEndOffsets == null ? null : replicaEndOffsets[partition.id]}"></td>
                         </tr>
+                        <tr>
+                            <td>Total</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td th:text="${totalCount}"></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
                         </tbody>
                         <thead>
                     </table>

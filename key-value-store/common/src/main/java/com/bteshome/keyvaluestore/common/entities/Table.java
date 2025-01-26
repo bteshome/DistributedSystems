@@ -37,4 +37,14 @@ public class Table implements Serializable {
     public long getNumOfflinePartitions() {
         return partitions.values().stream().filter(p -> p.getLeader() == null).count();
     }
+
+    public Table copy() {
+        Table table = new Table();
+        table.setName(this.getName());
+        table.setReplicationFactor(this.getReplicationFactor());
+        table.setMinInSyncReplicas(this.getMinInSyncReplicas());
+        for (Map.Entry<Integer, Partition> entry : this.getPartitions().entrySet())
+            table.getPartitions().put(entry.getKey(), entry.getValue().copy());
+        return table;
+    }
 }

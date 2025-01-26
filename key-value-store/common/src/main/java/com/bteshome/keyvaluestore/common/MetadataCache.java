@@ -77,6 +77,12 @@ public class MetadataCache {
         }
     }
 
+    public String getState() {
+        try (AutoCloseableLock l = readLock()) {
+            return JavaSerDe.serialize(state);
+        }
+    }
+
     public String getLeaderNodeId(String tableName, int partition) {
         try (AutoCloseableLock l = readLock()) {
             Table table = (Table)state.get(EntityType.TABLE).get(tableName);
@@ -103,7 +109,8 @@ public class MetadataCache {
         }
     }
 
-    public Set<String> getReplicaEndpoints(String tableName, int partition) {
+    // TODO - remove if not needed
+    /*public Set<String> getReplicaEndpoints(String tableName, int partition) {
         try (AutoCloseableLock l = readLock()) {
             Table table = (Table)state.get(EntityType.TABLE).get(tableName);
             return table.getPartitions()
@@ -116,7 +123,7 @@ public class MetadataCache {
                     })
                     .collect(Collectors.toSet());
         }
-    }
+    }*/
 
     public Set<String> getISREndpoints(String tableName, int partition) {
         try (AutoCloseableLock l = readLock()) {

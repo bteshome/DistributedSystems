@@ -31,7 +31,7 @@
 
             <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}"></div>
 
-            <form class="row g-3" method="post" th:action="@{/items/put-batch/}" th:object="${request}">
+            <form class="row g-3" method="post" th:action="@{/items/put-bulk/}" th:object="${request}">
                 <div class="mb-3">
                     <label for="table" class="form-label">Table name</label>
                     <input type="text" class="form-control" id="table" th:field="*{table}">

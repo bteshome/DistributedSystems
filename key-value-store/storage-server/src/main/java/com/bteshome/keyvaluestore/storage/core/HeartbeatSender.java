@@ -29,7 +29,7 @@ public class HeartbeatSender {
     MetadataClientBuilder metadataClientBuilder;
 
     @Autowired
-    ClientMetadataRefresher metadataRefresher;
+    StorageNodeMetadataRefresher metadataRefresher;
 
     @Autowired
     State state;

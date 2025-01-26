@@ -39,4 +39,8 @@ public class ReplicaAssignment implements Serializable {
     public boolean isFollower() {
         return role.equals(ReplicaRole.FOLLOWER);
     }
+
+    public ReplicaAssignment copy() {
+        return new ReplicaAssignment(tableName, partitionIid, role);
+    }
 }

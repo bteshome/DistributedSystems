@@ -7,10 +7,7 @@ import lombok.Setter;
 
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 @Getter
 @Setter
@@ -34,7 +31,28 @@ public class Partition implements Serializable {
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        Partition partition = (Partition) o;
+        return id == partition.id && Objects.equals(tableName, partition.tableName);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, tableName);
+    }
+
+    @Override
     public String toString() {
         return "%s-%s".formatted(tableName, id);
+    }
+
+    public Partition copy() {
+        Partition copy = new Partition(tableName, id);
+        copy.setLeader(leader);
+        copy.setLeaderTerm(leaderTerm);
+        copy.setReplicas(new HashSet<>(replicas));
+        copy.setInSyncReplicas(new HashSet<>(inSyncReplicas));
+        return copy;
     }
 }

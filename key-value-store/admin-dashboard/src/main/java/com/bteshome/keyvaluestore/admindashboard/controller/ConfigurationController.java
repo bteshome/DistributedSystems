@@ -1,7 +1,7 @@
 package com.bteshome.keyvaluestore.admindashboard.controller;
 
 import com.bteshome.keyvaluestore.common.MetadataCache;
-import com.bteshome.keyvaluestore.common.ClientMetadataRefresher;
+import com.bteshome.keyvaluestore.client.ClientMetadataRefresher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

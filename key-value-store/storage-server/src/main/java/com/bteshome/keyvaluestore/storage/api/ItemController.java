@@ -9,6 +9,7 @@ import com.bteshome.keyvaluestore.client.responses.ItemGetResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemListResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
 import com.bteshome.keyvaluestore.common.MetadataCache;
+import com.bteshome.keyvaluestore.common.entities.Item;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
 import com.bteshome.keyvaluestore.storage.states.PartitionState;
 import com.bteshome.keyvaluestore.storage.states.State;
@@ -128,7 +129,7 @@ public class ItemController {
 
         PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition(), true);
 
-        return partitionState.putItem(request.getKey(), request.getValue());
+        return partitionState.putItems(request.getItems());
     }
 
     @PostMapping("/count-and-offsets/")

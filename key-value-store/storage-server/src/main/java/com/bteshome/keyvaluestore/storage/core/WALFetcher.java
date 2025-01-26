@@ -117,13 +117,6 @@ public class WALFetcher {
                 }
 
                 if (response.getHttpStatusCode() == HttpStatus.OK.value()) {
-                    log.trace("Fetched WAL for table '{}' partition '{}' lastFetchedOffset '{}'. entries={}, endOffsets={}, commited index={}.",
-                            followedReplica.getTable(),
-                            followedReplica.getPartition(),
-                            lastFetchOffset,
-                            response.getEntries(),
-                            response.getReplicaEndOffsets(),
-                            response.getCommitedOffset());
                     partitionState = state.getPartitionState(request.getTable(), request.getPartition(), true);
 
                     state.appendLogEntries(
@@ -135,6 +128,14 @@ public class WALFetcher {
 
                     if (response.getEntries().isEmpty())
                         continue;
+
+                    log.debug("Fetched WAL for table '{}' partition '{}' lastFetchedOffset '{}'. entries={}, endOffsets={}, commited index={}.",
+                            followedReplica.getTable(),
+                            followedReplica.getPartition(),
+                            lastFetchOffset,
+                            response.getEntries(),
+                            response.getReplicaEndOffsets(),
+                            response.getCommitedOffset());
 
                     partitionState.applyLogEntries(response.getEntries());
                 }

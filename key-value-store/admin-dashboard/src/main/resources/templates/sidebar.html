@@ -59,9 +59,15 @@
                     <div id="collapseOne" class="accordion-collapse collapse show" aria-labelledby="headingOne" data-bs-parent="#itemsMenu">
                         <div class="accordion-body">
                             <li class="nav-item">
-                                <a class="nav-link" th:classappend="${page}=='items'?'active'" href="/items/">
+                                <a class="nav-link" th:classappend="${page}=='items-get'?'active'" href="/items/get/">
                                     <span data-feather="search"></span>
-                                    Get or List
+                                    Get
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" th:classappend="${page}=='items-list'?'active'" href="/items/list/">
+                                    <span data-feather="list"></span>
+                                    List
                                 </a>
                             </li>
                             <li class="nav-item">
@@ -71,9 +77,9 @@
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" th:classappend="${page}=='items-put-batch'?'active'" href="/items/put-batch/">
+                                <a class="nav-link" th:classappend="${page}=='items-put-bulk'?'active'" href="/items/put-bulk/">
                                     <span data-feather="plus-circle"></span>
-                                    Put In Batch
+                                    Put Bulk
                                 </a>
                             </li>
                         </div>

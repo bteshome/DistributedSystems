@@ -29,15 +29,14 @@ public class StorageNode implements Serializable {
     private static final long serialVersionUID = 1L;
 
     public static StorageNode toStorageNode(StorageNodeJoinRequest request) {
-        return new StorageNode(
-                request.getId(),
-                request.getHost(),
-                request.getPort(),
-                request.getJmxPort(),
-                request.getRack(),
-                request.getStorageDir(),
-                StorageNodeStatus.INACTIVE,
-                new HashSet<>()
+        return new StorageNode( request.getId(),
+                                request.getHost(),
+                                request.getPort(),
+                                request.getJmxPort(),
+                                request.getRack(),
+                                request.getStorageDir(),
+                                StorageNodeStatus.INACTIVE,
+                                new HashSet<>()
         );
     }
 
@@ -56,12 +55,23 @@ public class StorageNode implements Serializable {
     public boolean hasAReplicaFor(String tableName, int partition) {
         return replicaAssignmentSet.stream().anyMatch(replicaAssignment ->
                 replicaAssignment.getTableName().equals(tableName) &&
-                replicaAssignment.getPartitionIid() == partition);
+                        replicaAssignment.getPartitionIid() == partition);
     }
 
     public ReplicaAssignment getReplicaAssignmentFor(String tableName, int partition) {
         return replicaAssignmentSet.stream().filter(replicaAssignment ->
                 replicaAssignment.getTableName().equals(tableName) &&
-                replicaAssignment.getPartitionIid() == partition).findFirst().get();
+                        replicaAssignment.getPartitionIid() == partition).findFirst().get();
+    }
+
+    public StorageNode copy() {
+        return new StorageNode( id,
+                                host,
+                                port,
+                                jmxPort,
+                                rack,
+                                storageDir,
+                                status,
+                                replicaAssignmentSet.stream().map(ReplicaAssignment::copy).collect(Collectors.toSet()));
     }
 }

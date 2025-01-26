@@ -4,10 +4,8 @@ import com.bteshome.keyvaluestore.client.responses.ItemCountAndOffsetsResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemGetResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemListResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
-import com.bteshome.keyvaluestore.common.ConfigKeys;
-import com.bteshome.keyvaluestore.common.LogPosition;
-import com.bteshome.keyvaluestore.common.MetadataCache;
-import com.bteshome.keyvaluestore.common.Tuple;
+import com.bteshome.keyvaluestore.common.*;
+import com.bteshome.keyvaluestore.common.entities.Item;
 import com.bteshome.keyvaluestore.common.entities.Replica;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
@@ -24,6 +22,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -62,34 +61,7 @@ public class PartitionState implements AutoCloseable {
         offsetState = new OffsetState(table, partition, storageSettings);
     }
 
-    private Tuple<Boolean, Set<Replica>> isFullyAcknowledged(LogPosition offset) {
-        int minISRCount = MetadataCache.getInstance().getMinInSyncReplicas(table);
-        Set<Replica> replicasThatAcknowledged = offsetState.getReplicaEndOffsets()
-                .entrySet()
-                .stream()
-                .filter(replicaOffset -> replicaOffset.getValue().compareTo(offset) >= 0)
-                .map(replica -> new Replica(replica.getKey(), table, partition))
-                .collect(Collectors.toSet());
-        Set<String> currentISRNodeIds = MetadataCache.getInstance().getInSyncReplicas(table, partition);
-
-        if (replicasThatAcknowledged.size() < minISRCount) {
-            Set<Replica> currentISRsThatDidNotAcknowledge = currentISRNodeIds
-                    .stream()
-                    .filter(nodeId -> replicasThatAcknowledged.stream()
-                            .noneMatch(replica -> replica.getNodeId().equals(nodeId)))
-                    .map(nodeId -> new Replica(nodeId, table, partition))
-                    .collect(Collectors.toSet());
-            return Tuple.of(false, currentISRsThatDidNotAcknowledge);
-        } else {
-            Set<Replica> newISRs = replicasThatAcknowledged.stream()
-                    .filter(replica -> !currentISRNodeIds.contains(replica.getNodeId()))
-                    .collect(Collectors.toSet());
-            isrSynchronizer.addToInSyncReplicaLists(newISRs);
-            return Tuple.of(true, null);
-        }
-    }
-
-    public ResponseEntity<ItemPutResponse> putItem(String key, String value) {
+    public ResponseEntity<ItemPutResponse> putItems(List<Item> items) {
         if (!nodeId.equals(MetadataCache.getInstance().getLeaderNodeId(table, partition))) {
             String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
             return ResponseEntity.ok(ItemPutResponse.builder()
@@ -98,14 +70,14 @@ public class PartitionState implements AutoCloseable {
                     .build());
         }
 
-        log.debug("Received PUT '{}'='{}' to table '{}' partition '{}'.", key, value, table, partition);
+        log.debug("Received PUT request for '{}' items to table '{}' partition '{}'.", items.size(), table, partition);
 
         try (AutoCloseableLock l = writeOperationLock()) {
             int leaderTerm = MetadataCache.getInstance().getLeaderTerm(table, partition);
             LogPosition offset;
 
             try {
-                long index = wal.appendLog(leaderTerm, "PUT", key, value);
+                long index = wal.appendItems(leaderTerm, "PUT", items);
                 offset = LogPosition.of(leaderTerm, index);
                 offsetState.setReplicaEndOffset(nodeId, offset);
             } catch (Exception e) {
@@ -115,17 +87,20 @@ public class PartitionState implements AutoCloseable {
                         .build());
             }
 
-            long timeoutNanos = TimeUnit.MILLISECONDS.toNanos(
-                    (Long) MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_LAG_THRESHOLD_TIME_MS_KEY));
+            long timeoutMs = (Long) MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_LAG_THRESHOLD_TIME_MS_KEY);
+            long timeoutNanos = TimeUnit.MILLISECONDS.toNanos(timeoutMs);
             long start = System.nanoTime();
-            log.debug("Waiting for replicas to acknowledge log entry at offset {}.", offset);
-            Set<Replica> laggingReplicas = null;
+            log.debug("Waiting for sufficient replicas to acknowledge the log entry at offset {}.", offset);
+            Set<Replica> newISRs = null;
+            Set<Replica> laggingCurrentISRs = null;
 
             while (System.nanoTime() - start < timeoutNanos) {
-                Tuple<Boolean, Set<Replica>> result = isFullyAcknowledged(offset);
-                boolean isFullyAcknowledged = result.first();
-                laggingReplicas = result.second();
-                if (isFullyAcknowledged) {
+                Tuple3<Boolean, Set<Replica>, Set<Replica>> acknowledgementCheckResult = isFullyAcknowledged(offset);
+                boolean canBeCommitted = acknowledgementCheckResult.first();
+                newISRs = acknowledgementCheckResult.second();
+                laggingCurrentISRs = acknowledgementCheckResult.third();
+
+                if (canBeCommitted) {
                     try {
                         offsetState.setCommittedOffset(offset);
                     } catch (StorageServerException e) {
@@ -134,10 +109,19 @@ public class PartitionState implements AutoCloseable {
                                 .errorMessage(e.getMessage())
                                 .build());
                     }
+
                     try (AutoCloseableLock l2 = writeDataLock()) {
-                        data.put(key, value);
+                        for (Item item : items)
+                            data.put(item.getKey(), item.getValue());
                     }
-                    log.debug("Successfully commited PUT '{}'='{}' to table '{}' partition '{}'.", key, value, table, partition);
+
+                    if (newISRs != null && !newISRs.isEmpty()) {
+                        final Set<Replica> newISRsFinal = newISRs;
+                        CompletableFuture.runAsync(() -> isrSynchronizer.addToInSyncReplicaLists(newISRsFinal));
+                    }
+
+                    log.debug("Successfully commited PUT '{}' items to table '{}' partition '{}'.", items.size(), table, partition);
+
                     return ResponseEntity.ok(ItemPutResponse.builder()
                             .httpStatusCode(HttpStatus.OK.value())
                             .build());
@@ -145,7 +129,7 @@ public class PartitionState implements AutoCloseable {
 
                 // TODO - replace the thread sleep with ExecutorService
                 try {
-                    TimeUnit.MILLISECONDS.sleep(50);
+                    TimeUnit.MILLISECONDS.sleep(100);
                 } catch (InterruptedException e) {
                     String errorMessage = "Error waiting for replicas to acknowledge the log entry.";
                     log.error(errorMessage, e);
@@ -156,8 +140,10 @@ public class PartitionState implements AutoCloseable {
                 }
             }
 
-            if (laggingReplicas != null)
-                isrSynchronizer.removeFromInSyncReplicaLists(laggingReplicas);
+            if (laggingCurrentISRs != null && !laggingCurrentISRs.isEmpty()) {
+                final Set<Replica> laggingReplicasFinal = laggingCurrentISRs;
+                CompletableFuture.runAsync(() -> isrSynchronizer.removeFromInSyncReplicaLists(laggingReplicasFinal));
+            }
 
             String errorMessage = "Request timed out.";
             log.error(errorMessage);
@@ -278,6 +264,32 @@ public class PartitionState implements AutoCloseable {
     public void close() {
         if (wal != null) {
             wal.close();
+        }
+    }
+
+    private Tuple3<Boolean, Set<Replica>, Set<Replica>> isFullyAcknowledged(LogPosition offset) {
+        int minISRCount = MetadataCache.getInstance().getMinInSyncReplicas(table);
+        Set<Replica> replicasThatAcknowledged = offsetState.getReplicaEndOffsets()
+                .entrySet()
+                .stream()
+                .filter(replicaOffset -> replicaOffset.getValue().compareTo(offset) >= 0)
+                .map(replica -> new Replica(replica.getKey(), table, partition))
+                .collect(Collectors.toSet());
+        Set<String> currentISRNodeIds = MetadataCache.getInstance().getInSyncReplicas(table, partition);
+
+        if (replicasThatAcknowledged.size() < minISRCount) {
+            Set<Replica> currentISRsThatDidNotAcknowledge = currentISRNodeIds
+                    .stream()
+                    .filter(nodeId -> replicasThatAcknowledged.stream()
+                            .noneMatch(replica -> replica.getNodeId().equals(nodeId)))
+                    .map(nodeId -> new Replica(nodeId, table, partition))
+                    .collect(Collectors.toSet());
+            return Tuple3.of(false, null, currentISRsThatDidNotAcknowledge);
+        } else {
+            Set<Replica> newISRs = replicasThatAcknowledged.stream()
+                    .filter(replica -> !currentISRNodeIds.contains(replica.getNodeId()))
+                    .collect(Collectors.toSet());
+            return Tuple3.of(true, newISRs, null);
         }
     }
 

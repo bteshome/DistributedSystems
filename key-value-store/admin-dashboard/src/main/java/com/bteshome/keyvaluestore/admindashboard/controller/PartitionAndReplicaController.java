@@ -72,6 +72,8 @@ public class PartitionAndReplicaController {
             model.addAttribute("request", request);
             model.addAttribute("partitions", table.getPartitions().values().stream().toList());
             model.addAttribute("counts", counts);
+            if (counts != null)
+                model.addAttribute("totalCount", counts.values().stream().mapToInt(v -> v).sum());
             model.addAttribute("committedOffsets", committedOffsets);
             model.addAttribute("replicaEndOffsets", replicaEndOffsets);
             model.addAttribute("page", "partitions-and-replicas");

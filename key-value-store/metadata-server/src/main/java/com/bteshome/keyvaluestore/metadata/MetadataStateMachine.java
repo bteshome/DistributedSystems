@@ -193,7 +193,7 @@ public class MetadataStateMachine extends BaseStateMachine {
                     incrementVersion(entry);
 
                     if (trx.getServerRole().equals(RaftProtos.RaftPeerRole.LEADER))
-                        sendTableCreatedMessage(table);
+                        sendTableCreatedNotification(table);
                 }
 
                 log.info("{} succeeded. Table = '{}'.", MetadataRequestType.TABLE_CREATE, request.getTableName());
@@ -260,7 +260,6 @@ public class MetadataStateMachine extends BaseStateMachine {
                         yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.BAD_REQUEST.value(), errorMessage));
                     }
 
-                    // TODO - move the replicas. This needs a lot of work.
                     storageNode.setStatus(StorageNodeStatus.REMOVED);
                     UnmanagedState.getInstance().setStorageNodeStatus(request.getId(), StorageNodeStatus.REMOVED);
                     List<Partition> affectedPartitions = PartitionLeaderElector.oustAndReelect(storageNode,
@@ -269,7 +268,7 @@ public class MetadataStateMachine extends BaseStateMachine {
                     incrementVersion(entry);
 
                     if (trx.getServerRole().equals(RaftProtos.RaftPeerRole.LEADER))
-                        sendNewLeaderElectedMessage(affectedPartitions);
+                        sendNewLeaderElectedNotification(affectedPartitions);
                 }
 
                 log.info("{} succeeded. Node = '{}'.", MetadataRequestType.STORAGE_NODE_LEAVE, request.getId());
@@ -317,7 +316,7 @@ public class MetadataStateMachine extends BaseStateMachine {
                     incrementVersion(entry);
 
                     if (trx.getServerRole().equals(RaftProtos.RaftPeerRole.LEADER))
-                        sendNewLeaderElectedMessage(affectedPartitions);
+                        sendNewLeaderElectedNotification(affectedPartitions);
                 }
 
                 log.info("{} succeeded. Node = '{}'.", MetadataRequestType.STORAGE_NODE_DEACTIVATE, request.getId());
@@ -339,6 +338,9 @@ public class MetadataStateMachine extends BaseStateMachine {
                     }
 
                     incrementVersion(entry);
+
+                    if (trx.getServerRole().equals(RaftProtos.RaftPeerRole.LEADER))
+                        sendISRListChangedNotification(request.getReplicas());
                 }
 
                 log.warn("{} succeeded.", MetadataRequestType.REPLICA_REMOVE_FROM_ISR);
@@ -360,6 +362,9 @@ public class MetadataStateMachine extends BaseStateMachine {
                     }
 
                     incrementVersion(entry);
+
+                    if (trx.getServerRole().equals(RaftProtos.RaftPeerRole.LEADER))
+                        sendISRListChangedNotification(request.getReplicas());
                 }
 
                 log.warn("{} succeeded.", MetadataRequestType.REPLICA_ADD_TO_ISR);
@@ -525,7 +530,7 @@ public class MetadataStateMachine extends BaseStateMachine {
         UnmanagedState.getInstance().setLeader();
     }
 
-    private void sendTableCreatedMessage(Table table) {
+    private void sendTableCreatedNotification(Table table) {
         Set<String> replicaEndpoints = state.get(EntityType.STORAGE_NODE)
                 .values()
                 .stream()
@@ -553,7 +558,7 @@ public class MetadataStateMachine extends BaseStateMachine {
         log.info("Sent table created message to all replicas of all partitions for table '{}'..", table.getName());
     }
 
-    private void sendNewLeaderElectedMessage(List<Partition> affectedPartitions) {
+    private void sendNewLeaderElectedNotification(List<Partition> affectedPartitions) {
         affectedPartitions.forEach(partition -> {
             NewLeaderElectedRequest newLeaderElectedRequest = new NewLeaderElectedRequest(
                     partition.getTableName(),
@@ -586,6 +591,47 @@ public class MetadataStateMachine extends BaseStateMachine {
         });
 
         log.info("Sent new leader elected message to all replicas of affected partitions '{}'.", affectedPartitions);
+    }
+
+    private void sendISRListChangedNotification(Set<Replica> affectedReplicas) {
+        Set<Partition> affectedPartitions = affectedReplicas.stream()
+                .map(replica -> {
+                    Table table = (Table) state.get(EntityType.TABLE).get(replica.getTable());
+                    return table.getPartitions().get(replica.getPartition());
+                })
+                .collect(Collectors.toSet());
+
+        affectedPartitions.forEach(partition -> {
+            ISRListChangedRequest isrListChangedRequest = new ISRListChangedRequest(
+                    partition.getTableName(),
+                    partition.getId());
+            List<CompletableFuture<Void>> futures = new ArrayList<>();
+            List<String> replicaEndpoints = partition
+                    .getReplicas()
+                    .stream()
+                    .map(replicaNodeId -> {
+                        StorageNode node = (StorageNode)state.get(EntityType.STORAGE_NODE).get(replicaNodeId);
+                        return "%s:%s".formatted(node.getHost(), node.getPort());
+                    })
+                    .toList();
+
+            replicaEndpoints.forEach(endpoint -> {
+                futures.add(CompletableFuture.runAsync(() -> {
+                    RestClient.builder()
+                            .build()
+                            .post()
+                            .uri("http://%s/api/metadata/isr-list-changed/".formatted(endpoint))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body(isrListChangedRequest)
+                            .retrieve()
+                            .toBodilessEntity();
+                }));
+            });
+
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+        });
+
+        log.info("Sent ISR list changed notification to all replicas of affected partitions '{}'.", affectedPartitions);
     }
 }
 

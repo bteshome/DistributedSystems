@@ -1,5 +1,7 @@
 package com.bteshome.keyvaluestore.client;
 
+import com.bteshome.keyvaluestore.common.entities.Item;
+
 import java.util.UUID;
 
 public class Validator {

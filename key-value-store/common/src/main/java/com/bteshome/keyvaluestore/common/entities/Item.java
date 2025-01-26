@@ -1,4 +1,4 @@
-package com.bteshome.keyvaluestore.admindashboard.dto;
+package com.bteshome.keyvaluestore.common.entities;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -9,9 +9,12 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class ItemGetOrListRequest {
-    private String table;
+public class Item {
     private String key;
-    private int partition;
-    private int limit;
+    private String value;
+    
+    @Override
+    public String toString() {
+        return key + "=" + value;
+    }
 }
