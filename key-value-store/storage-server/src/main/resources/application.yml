@@ -5,6 +5,10 @@ spring:
     config:
       import-check:
         enabled: 'false'
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
 
 management:
   server:
@@ -40,7 +44,7 @@ endpoints:
 logging:
   level:
     com:
-      bteshome: INFO
+      bteshome: DEBUG
     root: ERROR
     org:
       apache:
@@ -51,3 +55,4 @@ info:
     name: 'Key Value State Storage Server'
     version: '1.0'
     description: 'Key Value State Storage Server'
+

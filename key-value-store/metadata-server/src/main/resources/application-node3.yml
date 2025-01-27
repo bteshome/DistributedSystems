@@ -46,6 +46,7 @@ metadata:
   replication-factor-default: 1
   min-in-sync-replicas-default: 1
   ring-num-virtual-partitions: 3
+  write-batch-size-max: 10000
   local-client-id: 727694ec-72c8-4e98-abf0-4632b1d6ec6f
 
 info:

@@ -4,6 +4,8 @@ import com.bteshome.keyvaluestore.client.clientrequests.BatchWrite;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemWrite;
 import com.bteshome.keyvaluestore.client.requests.ItemPutRequest;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
+import com.bteshome.keyvaluestore.common.ConfigKeys;
+import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.entities.Item;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,7 +45,7 @@ public class ItemWriter {
     public void putBatch(BatchWrite request) {
         request.setTable(Validator.notEmpty(request.getTable(), "Table name"));
 
-        HashMap<Integer, ItemPutRequest> partitionRequests = new HashMap<Integer, ItemPutRequest>();
+        HashMap<Integer, ItemPutRequest> partitionRequests = new HashMap<>();
 
         for (Item item : request.getItems()) {
             Requests.validateItem(item);
@@ -60,9 +62,13 @@ public class ItemWriter {
         }
 
         List<CompletableFuture<Void>> futures = new ArrayList<>();
+        int maxBatchSize = (Integer) MetadataCache.getInstance().getConfiguration(ConfigKeys.WRITE_BATCH_SIZE_MAX_KEY);
 
-        for (HashMap.Entry<Integer, ItemPutRequest> partitionRequest : partitionRequests.entrySet())
-            futures.add(CompletableFuture.runAsync(() -> put(partitionRequest.getValue()) ));
+        for (HashMap.Entry<Integer, ItemPutRequest> partitionRequest : partitionRequests.entrySet()) {
+            if (partitionRequest.getValue().getItems().size() > maxBatchSize)
+                throw new RuntimeException("Batch size exceeds max batch size of %s for a single partition.".formatted(maxBatchSize));
+            futures.add(CompletableFuture.runAsync(() -> put(partitionRequest.getValue())));
+        }
 
         try {
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get();

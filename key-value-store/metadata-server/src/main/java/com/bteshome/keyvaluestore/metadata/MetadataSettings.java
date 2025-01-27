@@ -40,5 +40,6 @@ public class MetadataSettings {
     private int replicationFactorDefault;
     private int minInSyncReplicasDefault;
     private int ringNumVirtualPartitions;
+    private int writeBatchSizeMax;
     private UUID localClientId;
 }

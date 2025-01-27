@@ -42,6 +42,8 @@ public class ConfigurationLoader {
                 Validator.setDefault(metadataSettings.getMinInSyncReplicasDefault(), 1));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.RING_NUM_VIRTUAL_PARTITIONS_KEY,
                 Validator.setDefault(metadataSettings.getRingNumVirtualPartitions(), 3));
+        state.get(EntityType.CONFIGURATION).put(ConfigKeys.WRITE_BATCH_SIZE_MAX_KEY,
+                Validator.setDefault(metadataSettings.getWriteBatchSizeMax(), 100));
 
         log.info("Configuration loaded.");
     }
