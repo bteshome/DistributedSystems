@@ -109,35 +109,25 @@ public class WALFetcher {
                             followedReplica.getPartition(),
                             response.getTruncateToOffset());
                     partitionState = state.getPartitionState(request.getTable(), request.getPartition(), true);
-                    partitionState.getWal().truncateTo(response.getTruncateToOffset());
-                    partitionState.getOffsetState().setReplicaEndOffset(state.getNodeId(), response.getTruncateToOffset());
-                    partitionState.getOffsetState().setCommittedOffset(response.getTruncateToOffset());
-                    partitionState.reApplyLogEntries();
+                    partitionState.truncateLogsTo(response.getTruncateToOffset());
                     continue;
                 }
 
                 if (response.getHttpStatusCode() == HttpStatus.OK.value()) {
                     partitionState = state.getPartitionState(request.getTable(), request.getPartition(), true);
 
-                    state.appendLogEntries(
-                            followedReplica.getTable(),
-                            followedReplica.getPartition(),
+                    partitionState.appendLogEntries(
                             response.getEntries(),
                             response.getReplicaEndOffsets(),
                             response.getCommitedOffset());
 
-                    if (response.getEntries().isEmpty())
-                        continue;
-
-                    log.debug("Fetched WAL for table '{}' partition '{}' lastFetchedOffset '{}'. entries={}, endOffsets={}, commited index={}.",
+                    log.trace("Fetched WAL for table '{}' partition '{}' lastFetchedOffset '{}'. entries={}, endOffsets={}, commited index={}.",
                             followedReplica.getTable(),
                             followedReplica.getPartition(),
                             lastFetchOffset,
                             response.getEntries(),
                             response.getReplicaEndOffsets(),
                             response.getCommitedOffset());
-
-                    partitionState.applyLogEntries(response.getEntries());
                 }
             } catch (Exception e) {
                 // TODO - change to error

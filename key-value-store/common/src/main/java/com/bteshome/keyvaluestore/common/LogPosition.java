@@ -1,8 +1,9 @@
 package com.bteshome.keyvaluestore.common;
 
+import java.io.Serializable;
 import java.util.Objects;
 
-public record LogPosition(int leaderTerm, long index) implements Comparable<LogPosition> {
+public record LogPosition(int leaderTerm, long index) implements Serializable, Comparable<LogPosition> {
     private static final LogPosition empty = new LogPosition(0, 0);
 
     public static LogPosition empty() {
@@ -15,9 +16,8 @@ public record LogPosition(int leaderTerm, long index) implements Comparable<LogP
 
     @Override
     public String toString() {
-        return String.format("<term=%d,index=%d>", leaderTerm, index);
+        return String.format("%d:%d", leaderTerm, index);
     }
-
 
     @Override
     public boolean equals(Object o) {
@@ -33,8 +33,16 @@ public record LogPosition(int leaderTerm, long index) implements Comparable<LogP
 
     @Override
     public int compareTo(LogPosition o) {
-        if (leaderTerm == o.leaderTerm)
-            return Long.compare(index, o.index);
-        return Integer.compare(leaderTerm, o.leaderTerm);
+        return compare(this, o.leaderTerm(), o.index());
+    }
+
+    public static int compare(LogPosition position, int leaderTerm, long index) {
+        return compare(position.leaderTerm(), position.index(), leaderTerm, index);
+    }
+
+    public static int compare(int leaderTerm1, long index1, int leaderTerm2, long index2) {
+        if (leaderTerm1 == leaderTerm2)
+            return Long.compare(index1, index2);
+        return Integer.compare(leaderTerm1, leaderTerm2);
     }
 }

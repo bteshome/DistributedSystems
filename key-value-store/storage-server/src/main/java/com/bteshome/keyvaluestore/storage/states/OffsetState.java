@@ -2,6 +2,7 @@ package com.bteshome.keyvaluestore.storage.states;
 
 import com.bteshome.keyvaluestore.common.JsonSerDe;
 import com.bteshome.keyvaluestore.common.LogPosition;
+import com.bteshome.keyvaluestore.common.Utils;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -11,10 +12,8 @@ import org.apache.ratis.util.AutoCloseableLock;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -26,8 +25,8 @@ public class OffsetState {
     private final Map<String, LogPosition> replicaEndOffsets;
     private LogPosition committedOffset;
     private final ReentrantReadWriteLock lock;
-    private final String replicaEndOffsetsFile;
-    private final String committedOffsetFile;
+    private final String replicaEndOffsetsSnapshotFile;
+    private final String committedOffsetSnapshotFile;
 
     public OffsetState(String table, int partition, StorageSettings storageSettings) {
         this.table = table;
@@ -36,8 +35,8 @@ public class OffsetState {
         replicaEndOffsets = new ConcurrentHashMap<>();
         committedOffset = LogPosition.empty();
         lock = new ReentrantReadWriteLock(true);
-        replicaEndOffsetsFile = "%s/%s-%s/replicaEndOffsets.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
-        committedOffsetFile = "%s/%s-%s/committedOffset.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
+        replicaEndOffsetsSnapshotFile = "%s/%s-%s/replicaEndOffsets.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
+        committedOffsetSnapshotFile = "%s/%s-%s/committedOffset.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
         loadReplicaEndOffsetsFromSnapshot();
         loadCommittedOffsetFromSnapshot();
     }
@@ -76,7 +75,7 @@ public class OffsetState {
     }
 
     public void setCommittedOffset(LogPosition offset) {
-        BufferedWriter writer = createWriter(committedOffsetFile);
+        BufferedWriter writer = Utils.createWriter(committedOffsetSnapshotFile);
         try (writer; AutoCloseableLock l = writeLock()) {
             committedOffset = offset;
             // TODO - 1. change to Java serialization if desired 2. add checksum
@@ -92,9 +91,9 @@ public class OffsetState {
         if (replicaEndOffsets.isEmpty())
             return;
 
-        BufferedWriter writer = createWriter(replicaEndOffsetsFile);
+        BufferedWriter writer = Utils.createWriter(replicaEndOffsetsSnapshotFile);
         try (writer) {
-            // TODO - 1. change to Java serialization if desired 2. add checksum
+            // TODO - 1. change to Java serialization 2. add checksum
             writer.write(JsonSerDe.serialize(replicaEndOffsets));
             log.debug("Took a snapshot of replica end offsets for table '{}' partition '{}'.", table, partition);
         } catch (IOException e) {
@@ -105,10 +104,10 @@ public class OffsetState {
     }
 
     public void loadReplicaEndOffsetsFromSnapshot() {
-        if (Files.notExists(Path.of(replicaEndOffsetsFile)))
+        if (Files.notExists(Path.of(replicaEndOffsetsSnapshotFile)))
             return;
 
-        BufferedReader reader = createReader(replicaEndOffsetsFile);
+        BufferedReader reader = Utils.createReader(replicaEndOffsetsSnapshotFile);
         try (reader) {
             String line = reader.readLine();
             if (line != null) {
@@ -123,10 +122,10 @@ public class OffsetState {
     }
 
     public void loadCommittedOffsetFromSnapshot() {
-        if (Files.notExists(Path.of(committedOffsetFile)))
+        if (Files.notExists(Path.of(committedOffsetSnapshotFile)))
             return;
 
-        BufferedReader reader = createReader(committedOffsetFile);
+        BufferedReader reader = Utils.createReader(committedOffsetSnapshotFile);
         try (reader) {
             String line = reader.readLine();
             if (line != null) {
@@ -146,25 +145,5 @@ public class OffsetState {
 
     private AutoCloseableLock writeLock() {
         return AutoCloseableLock.acquire(lock.writeLock());
-    }
-
-    private BufferedWriter createWriter(String fileName) {
-        try {
-            return new BufferedWriter(new FileWriter(fileName, false));
-        } catch (IOException e) {
-            String errorMessage = "Error creating replica offsets snapshot writer for table '%s' partition '%s'.".formatted(table, partition);
-            log.error(errorMessage, e);
-            throw new StorageServerException(errorMessage, e);
-        }
-    }
-
-    private BufferedReader createReader(String fileName) {
-        try {
-            return new BufferedReader(new FileReader(fileName));
-        } catch (IOException e) {
-            String errorMessage = "Error creating replica offsets snapshot reader for table '%s' partition '%s'.".formatted(table, partition);
-            log.error(errorMessage, e);
-            throw new StorageServerException(errorMessage, e);
-        }
     }
 }

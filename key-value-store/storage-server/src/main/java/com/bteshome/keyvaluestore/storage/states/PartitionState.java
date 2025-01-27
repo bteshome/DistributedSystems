@@ -17,6 +17,7 @@ import org.apache.ratis.util.AutoCloseableLock;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -33,7 +34,7 @@ public class PartitionState implements AutoCloseable {
     private final String table;
     private final int partition;
     private final String nodeId;
-    private final Map<String, String> data;
+    private final ConcurrentHashMap<String, String> data;
     @Getter
     private final WAL wal;
     @Getter
@@ -42,6 +43,7 @@ public class PartitionState implements AutoCloseable {
     private final ReentrantReadWriteLock operationLock;
     private final StorageSettings storageSettings;
     private final ISRSynchronizer isrSynchronizer;
+    private final String dataSnapshotFile;
 
     public PartitionState(String table,
                           int partition,
@@ -57,7 +59,8 @@ public class PartitionState implements AutoCloseable {
         this.isrSynchronizer = isrSynchronizer;
         createPartitionDirectoryIfNotExists();
         wal = new WAL(storageSettings.getNode().getStorageDir(), table, partition);
-        loadFromWALFile();
+        dataSnapshotFile = "%s/%s-%s/data.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
+        loadFromDataSnapshotAndWALFile();
         offsetState = new OffsetState(table, partition, storageSettings);
     }
 
@@ -76,7 +79,7 @@ public class PartitionState implements AutoCloseable {
             int leaderTerm = MetadataCache.getInstance().getLeaderTerm(table, partition);
             LogPosition offset;
 
-            try {
+            try (AutoCloseableLock l2 = writeDataLock()) {
                 long index = wal.appendItems(leaderTerm, "PUT", items);
                 offset = LogPosition.of(leaderTerm, index);
                 offsetState.setReplicaEndOffset(nodeId, offset);
@@ -101,18 +104,15 @@ public class PartitionState implements AutoCloseable {
                 laggingCurrentISRs = acknowledgementCheckResult.third();
 
                 if (canBeCommitted) {
-                    try {
+                    try (AutoCloseableLock l2 = writeDataLock()) {
                         offsetState.setCommittedOffset(offset);
+                        for (Item item : items)
+                            data.put(item.getKey(), item.getValue());
                     } catch (StorageServerException e) {
                         return ResponseEntity.ok(ItemPutResponse.builder()
                                 .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
                                 .errorMessage(e.getMessage())
                                 .build());
-                    }
-
-                    try (AutoCloseableLock l2 = writeDataLock()) {
-                        for (Item item : items)
-                            data.put(item.getKey(), item.getValue());
                     }
 
                     if (newISRs != null && !newISRs.isEmpty()) {
@@ -185,12 +185,38 @@ public class PartitionState implements AutoCloseable {
         }
     }
 
-    public void appendLogEntries(List<WALEntry> logEntries) {
-        if (logEntries.isEmpty())
-            return;
+    public void appendLogEntries(List<WALEntry> logEntries,
+                                 Map<String, LogPosition> replicaEndOffsets,
+                                 LogPosition commitedOffset) {
+        try (AutoCloseableLock l = writeDataLock()) {
+            LogPosition endOffset = wal.appendLogs(logEntries);
+            offsetState.setReplicaEndOffset(nodeId, endOffset);
+            offsetState.setReplicaEndOffsets(replicaEndOffsets);
+            offsetState.setCommittedOffset(commitedOffset);
 
-        wal.appendLogs(logEntries);
-        offsetState.setReplicaEndOffset(nodeId, wal.getEndOffset());
+            for (WALEntry walEntry : logEntries) {
+                switch (walEntry.operation()) {
+                    case "PUT" -> data.put(walEntry.key(), walEntry.value());
+                    case "DELETE" -> data.remove(walEntry.key());
+                }
+            }
+        }
+    }
+
+    public void truncateLogsTo(LogPosition toOffset) {
+        try (AutoCloseableLock l = writeDataLock()) {
+            wal.truncateToBeforeInclusive(toOffset);
+            offsetState.setReplicaEndOffset(nodeId, toOffset);
+            // TODO - is this always correct?
+            offsetState.setCommittedOffset(toOffset);
+            data.clear();
+            for (WALEntry walEntry : wal.readLogs()) {
+                switch (walEntry.operation()) {
+                    case "PUT" -> data.put(walEntry.key(), walEntry.value());
+                    case "DELETE" -> data.remove(walEntry.key());
+                }
+            }
+        }
     }
 
     public ResponseEntity<WALFetchResponse> getLogEntries(LogPosition lastFetchOffset, int maxNumRecords) {
@@ -225,24 +251,6 @@ public class PartitionState implements AutoCloseable {
         }
     }
 
-    public void reApplyLogEntries() {
-        try (AutoCloseableLock l = writeDataLock()) {
-            data.clear();
-        }
-        applyLogEntries(getWal().readLogs());
-    }
-
-    public void applyLogEntries(List<WALEntry> entries) {
-        try (AutoCloseableLock l = writeDataLock()) {
-            for (WALEntry walEntry : entries) {
-                switch (walEntry.operation()) {
-                    case "PUT" -> data.put(walEntry.key(), walEntry.value());
-                    case "DELETE" -> data.remove(walEntry.key());
-                }
-            }
-        }
-    }
-
     public ResponseEntity<ItemCountAndOffsetsResponse> countItems() {
         if (!nodeId.equals(MetadataCache.getInstance().getLeaderNodeId(table, partition))) {
             String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
@@ -264,6 +272,26 @@ public class PartitionState implements AutoCloseable {
     public void close() {
         if (wal != null) {
             wal.close();
+        }
+    }
+
+    public void takeDataSnapshot() {
+        BufferedWriter writer = Utils.createWriter(dataSnapshotFile);
+
+        try (writer; AutoCloseableLock l = readDataLock()) {
+            DataSnapshot dataSnapshot = new DataSnapshot();
+            dataSnapshot.setLastCommittedOffset(offsetState.getCommittedOffset());
+            dataSnapshot.setData(data);
+            writer.write(JavaSerDe.serialize(dataSnapshot));
+            wal.truncateToAfterExclusive(dataSnapshot.getLastCommittedOffset());
+            offsetState.takeSnapshot();
+            log.debug("Took a snapshot of data upto offset '{}' for table '{}' partition '{}'.",
+                      dataSnapshot.getLastCommittedOffset(),
+                      table,
+                      partition);
+        } catch (Exception e) {
+            String errorMessage = "Error taking a snapshot of data for table '%s' partition '%s'.".formatted(table, partition);
+            log.error(errorMessage, e);
         }
     }
 
@@ -307,11 +335,40 @@ public class PartitionState implements AutoCloseable {
         }
     }
 
-    private void loadFromWALFile() {
-        List<WALEntry> logEntriesFromFile = wal.loadFromFile();
-        if (!logEntriesFromFile.isEmpty()) {
-            applyLogEntries(logEntriesFromFile);
-            log.debug("Loaded {} log entries from WAL file for table '{}' partition '{}'.", logEntriesFromFile.size(), table, partition);
+    private void loadFromDataSnapshotAndWALFile() {
+        try (AutoCloseableLock l = writeDataLock()) {
+            if (Files.exists(Path.of(dataSnapshotFile))) {
+                BufferedReader reader = Utils.createReader(dataSnapshotFile);
+                try (reader) {
+                    String line = reader.readLine();
+                    if (line != null) {
+                        DataSnapshot dataSnapshot = JavaSerDe.deserialize(line);
+                        data.putAll(dataSnapshot.getData());
+                        log.debug("Loaded '{}' data items from a snapshot up to offset '{}' for table '{}' partition '{}' .",
+                                  dataSnapshot.getData().size(),
+                                  dataSnapshot.getLastCommittedOffset(),
+                                  table,
+                                  partition);
+                    }
+                } catch (IOException e) {
+                    String errorMessage = "Error loading data from a snapshot for table '%s' partition '%s'.".formatted(table, partition);
+                    log.error(errorMessage, e);
+                    throw new StorageServerException(errorMessage, e);
+                }
+            }
+
+            List<WALEntry> logEntriesFromFile = wal.loadFromFile();
+            for (WALEntry walEntry : logEntriesFromFile) {
+                switch (walEntry.operation()) {
+                    case "PUT" -> data.put(walEntry.key(), walEntry.value());
+                    case "DELETE" -> data.remove(walEntry.key());
+                }
+            }
+
+            log.debug("Loaded '{}' log entries from WAL file for table '{}' partition '{}'.",
+                      logEntriesFromFile.size(),
+                      table,
+                      partition);
         }
     }
 

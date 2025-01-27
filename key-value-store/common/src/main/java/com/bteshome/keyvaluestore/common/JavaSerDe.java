@@ -17,6 +17,7 @@ public class JavaSerDe {
             serializedString = Base64.getEncoder().encodeToString(bytes);
         } catch (IOException e) {
             log.error(e.getMessage(), e);
+            throw new SerDeException(e);
         }
 
         return serializedString;
@@ -31,12 +32,14 @@ public class JavaSerDe {
             object = objectStream.readObject();
         } catch (Exception e) {
             log.error(e.getMessage(), e);
+            throw new SerDeException(e);
         }
 
         try {
             return (T)object;
         } catch (ClassCastException e) {
-            throw new ClassCastException("Cannot cast object.");
+            log.error(e.getMessage(), e);
+            throw new SerDeException(e);
         }
     }
 }

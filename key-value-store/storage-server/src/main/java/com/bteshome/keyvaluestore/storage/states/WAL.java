@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.util.AutoCloseableLock;
 
 import java.io.*;
+import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -40,7 +41,7 @@ public class WAL implements AutoCloseable {
         }
     }
 
-    public void truncateTo(LogPosition toOffset) {
+    public void truncateToBeforeInclusive(LogPosition toOffset) {
         try (AutoCloseableLock l = writeLock();
              RandomAccessFile raf = new RandomAccessFile(logFile, "rw");
              FileChannel channel = raf.getChannel()) {
@@ -60,16 +61,75 @@ public class WAL implements AutoCloseable {
                 channel.truncate(position);
                 break;
             }
-            String errorMessage = "Truncated WAL for table '%s' partition '%s' to offset '%s'."
-                    .formatted(tableName,
-                               partition,
-                               toOffset);
+
+            String errorMessage = "Truncated WAL for table '%s' partition '%s' to offset '%s'.".formatted(
+                    tableName,
+                    partition,
+                    toOffset);
             log.info(errorMessage);
         } catch (IOException e) {
+            String errorMessage = "Error truncating WAL for table '%s' partition '%s' to offset '%s'.".formatted(
+                    tableName,
+                    partition,
+                    toOffset);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }
+
+    public void truncateToAfterExclusive(LogPosition toOffset) {
+        if (toOffset.equals(LogPosition.empty()))
+            return;
+
+        try (AutoCloseableLock l = writeLock()) {
+            if (LogPosition.compare(toOffset, this.endLeaderTerm, this.endIndex) == 0) {
+                writer.close();
+                Files.deleteIfExists(Path.of(logFile));
+                Files.createFile(Path.of(logFile));
+                writer = new BufferedWriter(new FileWriter(logFile, true));
+                return;
+            }
+
+            if (LogPosition.compare(toOffset, this.endLeaderTerm, this.endIndex) > 0) {
+                throw new StorageServerException("Invalid log position '%s' to truncate WAL file to. WAL end term is '%s' and index is '%s.".formatted(
+                        toOffset,
+                        this.endLeaderTerm,
+                        this.endIndex));
+            }
+
+            try (RandomAccessFile raf = new RandomAccessFile(logFile, "rw");
+                FileChannel channel = raf.getChannel()) {
+                String line;
+                long position = 0;
+
+                while ((line = raf.readLine()) != null) {
+                    String[] parts = line.split(" ");
+                    int term = Integer.parseInt(parts[0]);
+                    long index = Long.parseLong(parts[1]);
+
+                    if (LogPosition.compare(toOffset, term, index) >= 0) {
+                        position = channel.position();
+                        continue;
+                    }
+
+                    break;
+                }
+
+                channel.position(position);
+                ByteBuffer buffer = ByteBuffer.allocate((int) (channel.size() - position - 1));
+                channel.read(buffer);
+                buffer.flip();
+                channel.position(0);
+                channel.write(buffer);
+                channel.truncate(buffer.limit());
+
+                String errorMessage = "Truncated WAL for table '%s' partition '%s' to offset '%s'."
+                        .formatted(tableName, partition, toOffset);
+                log.info(errorMessage);
+            }
+        } catch (Exception e) {
             String errorMessage = "Error truncating WAL for table '%s' partition '%s' to offset '%s'."
-                    .formatted(tableName,
-                               partition,
-                               toOffset);
+                    .formatted(tableName, partition, toOffset);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
         }
@@ -109,7 +169,7 @@ public class WAL implements AutoCloseable {
         }
     }
 
-    public void appendLogs(List<WALEntry> logEntries) {
+    public LogPosition appendLogs(List<WALEntry> logEntries) {
         try (AutoCloseableLock l = writeLock()) {
             for (WALEntry logEntry : logEntries) {
                 writer.write(logEntry.toString());
@@ -119,6 +179,7 @@ public class WAL implements AutoCloseable {
             }
             writer.flush();
             log.trace("'{}' log entries appended for table '{}' partition '{}'.", logEntries.size(), tableName, partition);
+            return LogPosition.of(endLeaderTerm, endIndex);
         } catch (IOException e) {
             String errorMessage = "Error appending entries to WAL for table '%s' partition '%s'.".formatted(tableName, partition);
             log.error(errorMessage, e);

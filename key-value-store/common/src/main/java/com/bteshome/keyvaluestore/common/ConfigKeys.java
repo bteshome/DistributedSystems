@@ -14,7 +14,7 @@ public class ConfigKeys {
     public static final String REPLICA_LAG_THRESHOLD_TIME_MS_KEY = "replica-lag-threshold-time-ms";
     public static final String REPLICA_FETCH_INTERVAL_MS_KEY = "replica-fetch-interval-ms";
     public static final String REPLICA_FETCH_MAX_NUM_RECORDS_KEY = "replica-fetch-max-num-records";
-    public static final String REPLICA_END_OFFSETS_SNAPSHOT_INTERVAL_MS_KEY = "replica-end-offsets-snapshot-interval-ms";
+    public static final String SNAPSHOT_INTERVAL_MS_KEY = "snapshot-interval-ms";
     public static final String RING_NUM_VIRTUAL_PARTITIONS_KEY = "ring-num-virtual-partitions";
     public static final String WRITE_BATCH_SIZE_MAX_KEY = "write-batch-size-max";
 }

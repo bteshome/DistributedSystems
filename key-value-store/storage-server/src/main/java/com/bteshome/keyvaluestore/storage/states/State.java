@@ -64,7 +64,7 @@ public class State {
     public void initialize() {
         createStorageDirectoryIfNotExists();
         loadFromSnapshotsAndWALFiles();
-        scheduleReplicaEndOffsetSnapshots();
+        scheduleSnapshots();
     }
 
     @PreDestroy
@@ -82,14 +82,14 @@ public class State {
         }
     }
 
-    public void scheduleReplicaEndOffsetSnapshots() {
+    public void scheduleSnapshots() {
         try {
-            long interval = (Long) MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_END_OFFSETS_SNAPSHOT_INTERVAL_MS_KEY);
+            long interval = (Long) MetadataCache.getInstance().getConfiguration(ConfigKeys.SNAPSHOT_INTERVAL_MS_KEY);
             executor = Executors.newSingleThreadScheduledExecutor();
             executor.scheduleAtFixedRate(this::takeSnapshot, interval, interval, TimeUnit.MILLISECONDS);
-            log.info("Scheduled replica end index snapshots. The interval is {} ms.", interval);
+            log.info("Scheduled data and replica end offset snapshots. The interval is {} ms.", interval);
         } catch (Exception e) {
-            log.error("Error scheduling replica end index snapshots.", e);
+            log.error("Error scheduling data and replica end offset snapshots.", e);
         }
     }
 
@@ -138,17 +138,6 @@ public class State {
         return partitionState.getLogEntries(lastFetchOffset, maxNumRecords);
     }
 
-    public void appendLogEntries(String table,
-                                 int partition,
-                                 List<WALEntry> logEntries,
-                                 Map<String, LogPosition> endOffsets,
-                                 LogPosition commitedOffset) {
-        PartitionState partitionState = getPartitionState(table, partition, true);
-        partitionState.appendLogEntries(logEntries);
-        partitionState.getOffsetState().setReplicaEndOffsets(endOffsets);
-        partitionState.getOffsetState().setCommittedOffset(commitedOffset);
-    }
-
     public boolean getLastHeartbeatSucceeded() {
         try (AutoCloseableLock l = readLock()) {
             return this.lastHeartbeatSucceeded;
@@ -172,7 +161,7 @@ public class State {
             Set<String> isrEndpoints = MetadataCache.getInstance().getISREndpoints(request.getTableName(), request.getPartitionId());
             WALGetReplicaEndOffsetRequest walGetReplicaEndOffsetRequest = new WALGetReplicaEndOffsetRequest(request.getTableName(), request.getPartitionId());
             LogPosition thisReplicaEndOffset = partitionState.getOffsetState().getReplicaEndOffset(nodeId);
-            LogPosition earliestReplicaEndOffset = thisReplicaEndOffset;
+            LogPosition earliestISREndOffset = thisReplicaEndOffset;
 
             for (String isrEndpoint : isrEndpoints) {
                 WALGetReplicaEndOffsetResponse response = RestClient.builder()
@@ -185,16 +174,13 @@ public class State {
                         .toEntity(WALGetReplicaEndOffsetResponse.class)
                         .getBody();
 
-                if (response.getEndOffset().compareTo(earliestReplicaEndOffset) < 0)
-                    earliestReplicaEndOffset = response.getEndOffset();
+                if (response.getEndOffset().compareTo(earliestISREndOffset) < 0)
+                    earliestISREndOffset = response.getEndOffset();
             }
 
-            if (earliestReplicaEndOffset.compareTo(thisReplicaEndOffset) < 0) {
-                log.info("Detected uncommitted offsets from the previous leader. Truncating WAL to offset {}.", earliestReplicaEndOffset);
-                partitionState.getWal().truncateTo(earliestReplicaEndOffset);
-                partitionState.getOffsetState().setReplicaEndOffset(nodeId, earliestReplicaEndOffset);
-                partitionState.getOffsetState().setCommittedOffset(earliestReplicaEndOffset);
-                partitionState.reApplyLogEntries();
+            if (earliestISREndOffset.compareTo(thisReplicaEndOffset) < 0) {
+                log.info("Detected uncommitted offsets from the previous leader. Truncating WAL to offset {}.", earliestISREndOffset);
+                partitionState.truncateLogsTo(earliestISREndOffset);
             }
         }
 
@@ -252,11 +238,17 @@ public class State {
     }
 
     private void takeSnapshot() {
-        log.debug("Taking a snapshot of replica end offsets.");
-        for (Map<Integer, PartitionState> tableState : partitionStates.values()) {
-            for (PartitionState partitionState : tableState.values()) {
-                partitionState.getOffsetState().takeSnapshot();
+        log.info("Taking snapshots of data and replica end offsets.");
+        long start = System.nanoTime();
+        try {
+            for (Map<Integer, PartitionState> tableState : partitionStates.values()) {
+                for (PartitionState partitionState : tableState.values()) {
+                    partitionState.takeDataSnapshot();
+                }
             }
+        } finally {
+            long end = System.nanoTime();
+            log.info("Finished taking snapshots of data and replica end offsets. Took {} ms.", (end - start) / 1000000);
         }
     }
 }
