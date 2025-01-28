@@ -259,21 +259,6 @@ public class WAL implements AutoCloseable {
         }
     }
 
-    /*public LogPosition getStartOffset() {
-        try (AutoCloseableLock l = readLock()) {
-            BufferedReader reader = new BufferedReader(new FileReader(logFile));
-            String line = reader.readLine();
-            if (line == null)
-                return LogPosition.empty();
-            WALEntry walEntry = WALEntry.fromString(line);
-            return LogPosition.of(walEntry.leaderTerm(), walEntry.index());
-        } catch (IOException e) {
-            String errorMessage = "Error reading WAL start offset for table '%s' partition '%s'.".formatted(tableName, partition);
-            log.error(errorMessage, e);
-            throw new StorageServerException(errorMessage, e);
-        }
-    }*/
-
     public LogPosition getStartOffset() {
         try (AutoCloseableLock l = readLock()) {
             return LogPosition.of(startLeaderTerm, startIndex);
@@ -286,41 +271,7 @@ public class WAL implements AutoCloseable {
         }
     }
 
-    public LogPosition getPreviousLeaderEndOffset() {
-        try (AutoCloseableLock l = readLock();) {
-            return previousLeaderEndOffset;
-        }
-    }
-
-    public void setPreviousLeaderEndOffset(LogPosition offset) {
-        try (AutoCloseableLock l = writeLock();) {
-            previousLeaderEndOffset = offset;
-        }
-    }
-
-    /*public long getEndIndexForLeaderTerm(int leaderTerm) {
-        try (AutoCloseableLock l = readLock();
-            BufferedReader reader = new BufferedReader(new FileReader(logFile));) {
-            String line;
-
-            long index = 0L;
-            while ((line = reader.readLine()) != null) {
-                WALEntry walEntry = WALEntry.fromString(line);
-                if (walEntry.leaderTerm() > leaderTerm)
-                    break;
-                if (walEntry.leaderTerm() == leaderTerm)
-                    index = walEntry.index();
-            }
-
-            return index;
-        } catch (IOException e) {
-            String errorMessage = "Error reading leader term end index for table '%s' partition '%s'.".formatted(tableName, partition);
-            log.error(errorMessage, e);
-            throw new StorageServerException(errorMessage, e);
-        }
-    }*/
-
-    /*public long getLag(LogPosition logPosition, LogPosition comparedTo) {
+    public long getLag(LogPosition logPosition, LogPosition comparedTo) {
         if (logPosition.isGreaterThanOrEquals(comparedTo))
             return 0L;
 
@@ -336,7 +287,7 @@ public class WAL implements AutoCloseable {
                 WALEntry walEntry = WALEntry.fromString(line);
                 if (walEntry.isLessThan(logPosition))
                     continue;
-                if (walEntry.isGreaterThan(comparedTo))
+                if (walEntry.isGreaterThanOrEquals(comparedTo))
                     break;
                 difference++;
             }
@@ -347,7 +298,7 @@ public class WAL implements AutoCloseable {
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
         }
-    }*/
+    }
 
     @Override
     public void close() {

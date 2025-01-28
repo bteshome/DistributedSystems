@@ -150,12 +150,12 @@ public class State {
 
     public void newLeaderElected(NewLeaderElectedRequest request) {
         MetadataCache.getInstance().pauseFetch(request.getTableName(), request.getPartitionId());
+        PartitionState partitionState = getPartitionState(request.getTableName(), request.getPartitionId(), true);
 
         if (storageSettings.getNode().getId().equals(request.getNewLeaderId())) {
             log.info("This node elected as the new leader for table '{}' partition '{}'. Now performing offset synchronization and truncation.",
                     request.getTableName(),
                     request.getPartitionId());
-            PartitionState partitionState = getPartitionState(request.getTableName(), request.getPartitionId(), true);
             Set<String> isrEndpoints = MetadataCache.getInstance().getISREndpoints(request.getTableName(), request.getPartitionId());
             WALGetReplicaEndOffsetRequest walGetReplicaEndOffsetRequest = new WALGetReplicaEndOffsetRequest(request.getTableName(), request.getPartitionId());
             LogPosition thisReplicaEndOffset = partitionState.getOffsetState().getReplicaEndOffset(nodeId);
@@ -179,8 +179,11 @@ public class State {
             if (earliestISREndOffset.isLessThan(thisReplicaEndOffset)) {
                 log.info("Detected uncommitted offsets from the previous leader. Truncating WAL to offset {}.", earliestISREndOffset);
                 partitionState.truncateLogsTo(earliestISREndOffset);
-                partitionState.getWal().setPreviousLeaderEndOffset(earliestISREndOffset);
             }
+
+            partitionState.getOffsetState().setPreviousLeaderEndOffset(earliestISREndOffset);
+        } else {
+            partitionState.getOffsetState().clearPreviousLeaderEndOffset();
         }
 
         storageNodeMetadataRefresher.fetchAsync().thenRun(() ->

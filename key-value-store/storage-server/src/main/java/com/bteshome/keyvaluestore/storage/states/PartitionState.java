@@ -279,7 +279,15 @@ public class PartitionState implements AutoCloseable {
             int currentLeaderTerm = MetadataCache.getInstance().getLeaderTerm(table, partition);
 
             if (lastFetchOffset.leaderTerm() == currentLeaderTerm - 1) {
-                LogPosition previousLeaderEndOffset = wal.getPreviousLeaderEndOffset();
+                LogPosition previousLeaderEndOffset = offsetState.getPreviousLeaderEndOffset();
+                if (previousLeaderEndOffset.leaderTerm() != currentLeaderTerm - 1) {
+                    String errorMessage = "Previous leader end offset '%s' is not from the previous leader.".formatted(previousLeaderEndOffset);
+                    return ResponseEntity.ok(WALFetchResponse.builder()
+                            .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                            .errorMessage(errorMessage)
+                            .build());
+                }
+
                 if (lastFetchOffset.isGreaterThan(previousLeaderEndOffset)) {
                     return ResponseEntity.ok(WALFetchResponse.builder()
                             .httpStatusCode(HttpStatus.CONFLICT.value())

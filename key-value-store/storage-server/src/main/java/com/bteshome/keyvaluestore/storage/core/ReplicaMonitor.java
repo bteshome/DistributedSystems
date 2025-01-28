@@ -1,4 +1,3 @@
-/*
 package com.bteshome.keyvaluestore.storage.core;
 
 import com.bteshome.keyvaluestore.common.*;
@@ -65,7 +64,7 @@ public class ReplicaMonitor {
                         continue;
 
                     LogPosition replicaOffset = partitionState.getOffsetState().getReplicaEndOffset(replicaId);
-                    long lag = partitionState.getWal().getL.getLag(replicaOffset, committedOffset);
+                    long lag = partitionState.getWal().getLag(replicaOffset, committedOffset);
                     boolean isLaggingOnFetch = lag > recordThreshold;
 
                     if (inSyncReplicaNodeIds.contains(replicaId)) {
@@ -79,14 +78,14 @@ public class ReplicaMonitor {
             }
 
             if (!laggingReplicas.isEmpty()) {
-                log.warn("These replicas are lagging on fetch beyond the threshold '{}'. Preparing to remove them from ISR lists: '{}'",
+                log.debug("These replicas are lagging on fetch beyond the threshold '{}'. Preparing to remove them from ISR lists: '{}'",
                         recordThreshold,
                         laggingReplicas);
                 isrSynchronizer.removeFromInSyncReplicaLists(laggingReplicas);
             }
 
             if (!caughtUpReplicas.isEmpty()) {
-                log.warn("These replicas have caught up on fetch. Preparing to add them to ISR lists: '{}'", caughtUpReplicas);
+                log.debug("These replicas have caught up on fetch. Preparing to add them to ISR lists: '{}'", caughtUpReplicas);
                 isrSynchronizer.addToInSyncReplicaLists(caughtUpReplicas);
             }
         } catch (Exception e) {
@@ -94,4 +93,3 @@ public class ReplicaMonitor {
         }
     }
 }
-*/

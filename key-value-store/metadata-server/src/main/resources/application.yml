@@ -47,7 +47,7 @@ metadata:
   storage-node-heartbeat-send-interval-ms: 5000
   storage-node-heartbeat-monitor-interval-ms: 5000
   storage-node-metadata-refresh-interval-ms: 300000
-  replica-monitor-interval-ms: 10000
+  replica-monitor-interval-ms: 1000
   replica-lag-threshold-records: 4
   replica-lag-threshold-time-ms: 10000
   replica-fetch-interval-ms: 500

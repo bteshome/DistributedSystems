@@ -2,6 +2,7 @@ package com.bteshome.keyvaluestore.storage.states;
 
 import com.bteshome.keyvaluestore.common.JsonSerDe;
 import com.bteshome.keyvaluestore.common.LogPosition;
+import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.Utils;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
@@ -24,9 +25,11 @@ public class OffsetState {
     private final String nodeId;
     private final Map<String, LogPosition> replicaEndOffsets;
     private LogPosition committedOffset;
+    private LogPosition previousLeaderEndOffset;
     private final ReentrantReadWriteLock lock;
     private final String replicaEndOffsetsSnapshotFile;
     private final String committedOffsetSnapshotFile;
+    private final String previousLeaderEndOffsetFile;
 
     public OffsetState(String table, int partition, StorageSettings storageSettings) {
         this.table = table;
@@ -34,11 +37,14 @@ public class OffsetState {
         this.nodeId = storageSettings.getNode().getId();
         replicaEndOffsets = new ConcurrentHashMap<>();
         committedOffset = LogPosition.empty();
+        previousLeaderEndOffset = LogPosition.empty();
         lock = new ReentrantReadWriteLock(true);
         replicaEndOffsetsSnapshotFile = "%s/%s-%s/replicaEndOffsets.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
         committedOffsetSnapshotFile = "%s/%s-%s/committedOffset.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
+        previousLeaderEndOffsetFile = "%s/%s-%s/previousLeaderEndOffset.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
         loadReplicaEndOffsetsFromSnapshot();
         loadCommittedOffsetFromSnapshot();
+        loadPreviousLeaderEndOffset();
     }
 
     public Map<String, LogPosition> getReplicaEndOffsets() {
@@ -82,6 +88,40 @@ public class OffsetState {
             log.debug("Persisted committed offset '{}' for table '{}' partition '{}'.", committedOffset, table, partition);
         } catch (IOException e) {
             String errorMessage = "Error writing committed offset for table '%s' partition '%s'.".formatted(table, partition);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }
+
+
+    public LogPosition getPreviousLeaderEndOffset() {
+        try (AutoCloseableLock l = readLock()) {
+            if (!nodeId.equals(MetadataCache.getInstance().getLeaderNodeId(table, partition)))
+                throw new StorageServerException("Illegal access. Not the leader for table '%s' partition '%s'.".formatted(table, partition));
+            return previousLeaderEndOffset;
+        }
+    }
+
+    public void setPreviousLeaderEndOffset(LogPosition offset) {
+        BufferedWriter writer = Utils.createWriter(previousLeaderEndOffsetFile);
+        try (writer; AutoCloseableLock l = writeLock()) {
+            previousLeaderEndOffset = offset;
+            writer.write(JsonSerDe.serialize(offset));
+            log.debug("Persisted previous leader end offset '{}' for table '{}' partition '{}'.", previousLeaderEndOffset, table, partition);
+        } catch (IOException e) {
+            String errorMessage = "Error writing previous leader end offset for table '%s' partition '%s'.".formatted(table, partition);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }
+
+    public void clearPreviousLeaderEndOffset() {
+        try (AutoCloseableLock l = writeLock()) {
+            previousLeaderEndOffset = LogPosition.empty();
+            Files.deleteIfExists(Path.of(previousLeaderEndOffsetFile));
+            log.debug("Deleted previous leader end offset file '{}' for table '{}' partition '{}'.", previousLeaderEndOffsetFile, table, partition);
+        } catch (IOException e) {
+            String errorMessage = "Error deleting previous leader end offset file for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
         }
@@ -134,6 +174,24 @@ public class OffsetState {
             }
         } catch (IOException e) {
             String errorMessage = "Error loading from a snapshot of committed offset for table '%s' partition '%s'.".formatted(table, partition);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }
+
+    public void loadPreviousLeaderEndOffset() {
+        if (Files.notExists(Path.of(previousLeaderEndOffsetFile)))
+            return;
+
+        BufferedReader reader = Utils.createReader(previousLeaderEndOffsetFile);
+        try (reader) {
+            String line = reader.readLine();
+            if (line != null) {
+                previousLeaderEndOffset = JsonSerDe.deserialize(line, LogPosition.class);
+                log.debug("Loaded previous leader end offset from snapshot for table '{}' partition '{}'.", table, partition);
+            }
+        } catch (IOException e) {
+            String errorMessage = "Error loading from a snapshot of previous leader end offset for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
         }
