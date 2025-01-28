@@ -22,8 +22,11 @@ public class WAL implements AutoCloseable {
     private final int partition;
     private BufferedWriter writer;
     private final ReentrantReadWriteLock lock;
-    private long endIndex = 0;
+    private int startLeaderTerm = 0;
+    private long startIndex = 0L;
     private int endLeaderTerm = 0;
+    private long endIndex = 0L;
+    private LogPosition previousLeaderEndOffset = LogPosition.empty();
 
     public WAL(String storageDirectory, String tableName, int partition) {
         try {
@@ -45,6 +48,16 @@ public class WAL implements AutoCloseable {
         try (AutoCloseableLock l = writeLock();
              RandomAccessFile raf = new RandomAccessFile(logFile, "rw");
              FileChannel channel = raf.getChannel()) {
+            if (toOffset.equals(this.endLeaderTerm, this.endIndex))
+                return;
+
+            if (toOffset.isGreaterThan(this.endLeaderTerm, this.endIndex)) {
+                throw new StorageServerException("Invalid log position '%s' to truncate WAL file to. WAL end term is '%s' and index is '%s.".formatted(
+                        toOffset,
+                        this.endLeaderTerm,
+                        this.endIndex));
+            }
+
             String line;
             long position = 0;
 
@@ -53,8 +66,10 @@ public class WAL implements AutoCloseable {
                 int term = Integer.parseInt(parts[0]);
                 long index = Long.parseLong(parts[1]);
 
-                if (term < toOffset.leaderTerm() || (term == toOffset.leaderTerm() && index <= toOffset.index())) {
+                if (toOffset.isGreaterThanOrEquals(term, index)) {
                     position = channel.position();
+                    this.endLeaderTerm = term;
+                    this.endIndex = index;
                     continue;
                 }
 
@@ -82,16 +97,18 @@ public class WAL implements AutoCloseable {
             return;
 
         try (AutoCloseableLock l = writeLock()) {
-            if (LogPosition.compare(toOffset, this.endLeaderTerm, this.endIndex) == 0) {
-                writer.close();
-                Files.deleteIfExists(Path.of(logFile));
-                Files.createFile(Path.of(logFile));
-                writer = new BufferedWriter(new FileWriter(logFile, true));
-                return;
+            if (toOffset.equals(this.endLeaderTerm, this.endIndex)) {
+                try (RandomAccessFile raf = new RandomAccessFile(logFile, "rw");
+                     FileChannel channel = raf.getChannel()) {
+                    channel.truncate(0);
+                    startLeaderTerm = endLeaderTerm;
+                    startIndex = endIndex;
+                    return;
+                }
             }
 
-            if (LogPosition.compare(toOffset, this.endLeaderTerm, this.endIndex) > 0) {
-                throw new StorageServerException("Invalid log position '%s' to truncate WAL file to. WAL end term is '%s' and index is '%s.".formatted(
+            if (toOffset.isGreaterThan(this.endLeaderTerm, this.endIndex)) {
+                throw new StorageServerException("Invalid log position '%s' to truncate WAL file to. WAL end term is '%s' and index is '%s'.".formatted(
                         toOffset,
                         this.endLeaderTerm,
                         this.endIndex));
@@ -107,11 +124,13 @@ public class WAL implements AutoCloseable {
                     int term = Integer.parseInt(parts[0]);
                     long index = Long.parseLong(parts[1]);
 
-                    if (LogPosition.compare(toOffset, term, index) >= 0) {
+                    if (toOffset.isGreaterThanOrEquals(term, index)) {
                         position = channel.position();
                         continue;
                     }
 
+                    startLeaderTerm = term;
+                    startIndex = index;
                     break;
                 }
 
@@ -135,23 +154,10 @@ public class WAL implements AutoCloseable {
         }
     }
 
-    public long appendItem(int leaderTerm, String operation, Item item) {
-        try (AutoCloseableLock l = writeLock()) {
-            incrementIndex(leaderTerm);
-            String logEntry = new WALEntry(leaderTerm, endIndex, operation, item.getKey(), item.getValue()).toString();
-            writer.write(logEntry);
-            writer.newLine();
-            writer.flush();
-            log.trace("Operation '{}' item '{}' appended to WAL for table '{}' partition '{}'.", operation, item, tableName, partition);
-            return endIndex;
-        } catch (IOException e) {
-            String errorMessage = "Error appending item to WAL for table '%s' partition '%s'.".formatted(tableName, partition);
-            log.error(errorMessage, e);
-            throw new StorageServerException(errorMessage, e);
-        }
-    }
-
     public long appendItems(int leaderTerm, String operation, List<Item> items) {
+        if (items.isEmpty())
+            return endIndex;
+
         try (AutoCloseableLock l = writeLock()) {
             for (Item item : items) {
                 incrementIndex(leaderTerm);
@@ -174,10 +180,10 @@ public class WAL implements AutoCloseable {
             for (WALEntry logEntry : logEntries) {
                 writer.write(logEntry.toString());
                 writer.newLine();
-                this.endIndex = logEntry.index();
-                this.endLeaderTerm = logEntry.leaderTerm();
             }
             writer.flush();
+            this.endLeaderTerm = logEntries.getLast().leaderTerm();
+            this.endIndex = logEntries.getLast().index();
             log.trace("'{}' log entries appended for table '{}' partition '{}'.", logEntries.size(), tableName, partition);
             return LogPosition.of(endLeaderTerm, endIndex);
         } catch (IOException e) {
@@ -214,7 +220,7 @@ public class WAL implements AutoCloseable {
 
             while (entries.size() < limit && (line = reader.readLine()) != null) {
                 WALEntry walEntry = WALEntry.fromString(line);
-                if (walEntry.compareTo(afterOffset) <= 0)
+                if (walEntry.isLessThanOrEquals(afterOffset))
                     continue;
                 entries.add(walEntry);
             }
@@ -235,9 +241,14 @@ public class WAL implements AutoCloseable {
 
             while ((line = reader.readLine()) != null) {
                 WALEntry walEntry = WALEntry.fromString(line);
-                this.endLeaderTerm = walEntry.leaderTerm();
-                this.endIndex = walEntry.index();
                 entries.add(walEntry);
+            }
+
+            if (!entries.isEmpty()) {
+                this.startLeaderTerm = entries.getFirst().leaderTerm();
+                this.startIndex = entries.getFirst().index();
+                this.endLeaderTerm = entries.getLast().leaderTerm();
+                this.endIndex = entries.getLast().index();
             }
 
             return entries;
@@ -248,13 +259,46 @@ public class WAL implements AutoCloseable {
         }
     }
 
+    /*public LogPosition getStartOffset() {
+        try (AutoCloseableLock l = readLock()) {
+            BufferedReader reader = new BufferedReader(new FileReader(logFile));
+            String line = reader.readLine();
+            if (line == null)
+                return LogPosition.empty();
+            WALEntry walEntry = WALEntry.fromString(line);
+            return LogPosition.of(walEntry.leaderTerm(), walEntry.index());
+        } catch (IOException e) {
+            String errorMessage = "Error reading WAL start offset for table '%s' partition '%s'.".formatted(tableName, partition);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }*/
+
+    public LogPosition getStartOffset() {
+        try (AutoCloseableLock l = readLock()) {
+            return LogPosition.of(startLeaderTerm, startIndex);
+        }
+    }
+
     public LogPosition getEndOffset() {
         try (AutoCloseableLock l = readLock()) {
             return LogPosition.of(endLeaderTerm, endIndex);
         }
     }
 
-    public long getEndIndexForLeaderTerm(int leaderTerm) {
+    public LogPosition getPreviousLeaderEndOffset() {
+        try (AutoCloseableLock l = readLock();) {
+            return previousLeaderEndOffset;
+        }
+    }
+
+    public void setPreviousLeaderEndOffset(LogPosition offset) {
+        try (AutoCloseableLock l = writeLock();) {
+            previousLeaderEndOffset = offset;
+        }
+    }
+
+    /*public long getEndIndexForLeaderTerm(int leaderTerm) {
         try (AutoCloseableLock l = readLock();
             BufferedReader reader = new BufferedReader(new FileReader(logFile));) {
             String line;
@@ -274,14 +318,14 @@ public class WAL implements AutoCloseable {
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
         }
-    }
+    }*/
 
-    public long getLag(LogPosition of, LogPosition comparedTo) {
-        if (of.compareTo(comparedTo) >= 0)
+    /*public long getLag(LogPosition logPosition, LogPosition comparedTo) {
+        if (logPosition.isGreaterThanOrEquals(comparedTo))
             return 0L;
 
-        if (of.leaderTerm() == comparedTo.leaderTerm())
-            return comparedTo.index() - of.index();
+        if (logPosition.leaderTerm() == comparedTo.leaderTerm())
+            return comparedTo.index() - logPosition.index();
 
         try (AutoCloseableLock l = readLock();
              BufferedReader reader = new BufferedReader(new FileReader(logFile));) {
@@ -290,9 +334,9 @@ public class WAL implements AutoCloseable {
 
             while ((line = reader.readLine()) != null) {
                 WALEntry walEntry = WALEntry.fromString(line);
-                if (walEntry.compareTo(of) < 0)
+                if (walEntry.isLessThan(logPosition))
                     continue;
-                if (walEntry.compareTo(comparedTo) > 0)
+                if (walEntry.isGreaterThan(comparedTo))
                     break;
                 difference++;
             }
@@ -303,7 +347,7 @@ public class WAL implements AutoCloseable {
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
         }
-    }
+    }*/
 
     @Override
     public void close() {
@@ -322,9 +366,12 @@ public class WAL implements AutoCloseable {
     private void incrementIndex(int leaderTerm) {
         if (leaderTerm == this.endLeaderTerm) {
             this.endIndex++;
-        } else {
+        } else if (leaderTerm == this.endLeaderTerm + 1) {
             this.endLeaderTerm = leaderTerm;
             this.endIndex = 1;
+        } else {
+            throw new StorageServerException("Invalid leader term '%s' for WAL entry. Expected '%s' or '%s'."
+                    .formatted(leaderTerm, this.endLeaderTerm, this.endLeaderTerm + 1));
         }
     }
 

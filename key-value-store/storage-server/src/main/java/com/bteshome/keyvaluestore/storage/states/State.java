@@ -133,9 +133,7 @@ public class State {
                     .build());
         }
 
-        partitionState.getOffsetState().setReplicaEndOffset(replicaId, lastFetchOffset);
-
-        return partitionState.getLogEntries(lastFetchOffset, maxNumRecords);
+        return partitionState.getLogEntries(lastFetchOffset, maxNumRecords, replicaId);
     }
 
     public boolean getLastHeartbeatSucceeded() {
@@ -174,13 +172,14 @@ public class State {
                         .toEntity(WALGetReplicaEndOffsetResponse.class)
                         .getBody();
 
-                if (response.getEndOffset().compareTo(earliestISREndOffset) < 0)
+                if (response.getEndOffset().isLessThan(earliestISREndOffset))
                     earliestISREndOffset = response.getEndOffset();
             }
 
-            if (earliestISREndOffset.compareTo(thisReplicaEndOffset) < 0) {
+            if (earliestISREndOffset.isLessThan(thisReplicaEndOffset)) {
                 log.info("Detected uncommitted offsets from the previous leader. Truncating WAL to offset {}.", earliestISREndOffset);
                 partitionState.truncateLogsTo(earliestISREndOffset);
+                partitionState.getWal().setPreviousLeaderEndOffset(earliestISREndOffset);
             }
         }
 

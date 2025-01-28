@@ -3,7 +3,7 @@ package com.bteshome.keyvaluestore.common;
 import java.io.Serializable;
 import java.util.Objects;
 
-public record LogPosition(int leaderTerm, long index) implements Serializable, Comparable<LogPosition> {
+public record LogPosition(int leaderTerm, long index) implements Serializable {
     private static final LogPosition empty = new LogPosition(0, 0);
 
     public static LogPosition empty() {
@@ -19,25 +19,52 @@ public record LogPosition(int leaderTerm, long index) implements Serializable, C
         return String.format("%d:%d", leaderTerm, index);
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        LogPosition that = (LogPosition) o;
-        return index == that.index && leaderTerm == that.leaderTerm;
+    public boolean equals(LogPosition other) {
+        return compare(this, other) == 0;
     }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(leaderTerm, index);
+    public boolean equals(int otherLeaderTerm, long otherIndex) {
+        return compare(this, otherLeaderTerm, otherIndex) == 0;
     }
 
-    @Override
-    public int compareTo(LogPosition o) {
-        return compare(this, o.leaderTerm(), o.index());
+    public boolean isGreaterThan(LogPosition other) {
+        return compare(this, other) > 0;
     }
 
-    public static int compare(LogPosition position, int leaderTerm, long index) {
+    public boolean isGreaterThan(int otherLeaderTerm, long otherIndex) {
+        return compare(this, otherLeaderTerm, otherIndex) > 0;
+    }
+
+    public boolean isGreaterThanOrEquals(LogPosition other) {
+        return compare(this, other) >= 0;
+    }
+
+    public boolean isGreaterThanOrEquals(int otherLeaderTerm, long otherIndex) {
+        return compare(this, otherLeaderTerm, otherIndex) >= 0;
+    }
+
+    public boolean isLessThan(LogPosition other) {
+        return compare(this, other) < 0;
+    }
+
+    public boolean isLessThan(int otherLeaderTerm, long otherIndex) {
+        return compare(this, otherLeaderTerm, otherIndex) < 0;
+    }
+
+    public boolean isLessThanOrEquals(LogPosition other) {
+        return compare(this, other) <= 0;
+    }
+
+    public boolean isLessThanOrEquals(int otherLeaderTerm, long otherIndex) {
+        return compare(this, otherLeaderTerm, otherIndex) <= 0;
+    }
+
+    private static int compare(LogPosition position, int leaderTerm, long index) {
         return compare(position.leaderTerm(), position.index(), leaderTerm, index);
+    }
+
+    private static int compare(LogPosition position1, LogPosition position2) {
+        return compare(position1.leaderTerm(), position1.index(), position2.leaderTerm(), position2.index());
     }
 
     public static int compare(int leaderTerm1, long index1, int leaderTerm2, long index2) {

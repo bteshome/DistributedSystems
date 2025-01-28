@@ -1,6 +1,7 @@
 package com.bteshome.keyvaluestore.storage.responses;
 
 import com.bteshome.keyvaluestore.common.LogPosition;
+import com.bteshome.keyvaluestore.storage.states.DataSnapshot;
 import com.bteshome.keyvaluestore.storage.states.WALEntry;
 import lombok.*;
 
@@ -19,4 +20,6 @@ public class WALFetchResponse {
     private Map<String, LogPosition> replicaEndOffsets;
     private LogPosition commitedOffset;
     private LogPosition truncateToOffset;
+    private DataSnapshot dataSnapshot;
+    private WALFetchPayloadType payloadType = WALFetchPayloadType.LOG;
 }

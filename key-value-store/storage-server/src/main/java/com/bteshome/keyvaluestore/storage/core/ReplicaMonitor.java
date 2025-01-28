@@ -1,3 +1,4 @@
+/*
 package com.bteshome.keyvaluestore.storage.core;
 
 import com.bteshome.keyvaluestore.common.*;
@@ -64,7 +65,7 @@ public class ReplicaMonitor {
                         continue;
 
                     LogPosition replicaOffset = partitionState.getOffsetState().getReplicaEndOffset(replicaId);
-                    long lag = partitionState.getWal().getLag(replicaOffset, committedOffset);
+                    long lag = partitionState.getWal().getL.getLag(replicaOffset, committedOffset);
                     boolean isLaggingOnFetch = lag > recordThreshold;
 
                     if (inSyncReplicaNodeIds.contains(replicaId)) {
@@ -93,3 +94,4 @@ public class ReplicaMonitor {
         }
     }
 }
+*/

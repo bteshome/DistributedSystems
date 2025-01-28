@@ -32,8 +32,8 @@ public class Node implements CommandLineRunner {
     @Autowired
     StorageNodeMetadataRefresher storageNodeMetadataRefresher;
 
-    @Autowired
-    ReplicaMonitor replicaMonitor;
+    /*@Autowired
+    ReplicaMonitor replicaMonitor;*/
 
     @Autowired
     WALFetcher walFetcher;
@@ -61,7 +61,7 @@ public class Node implements CommandLineRunner {
                     storageNodeMetadataRefresher.schedule();
                     state.initialize();
                     heartbeatSender.schedule();
-                    replicaMonitor.schedule();
+                    //replicaMonitor.schedule();
                     walFetcher.schedule();
                 } else {
                     log.error(response.getMessage());

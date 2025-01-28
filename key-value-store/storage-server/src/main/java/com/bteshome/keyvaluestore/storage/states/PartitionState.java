@@ -10,8 +10,8 @@ import com.bteshome.keyvaluestore.common.entities.Replica;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
 import com.bteshome.keyvaluestore.storage.core.ISRSynchronizer;
+import com.bteshome.keyvaluestore.storage.responses.WALFetchPayloadType;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.util.AutoCloseableLock;
 import org.springframework.http.HttpStatus;
@@ -35,9 +35,7 @@ public class PartitionState implements AutoCloseable {
     private final int partition;
     private final String nodeId;
     private final ConcurrentHashMap<String, String> data;
-    @Getter
     private final WAL wal;
-    @Getter
     private final OffsetState offsetState;
     private final ReentrantReadWriteLock dataLock;
     private final ReentrantReadWriteLock operationLock;
@@ -62,6 +60,18 @@ public class PartitionState implements AutoCloseable {
         dataSnapshotFile = "%s/%s-%s/data.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
         loadFromDataSnapshotAndWALFile();
         offsetState = new OffsetState(table, partition, storageSettings);
+    }
+
+    public WAL getWal() {
+        try (AutoCloseableLock l = readDataLock()) {
+            return wal;
+        }
+    }
+
+    public OffsetState getOffsetState() {
+        try (AutoCloseableLock l = readDataLock()) {
+            return offsetState;
+        }
     }
 
     public ResponseEntity<ItemPutResponse> putItems(List<Item> items) {
@@ -94,14 +104,16 @@ public class PartitionState implements AutoCloseable {
             long timeoutNanos = TimeUnit.MILLISECONDS.toNanos(timeoutMs);
             long start = System.nanoTime();
             log.debug("Waiting for sufficient replicas to acknowledge the log entry at offset {}.", offset);
+            Set<String> currentISRNodeIds = null;
             Set<Replica> newISRs = null;
             Set<Replica> laggingCurrentISRs = null;
 
             while (System.nanoTime() - start < timeoutNanos) {
-                Tuple3<Boolean, Set<Replica>, Set<Replica>> acknowledgementCheckResult = isFullyAcknowledged(offset);
+                Tuple4<Boolean, Set<String>, Set<Replica>, Set<Replica>> acknowledgementCheckResult = isFullyAcknowledged(offset);
                 boolean canBeCommitted = acknowledgementCheckResult.first();
-                newISRs = acknowledgementCheckResult.second();
-                laggingCurrentISRs = acknowledgementCheckResult.third();
+                currentISRNodeIds = acknowledgementCheckResult.second();
+                newISRs = acknowledgementCheckResult.third();
+                laggingCurrentISRs = acknowledgementCheckResult.fourth();
 
                 if (canBeCommitted) {
                     try (AutoCloseableLock l2 = writeDataLock()) {
@@ -115,9 +127,18 @@ public class PartitionState implements AutoCloseable {
                                 .build());
                     }
 
-                    if (newISRs != null && !newISRs.isEmpty()) {
+                    log.debug("Current ISR node ids for table '{}' partition '{}' is: {}.",
+                            table,
+                            partition,
+                            currentISRNodeIds);
+
+                    if (!newISRs.isEmpty()) {
                         final Set<Replica> newISRsFinal = newISRs;
                         CompletableFuture.runAsync(() -> isrSynchronizer.addToInSyncReplicaLists(newISRsFinal));
+                        log.debug("Added new ISRs '{}' to table '{}' partition '{}'.",
+                                newISRs,
+                                table,
+                                partition);
                     }
 
                     log.debug("Successfully commited PUT '{}' items to table '{}' partition '{}'.", items.size(), table, partition);
@@ -140,9 +161,13 @@ public class PartitionState implements AutoCloseable {
                 }
             }
 
-            if (laggingCurrentISRs != null && !laggingCurrentISRs.isEmpty()) {
-                final Set<Replica> laggingReplicasFinal = laggingCurrentISRs;
-                CompletableFuture.runAsync(() -> isrSynchronizer.removeFromInSyncReplicaLists(laggingReplicasFinal));
+            if (!laggingCurrentISRs.isEmpty()) {
+                final Set<Replica> laggingCurrentISRsFinal = laggingCurrentISRs;
+                CompletableFuture.runAsync(() -> isrSynchronizer.removeFromInSyncReplicaLists(laggingCurrentISRsFinal));
+                log.debug("Removed lagging ISRs '{}' from table '{}' partition '{}'.",
+                        laggingCurrentISRs,
+                        table,
+                        partition);
             }
 
             String errorMessage = "Request timed out.";
@@ -189,17 +214,31 @@ public class PartitionState implements AutoCloseable {
                                  Map<String, LogPosition> replicaEndOffsets,
                                  LogPosition commitedOffset) {
         try (AutoCloseableLock l = writeDataLock()) {
-            LogPosition endOffset = wal.appendLogs(logEntries);
-            offsetState.setReplicaEndOffset(nodeId, endOffset);
+            if (!logEntries.isEmpty()) {
+                LogPosition endOffset = wal.appendLogs(logEntries);
+                offsetState.setReplicaEndOffset(nodeId, endOffset);
+            }
             offsetState.setReplicaEndOffsets(replicaEndOffsets);
             offsetState.setCommittedOffset(commitedOffset);
 
             for (WALEntry walEntry : logEntries) {
-                switch (walEntry.operation()) {
-                    case "PUT" -> data.put(walEntry.key(), walEntry.value());
-                    case "DELETE" -> data.remove(walEntry.key());
+                if (walEntry.isLessThanOrEquals(commitedOffset)) {
+                    switch (walEntry.operation()) {
+                        case "PUT" -> data.put(walEntry.key(), walEntry.value());
+                        case "DELETE" -> data.remove(walEntry.key());
+                    }
                 }
             }
+        }
+    }
+
+    public void applyDataSnapshot(DataSnapshot dataSnapshot,
+                                  Map<String, LogPosition> replicaEndOffsets) {
+        try (AutoCloseableLock l = writeDataLock()) {
+            offsetState.setReplicaEndOffset(nodeId, dataSnapshot.getLastCommittedOffset());
+            offsetState.setReplicaEndOffsets(replicaEndOffsets);
+            offsetState.setCommittedOffset(dataSnapshot.getLastCommittedOffset());
+            data.putAll(dataSnapshot.getData());
         }
     }
 
@@ -219,29 +258,76 @@ public class PartitionState implements AutoCloseable {
         }
     }
 
-    public ResponseEntity<WALFetchResponse> getLogEntries(LogPosition lastFetchOffset, int maxNumRecords) {
+    public ResponseEntity<WALFetchResponse> getLogEntries(LogPosition lastFetchOffset,
+                                                          int maxNumRecords,
+                                                          String replicaId) {
         try {
+            offsetState.setReplicaEndOffset(replicaId, lastFetchOffset);
+
+            LogPosition thisReplicaEndOffset = offsetState.getReplicaEndOffset(nodeId);
+
+            if (thisReplicaEndOffset.equals(LogPosition.empty())) {
+                return ResponseEntity.ok(WALFetchResponse.builder()
+                        .httpStatusCode(HttpStatus.OK.value())
+                        .entries(List.of())
+                        .replicaEndOffsets(Map.of())
+                        .commitedOffset(LogPosition.empty())
+                        .payloadType(WALFetchPayloadType.LOG)
+                        .build());
+            }
+
             int currentLeaderTerm = MetadataCache.getInstance().getLeaderTerm(table, partition);
 
-            if (lastFetchOffset.leaderTerm() < currentLeaderTerm) {
-                long endIndexForLastFetchLeaderTerm = wal.getEndIndexForLeaderTerm(lastFetchOffset.leaderTerm());
-                if (lastFetchOffset.index() > endIndexForLastFetchLeaderTerm) {
+            if (lastFetchOffset.leaderTerm() == currentLeaderTerm - 1) {
+                LogPosition previousLeaderEndOffset = wal.getPreviousLeaderEndOffset();
+                if (lastFetchOffset.isGreaterThan(previousLeaderEndOffset)) {
                     return ResponseEntity.ok(WALFetchResponse.builder()
                             .httpStatusCode(HttpStatus.CONFLICT.value())
-                            .truncateToOffset(LogPosition.of(lastFetchOffset.leaderTerm(), endIndexForLastFetchLeaderTerm))
+                            .truncateToOffset(previousLeaderEndOffset)
                             .build());
                 }
             }
 
-            List<WALEntry> entries = wal.readLogs(lastFetchOffset, maxNumRecords);
             Map<String, LogPosition> endOffsets = offsetState.getReplicaEndOffsets();
             LogPosition commitedOffset = offsetState.getCommittedOffset();
+
+            if (lastFetchOffset.equals(thisReplicaEndOffset)) {
+                return ResponseEntity.ok(WALFetchResponse.builder()
+                        .httpStatusCode(HttpStatus.OK.value())
+                        .entries(List.of())
+                        .replicaEndOffsets(endOffsets)
+                        .commitedOffset(commitedOffset)
+                        .payloadType(WALFetchPayloadType.LOG)
+                        .build());
+            }
+
+            LogPosition walStartOffset = wal.getStartOffset();
+            LogPosition walEndOffset = wal.getEndOffset();
+
+            if (walEndOffset.equals(LogPosition.empty()) || lastFetchOffset.isLessThan(walStartOffset)) {
+                DataSnapshot dataSnapshot = readDataSnapshot();
+                if (dataSnapshot == null) {
+                    return ResponseEntity.ok(WALFetchResponse.builder()
+                            .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                            .errorMessage("No data snapshot found.")
+                            .build());
+                }
+                return ResponseEntity.ok(WALFetchResponse.builder()
+                        .httpStatusCode(HttpStatus.OK.value())
+                        .payloadType(WALFetchPayloadType.SNAPSHOT)
+                        .dataSnapshot(dataSnapshot)
+                        .replicaEndOffsets(endOffsets)
+                        .build());
+            }
+
+            List<WALEntry> entries = wal.readLogs(lastFetchOffset, maxNumRecords);
 
             return ResponseEntity.ok(WALFetchResponse.builder()
                     .httpStatusCode(HttpStatus.OK.value())
                     .entries(entries)
                     .replicaEndOffsets(endOffsets)
                     .commitedOffset(commitedOffset)
+                    .payloadType(WALFetchPayloadType.LOG)
                     .build());
         } catch (Exception e) {
             return ResponseEntity.ok(WALFetchResponse.builder()
@@ -276,49 +362,61 @@ public class PartitionState implements AutoCloseable {
     }
 
     public void takeDataSnapshot() {
-        BufferedWriter writer = Utils.createWriter(dataSnapshotFile);
+        try (AutoCloseableLock l = readDataLock()) {
+            DataSnapshot lastSnapshot = readDataSnapshot();
+            LogPosition committedOffset = offsetState.getCommittedOffset();
 
-        try (writer; AutoCloseableLock l = readDataLock()) {
-            DataSnapshot dataSnapshot = new DataSnapshot();
-            dataSnapshot.setLastCommittedOffset(offsetState.getCommittedOffset());
-            dataSnapshot.setData(data);
-            writer.write(JavaSerDe.serialize(dataSnapshot));
-            wal.truncateToAfterExclusive(dataSnapshot.getLastCommittedOffset());
+            if (lastSnapshot != null && lastSnapshot.getLastCommittedOffset().equals(committedOffset)) {
+                log.debug("Skipping taking data snapshot for table '{}' partition '{}'. " +
+                          "Last snapshot committed offset is '{}', committed offset is '{}'.",
+                        table,
+                        partition,
+                        lastSnapshot.getLastCommittedOffset(),
+                        committedOffset);
+            } else {
+                try (BufferedWriter writer = Utils.createWriter(dataSnapshotFile)) {
+                    DataSnapshot snapshot = new DataSnapshot();
+                    snapshot.setData(data);
+                    snapshot.setLastCommittedOffset(committedOffset);
+                    // TODO - 1. change to Java serialization once done testing 2. add checksum
+                    //writer.write(JavaSerDe.serialize(dataSnapshot));
+                    writer.write(JsonSerDe.serialize(snapshot));
+                    wal.truncateToAfterExclusive(committedOffset);
+                    log.debug("Took data snapshot at last applied offset '{}' for table '{}' partition '{}'. The data size is: {}",
+                            committedOffset,
+                            table,
+                            partition,
+                            data.size());
+                }
+            }
+
             offsetState.takeSnapshot();
-            log.debug("Took a snapshot of data upto offset '{}' for table '{}' partition '{}'.",
-                      dataSnapshot.getLastCommittedOffset(),
-                      table,
-                      partition);
         } catch (Exception e) {
             String errorMessage = "Error taking a snapshot of data for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);
         }
     }
 
-    private Tuple3<Boolean, Set<Replica>, Set<Replica>> isFullyAcknowledged(LogPosition offset) {
+    private Tuple4<Boolean, Set<String>, Set<Replica>, Set<Replica>> isFullyAcknowledged(LogPosition offset) {
         int minISRCount = MetadataCache.getInstance().getMinInSyncReplicas(table);
         Set<Replica> replicasThatAcknowledged = offsetState.getReplicaEndOffsets()
                 .entrySet()
                 .stream()
-                .filter(replicaOffset -> replicaOffset.getValue().compareTo(offset) >= 0)
+                .filter(replicaOffset -> replicaOffset.getValue().isGreaterThanOrEquals(offset))
                 .map(replica -> new Replica(replica.getKey(), table, partition))
                 .collect(Collectors.toSet());
         Set<String> currentISRNodeIds = MetadataCache.getInstance().getInSyncReplicas(table, partition);
-
-        if (replicasThatAcknowledged.size() < minISRCount) {
-            Set<Replica> currentISRsThatDidNotAcknowledge = currentISRNodeIds
-                    .stream()
-                    .filter(nodeId -> replicasThatAcknowledged.stream()
-                            .noneMatch(replica -> replica.getNodeId().equals(nodeId)))
-                    .map(nodeId -> new Replica(nodeId, table, partition))
-                    .collect(Collectors.toSet());
-            return Tuple3.of(false, null, currentISRsThatDidNotAcknowledge);
-        } else {
-            Set<Replica> newISRs = replicasThatAcknowledged.stream()
-                    .filter(replica -> !currentISRNodeIds.contains(replica.getNodeId()))
-                    .collect(Collectors.toSet());
-            return Tuple3.of(true, newISRs, null);
-        }
+        Set<Replica> currentISRsThatDidNotAcknowledge = currentISRNodeIds
+                .stream()
+                .filter(nodeId -> replicasThatAcknowledged.stream()
+                        .noneMatch(replica -> replica.getNodeId().equals(nodeId)))
+                .map(nodeId -> new Replica(nodeId, table, partition))
+                .collect(Collectors.toSet());
+        Set<Replica> newISRs = replicasThatAcknowledged.stream()
+                .filter(replica -> !currentISRNodeIds.contains(replica.getNodeId()))
+                .collect(Collectors.toSet());
+        boolean isAcknowledged = replicasThatAcknowledged.size() >= minISRCount;
+        return Tuple4.of(isAcknowledged, currentISRNodeIds, newISRs, currentISRsThatDidNotAcknowledge);
     }
 
     private void createPartitionDirectoryIfNotExists() {
@@ -335,25 +433,36 @@ public class PartitionState implements AutoCloseable {
         }
     }
 
+    private DataSnapshot readDataSnapshot() {
+        if (!Files.exists(Path.of(dataSnapshotFile)))
+            return null;
+
+        BufferedReader reader = Utils.createReader(dataSnapshotFile);
+        try (reader) {
+            String line = reader.readLine();
+            if (line == null)
+                return null;
+            //DataSnapshot dataSnapshot = JavaSerDe.deserialize(line);
+            DataSnapshot dataSnapshot = JsonSerDe.deserialize(line, DataSnapshot.class);
+            return dataSnapshot;
+        } catch (IOException e) {
+            String errorMessage = "Error reading data snapshot file for table '%s' partition '%s'.".formatted(table, partition);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }
+
     private void loadFromDataSnapshotAndWALFile() {
         try (AutoCloseableLock l = writeDataLock()) {
             if (Files.exists(Path.of(dataSnapshotFile))) {
-                BufferedReader reader = Utils.createReader(dataSnapshotFile);
-                try (reader) {
-                    String line = reader.readLine();
-                    if (line != null) {
-                        DataSnapshot dataSnapshot = JavaSerDe.deserialize(line);
-                        data.putAll(dataSnapshot.getData());
-                        log.debug("Loaded '{}' data items from a snapshot up to offset '{}' for table '{}' partition '{}' .",
-                                  dataSnapshot.getData().size(),
-                                  dataSnapshot.getLastCommittedOffset(),
-                                  table,
-                                  partition);
-                    }
-                } catch (IOException e) {
-                    String errorMessage = "Error loading data from a snapshot for table '%s' partition '%s'.".formatted(table, partition);
-                    log.error(errorMessage, e);
-                    throw new StorageServerException(errorMessage, e);
+                DataSnapshot dataSnapshot = readDataSnapshot();
+                if (dataSnapshot != null) {
+                    data.putAll(dataSnapshot.getData());
+                    log.debug("Loaded '{}' data items from a snapshot at offset '{}' for table '{}' partition '{}' .",
+                            dataSnapshot.getData().size(),
+                            dataSnapshot.getLastCommittedOffset(),
+                            table,
+                            partition);
                 }
             }
 

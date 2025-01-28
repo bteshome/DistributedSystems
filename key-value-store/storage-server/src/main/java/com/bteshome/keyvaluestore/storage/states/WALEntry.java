@@ -2,6 +2,8 @@ package com.bteshome.keyvaluestore.storage.states;
 
 import com.bteshome.keyvaluestore.common.LogPosition;
 
+import java.util.Objects;
+
 public record WALEntry(int leaderTerm,
                        long index,
                        String operation,
@@ -25,9 +27,79 @@ public record WALEntry(int leaderTerm,
                                           value);
     }
 
-    public int compareTo(LogPosition other) {
-        if (this.leaderTerm() == other.leaderTerm())
-            return Long.compare(this.index(), other.index());
-        return Integer.compare(this.leaderTerm(), other.leaderTerm());
+    public boolean equals(WALEntry other) {
+        return compare(this, other) == 0;
+    }
+
+    public boolean equals(int otherLeaderTerm, long otherIndex) {
+        return compare(this, otherLeaderTerm, otherIndex) == 0;
+    }
+
+    public boolean equals(LogPosition other) {
+        return compare(this, other) == 0;
+    }
+
+    public boolean isGreaterThan(WALEntry other) {
+        return compare(this, other) > 0;
+    }
+
+    public boolean isGreaterThan(LogPosition other) {
+        return compare(this, other) > 0;
+    }
+
+    public boolean isGreaterThan(int otherLeaderTerm, long otherIndex) {
+        return compare(this, otherLeaderTerm, otherIndex) > 0;
+    }
+
+    public boolean isGreaterThanOrEquals(WALEntry other) {
+        return compare(this, other) >= 0;
+    }
+
+    public boolean isGreaterThanOrEquals(LogPosition other) {
+        return compare(this, other) >= 0;
+    }
+
+    public boolean isGreaterThanOrEquals(int otherLeaderTerm, long otherIndex) {
+        return compare(this, otherLeaderTerm, otherIndex) >= 0;
+    }
+
+    public boolean isLessThan(WALEntry other) {
+        return compare(this, other) < 0;
+    }
+
+    public boolean isLessThan(LogPosition other) {
+        return compare(this, other) < 0;
+    }
+
+    public boolean isLessThan(int otherLeaderTerm, long otherIndex) {
+        return compare(this, otherLeaderTerm, otherIndex) < 0;
+    }
+
+    public boolean isLessThanOrEquals(WALEntry other) {
+        return compare(this, other) <= 0;
+    }
+
+    public boolean isLessThanOrEquals(LogPosition other) {
+        return compare(this, other) <= 0;
+    }
+
+    public boolean isLessThanOrEquals(int otherLeaderTerm, long otherIndex) {
+        return compare(this, otherLeaderTerm, otherIndex) <= 0;
+    }
+
+    private static int compare(WALEntry walEntry, int otherLeaderTerm, long otherIndex) {
+        return LogPosition.compare(walEntry.leaderTerm(), walEntry.index(), otherLeaderTerm, otherIndex);
+    }
+
+    private static int compare(WALEntry walEntry, LogPosition logPosition) {
+        return LogPosition.compare(walEntry.leaderTerm(), walEntry.index(), logPosition.leaderTerm(), logPosition.index());
+    }
+
+    private static int compare(WALEntry walEntry1, WALEntry walEntry2) {
+        return LogPosition.compare(walEntry1.leaderTerm(), walEntry1.index(), walEntry2.leaderTerm(), walEntry2.index());
+    }
+
+    public LogPosition getPosition() {
+        return LogPosition.of(leaderTerm, index);
     }
 }

@@ -78,10 +78,10 @@ public class OffsetState {
         BufferedWriter writer = Utils.createWriter(committedOffsetSnapshotFile);
         try (writer; AutoCloseableLock l = writeLock()) {
             committedOffset = offset;
-            // TODO - 1. change to Java serialization if desired 2. add checksum
             writer.write(JsonSerDe.serialize(offset));
+            log.debug("Persisted committed offset '{}' for table '{}' partition '{}'.", committedOffset, table, partition);
         } catch (IOException e) {
-            String errorMessage = "Error writing committed index for table '%s' partition '%s'.".formatted(table, partition);
+            String errorMessage = "Error writing committed offset for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
         }

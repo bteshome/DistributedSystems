@@ -5,6 +5,7 @@ import com.bteshome.keyvaluestore.common.LogPosition;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.entities.Replica;
 import com.bteshome.keyvaluestore.storage.requests.WALFetchRequest;
+import com.bteshome.keyvaluestore.storage.responses.WALFetchPayloadType;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
 import com.bteshome.keyvaluestore.storage.states.PartitionState;
 import com.bteshome.keyvaluestore.storage.states.State;
@@ -116,18 +117,31 @@ public class WALFetcher {
                 if (response.getHttpStatusCode() == HttpStatus.OK.value()) {
                     partitionState = state.getPartitionState(request.getTable(), request.getPartition(), true);
 
-                    partitionState.appendLogEntries(
-                            response.getEntries(),
-                            response.getReplicaEndOffsets(),
-                            response.getCommitedOffset());
+                    if (response.getPayloadType().equals(WALFetchPayloadType.LOG)) {
+                        partitionState.appendLogEntries(
+                                response.getEntries(),
+                                response.getReplicaEndOffsets(),
+                                response.getCommitedOffset());
 
-                    log.trace("Fetched WAL for table '{}' partition '{}' lastFetchedOffset '{}'. entries={}, endOffsets={}, commited index={}.",
-                            followedReplica.getTable(),
-                            followedReplica.getPartition(),
-                            lastFetchOffset,
-                            response.getEntries(),
-                            response.getReplicaEndOffsets(),
-                            response.getCommitedOffset());
+                        log.debug("Fetched WAL for table '{}' partition '{}' lastFetchedOffset '{}'. entries={}, endOffsets={}, commited offset={}.",
+                                followedReplica.getTable(),
+                                followedReplica.getPartition(),
+                                lastFetchOffset,
+                                response.getEntries(),
+                                response.getReplicaEndOffsets(),
+                                response.getCommitedOffset());
+                    } else {
+                        partitionState.applyDataSnapshot(
+                                response.getDataSnapshot(),
+                                response.getReplicaEndOffsets());
+
+                        log.debug("Fetched data snapshot for table '{}' partition '{}' lastFetchedOffset '{}'. endOffsets={}, last snapshot committed offset={}.",
+                                followedReplica.getTable(),
+                                followedReplica.getPartition(),
+                                lastFetchOffset,
+                                response.getReplicaEndOffsets(),
+                                response.getDataSnapshot().getLastCommittedOffset());
+                    }
                 }
             } catch (Exception e) {
                 // TODO - change to error

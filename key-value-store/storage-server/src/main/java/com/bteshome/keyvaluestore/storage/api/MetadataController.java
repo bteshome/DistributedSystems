@@ -31,18 +31,27 @@ public class MetadataController {
 
     @PostMapping("/table-created/")
     public ResponseEntity<?> tableCreated(@RequestBody Table table) {
+        log.info("Received a TableCreated notification from the metadata node for table '{}'.", table.getName());
         metadataRefresher.fetch();
         return ResponseEntity.ok().build();
     }
 
     @PostMapping("/new-leader-elected/")
     public ResponseEntity<?> newLeaderElected(@RequestBody NewLeaderElectedRequest request) {
+        log.info("Received a NewLeaderElected notification from the metadata node for table '{}' partition '{}'. " +
+                        "New leader node id is: '{}'",
+                request.getTableName(),
+                request.getPartitionId(),
+                request.getNewLeaderId());
         state.newLeaderElected(request);
         return ResponseEntity.ok().build();
     }
 
     @PostMapping("/isr-list-changed/")
     public ResponseEntity<?> isrListChanged(@RequestBody ISRListChangedRequest request) {
+        log.info("Received an ISRListChanged notification from the metadata node for table '{}' partition '{}'.",
+                request.getTableName(),
+                request.getPartitionId());
         metadataRefresher.fetch();
         return ResponseEntity.ok().build();
     }
