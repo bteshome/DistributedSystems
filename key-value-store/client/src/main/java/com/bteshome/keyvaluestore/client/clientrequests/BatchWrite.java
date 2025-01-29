@@ -15,6 +15,5 @@ import java.util.List;
 @AllArgsConstructor
 public class BatchWrite {
     private String table;
-    private int batchSize;
     private List<Item> items = new ArrayList<>();
 }

@@ -57,7 +57,7 @@ public class PartitionState implements AutoCloseable {
         this.isrSynchronizer = isrSynchronizer;
         createPartitionDirectoryIfNotExists();
         wal = new WAL(storageSettings.getNode().getStorageDir(), table, partition);
-        dataSnapshotFile = "%s/%s-%s/data.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
+        dataSnapshotFile = "%s/%s-%s/data-snapshot.ser.snappy".formatted(storageSettings.getNode().getStorageDir(), table, partition);
         loadFromDataSnapshotAndWALFile();
         offsetState = new OffsetState(table, partition, storageSettings);
     }
@@ -370,7 +370,7 @@ public class PartitionState implements AutoCloseable {
     }
 
     public void takeDataSnapshot() {
-        try (AutoCloseableLock l = readDataLock()) {
+        try (AutoCloseableLock l = writeDataLock()) {
             DataSnapshot lastSnapshot = readDataSnapshot();
             LogPosition committedOffset = offsetState.getCommittedOffset();
 
@@ -382,20 +382,16 @@ public class PartitionState implements AutoCloseable {
                         lastSnapshot.getLastCommittedOffset(),
                         committedOffset);
             } else {
-                try (BufferedWriter writer = Utils.createWriter(dataSnapshotFile)) {
-                    DataSnapshot snapshot = new DataSnapshot();
-                    snapshot.setData(data);
-                    snapshot.setLastCommittedOffset(committedOffset);
-                    // TODO - 1. change to Java serialization once done testing 2. add checksum
-                    //writer.write(JavaSerDe.serialize(dataSnapshot));
-                    writer.write(JsonSerDe.serialize(snapshot));
-                    wal.truncateToAfterExclusive(committedOffset);
-                    log.debug("Took data snapshot at last applied offset '{}' for table '{}' partition '{}'. The data size is: {}",
-                            committedOffset,
-                            table,
-                            partition,
-                            data.size());
-                }
+                DataSnapshot snapshot = new DataSnapshot();
+                snapshot.setData(data);
+                snapshot.setLastCommittedOffset(committedOffset);
+                JavaSerDe.compressAndWrite(dataSnapshotFile, snapshot);
+                wal.truncateToAfterExclusive(committedOffset);
+                log.debug("Took data snapshot at last applied offset '{}' for table '{}' partition '{}'. The data size is: {}",
+                        committedOffset,
+                        table,
+                        partition,
+                        data.size());
             }
 
             offsetState.takeSnapshot();
@@ -445,15 +441,9 @@ public class PartitionState implements AutoCloseable {
         if (!Files.exists(Path.of(dataSnapshotFile)))
             return null;
 
-        BufferedReader reader = Utils.createReader(dataSnapshotFile);
-        try (reader) {
-            String line = reader.readLine();
-            if (line == null)
-                return null;
-            //DataSnapshot dataSnapshot = JavaSerDe.deserialize(line);
-            DataSnapshot dataSnapshot = JsonSerDe.deserialize(line, DataSnapshot.class);
-            return dataSnapshot;
-        } catch (IOException e) {
+        try {
+            return JavaSerDe.readAndDecompress(dataSnapshotFile, DataSnapshot.class);
+        } catch (Exception e) {
             String errorMessage = "Error reading data snapshot file for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);

@@ -220,15 +220,17 @@ public class State {
                 if (Files.isDirectory(partitionDirectory)) {
                     String[] parts = partitionDirectory.getFileName().toString().split("-");
                     String table = parts[0];
-                    int partition = Integer.parseInt(parts[1]);
-                    if (!partitionStates.containsKey(table)) {
-                        partitionStates.put(table, new ConcurrentHashMap<>());
-                    }
-                    if (!partitionStates.get(table).containsKey(partition)) {
-                        partitionStates.get(table).put(partition, new PartitionState(table,
-                                                                                     partition,
-                                                                                     storageSettings,
-                                                                                     isrSynchronizer));
+                    if (MetadataCache.getInstance().tableExists(table)) {
+                        int partition = Integer.parseInt(parts[1]);
+                        if (!partitionStates.containsKey(table)) {
+                            partitionStates.put(table, new ConcurrentHashMap<>());
+                        }
+                        if (!partitionStates.get(table).containsKey(partition)) {
+                            partitionStates.get(table).put(partition, new PartitionState(table,
+                                    partition,
+                                    storageSettings,
+                                    isrSynchronizer));
+                        }
                     }
                 }
             });
