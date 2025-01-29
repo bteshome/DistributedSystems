@@ -65,10 +65,8 @@ public class WALFetcher {
                     continue;
                 }
 
-                PartitionState partitionState = state.getPartitionState(followedReplica.getTable(), followedReplica.getPartition(), false);
-                LogPosition lastFetchOffset = partitionState == null ?
-                        LogPosition.empty() :
-                        partitionState.getOffsetState().getReplicaEndOffset(state.getNodeId());
+                PartitionState partitionState = state.initializePartitionState(followedReplica.getTable(), followedReplica.getPartition());
+                LogPosition lastFetchOffset = partitionState.getOffsetState().getReplicaEndOffset(state.getNodeId());
                 int maxNumRecords = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_FETCH_MAX_NUM_RECORDS_KEY);
 
                 WALFetchRequest request = new WALFetchRequest(
@@ -109,14 +107,11 @@ public class WALFetcher {
                             followedReplica.getTable(),
                             followedReplica.getPartition(),
                             response.getTruncateToOffset());
-                    partitionState = state.getPartitionState(request.getTable(), request.getPartition(), true);
                     partitionState.truncateLogsTo(response.getTruncateToOffset());
                     continue;
                 }
 
                 if (response.getHttpStatusCode() == HttpStatus.OK.value()) {
-                    partitionState = state.getPartitionState(request.getTable(), request.getPartition(), true);
-
                     if (response.getPayloadType().equals(WALFetchPayloadType.LOG)) {
                         partitionState.appendLogEntries(
                                 response.getEntries(),

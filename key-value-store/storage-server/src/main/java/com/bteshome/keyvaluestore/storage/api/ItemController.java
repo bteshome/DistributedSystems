@@ -54,7 +54,7 @@ public class ItemController {
                     .build());
         }
 
-        PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition(), false);
+        PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition());
 
         if (partitionState == null) {
             return ResponseEntity.ok(ItemGetResponse.builder()
@@ -90,7 +90,7 @@ public class ItemController {
                     .build());
         }
 
-        PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition(), false);
+        PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition());
 
         if (partitionState == null) {
             return ResponseEntity.ok(ItemListResponse.builder()
@@ -127,7 +127,7 @@ public class ItemController {
                     .build());
         }
 
-        PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition(), true);
+        PartitionState partitionState = state.initializePartitionState(request.getTable(), request.getPartition());
 
         return partitionState.putItems(request.getItems());
     }
@@ -149,7 +149,7 @@ public class ItemController {
                     .build());
         }
 
-        PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition(), false);
+        PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition());
 
         if (partitionState == null) {
             return ResponseEntity.ok(ItemCountAndOffsetsResponse.builder()

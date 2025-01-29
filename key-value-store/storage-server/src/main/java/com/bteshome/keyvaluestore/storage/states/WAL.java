@@ -2,6 +2,7 @@ package com.bteshome.keyvaluestore.storage.states;
 
 import com.bteshome.keyvaluestore.common.LogPosition;
 import com.bteshome.keyvaluestore.common.entities.Item;
+import com.bteshome.keyvaluestore.storage.common.ChecksumUtil;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.util.AutoCloseableLock;
@@ -35,6 +36,8 @@ public class WAL implements AutoCloseable {
             this.logFile = "%s/%s-%s/wal.log".formatted(storageDirectory, tableName, partition);
             if (Files.notExists(Path.of(logFile)))
                 Files.createFile(Path.of(logFile));
+            else
+                ChecksumUtil.readAndVerify(logFile);
             writer = new BufferedWriter(new FileWriter(logFile, true));
             lock = new ReentrantReadWriteLock(true);
         } catch (IOException e) {
@@ -234,24 +237,25 @@ public class WAL implements AutoCloseable {
     }
 
     public List<WALEntry> loadFromFile() {
-        try (AutoCloseableLock l = writeLock();
-             BufferedReader reader = new BufferedReader(new FileReader(logFile));) {
-            String line;
-            List<WALEntry> entries = new ArrayList<>();
+        try (AutoCloseableLock l = writeLock()) {
+            try (BufferedReader reader = new BufferedReader(new FileReader(logFile));) {
+                String line;
+                List<WALEntry> entries = new ArrayList<>();
 
-            while ((line = reader.readLine()) != null) {
-                WALEntry walEntry = WALEntry.fromString(line);
-                entries.add(walEntry);
+                while ((line = reader.readLine()) != null) {
+                    WALEntry walEntry = WALEntry.fromString(line);
+                    entries.add(walEntry);
+                }
+
+                if (!entries.isEmpty()) {
+                    this.startLeaderTerm = entries.getFirst().leaderTerm();
+                    this.startIndex = entries.getFirst().index();
+                    this.endLeaderTerm = entries.getLast().leaderTerm();
+                    this.endIndex = entries.getLast().index();
+                }
+
+                return entries;
             }
-
-            if (!entries.isEmpty()) {
-                this.startLeaderTerm = entries.getFirst().leaderTerm();
-                this.startIndex = entries.getFirst().index();
-                this.endLeaderTerm = entries.getLast().leaderTerm();
-                this.endIndex = entries.getLast().index();
-            }
-
-            return entries;
         } catch (IOException e) {
             String errorMessage = "Error loading from WAL file for table '%s' partition '%s'.".formatted(tableName, partition);
             log.error(errorMessage, e);
@@ -305,6 +309,8 @@ public class WAL implements AutoCloseable {
         try {
             if (writer != null)
                 writer.close();
+            if (Files.exists(Path.of(logFile)))
+                ChecksumUtil.generateAndWrite(logFile);
         } catch (IOException e) {
             String errorMessage = "Error closing WAL file for table '%s' partition '%s'.".formatted(tableName, partition);
             log.error(errorMessage, e);

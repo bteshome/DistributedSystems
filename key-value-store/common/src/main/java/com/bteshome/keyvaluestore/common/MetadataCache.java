@@ -109,29 +109,14 @@ public class MetadataCache {
         }
     }
 
-    // TODO - remove if not needed
-    /*public Set<String> getReplicaEndpoints(String tableName, int partition) {
-        try (AutoCloseableLock l = readLock()) {
-            Table table = (Table)state.get(EntityType.TABLE).get(tableName);
-            return table.getPartitions()
-                    .get(partition)
-                    .getReplicas()
-                    .stream()
-                    .map(nodeId -> {
-                        StorageNode node = (StorageNode)state.get(EntityType.STORAGE_NODE).get(nodeId);
-                        return "%s:%s".formatted(node.getHost(), node.getPort());
-                    })
-                    .collect(Collectors.toSet());
-        }
-    }*/
-
-    public Set<String> getISREndpoints(String tableName, int partition) {
+    public Set<String> getISREndpoints(String tableName, int partition, String excludedNodeId) {
         try (AutoCloseableLock l = readLock()) {
             Table table = (Table)state.get(EntityType.TABLE).get(tableName);
             return table.getPartitions()
                     .get(partition)
                     .getInSyncReplicas()
                     .stream()
+                    .filter(nodeId -> !nodeId.equals(excludedNodeId))
                     .map(nodeId -> {
                         StorageNode node = (StorageNode)state.get(EntityType.STORAGE_NODE).get(nodeId);
                         return "%s:%s".formatted(node.getHost(), node.getPort());

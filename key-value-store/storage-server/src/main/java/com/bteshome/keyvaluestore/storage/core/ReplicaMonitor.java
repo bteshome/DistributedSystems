@@ -54,9 +54,13 @@ public class ReplicaMonitor {
             for (Tuple<String, Integer> ownedPartition : ownedPartitions) {
                 String table = ownedPartition.first();
                 int partition = ownedPartition.second();
+                PartitionState partitionState = state.getPartitionState(table, partition);
+
+                if (partitionState == null)
+                    continue;
+
                 Set<String> allReplicaNodeIds = MetadataCache.getInstance().getReplicaNodeIds(table, partition);
                 Set<String> inSyncReplicaNodeIds = MetadataCache.getInstance().getInSyncReplicas(table, partition);
-                PartitionState partitionState = state.getPartitionState(table, partition, true);
                 LogPosition committedOffset = partitionState.getOffsetState().getCommittedOffset();
 
                 for (String replicaId : allReplicaNodeIds) {

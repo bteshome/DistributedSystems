@@ -4,6 +4,7 @@ import com.bteshome.keyvaluestore.common.JsonSerDe;
 import com.bteshome.keyvaluestore.common.LogPosition;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.Utils;
+import com.bteshome.keyvaluestore.storage.common.ChecksumUtil;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -39,9 +40,9 @@ public class OffsetState {
         committedOffset = LogPosition.empty();
         previousLeaderEndOffset = LogPosition.empty();
         lock = new ReentrantReadWriteLock(true);
-        replicaEndOffsetsSnapshotFile = "%s/%s-%s/replicaEndOffsets.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
-        committedOffsetSnapshotFile = "%s/%s-%s/committedOffset.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
-        previousLeaderEndOffsetFile = "%s/%s-%s/previousLeaderEndOffset.log".formatted(storageSettings.getNode().getStorageDir(), table, partition);
+        replicaEndOffsetsSnapshotFile = "%s/%s-%s/replicaEndOffsets.ser".formatted(storageSettings.getNode().getStorageDir(), table, partition);
+        committedOffsetSnapshotFile = "%s/%s-%s/committedOffset.ser".formatted(storageSettings.getNode().getStorageDir(), table, partition);
+        previousLeaderEndOffsetFile = "%s/%s-%s/previousLeaderEndOffset.ser".formatted(storageSettings.getNode().getStorageDir(), table, partition);
         loadReplicaEndOffsetsFromSnapshot();
         loadCommittedOffsetFromSnapshot();
         loadPreviousLeaderEndOffset();
@@ -84,7 +85,9 @@ public class OffsetState {
         BufferedWriter writer = Utils.createWriter(committedOffsetSnapshotFile);
         try (writer; AutoCloseableLock l = writeLock()) {
             committedOffset = offset;
+            // TODO - change to Java serialization once done testing
             writer.write(JsonSerDe.serialize(offset));
+            ChecksumUtil.generateAndWrite(committedOffsetSnapshotFile);
             log.debug("Persisted committed offset '{}' for table '{}' partition '{}'.", committedOffset, table, partition);
         } catch (IOException e) {
             String errorMessage = "Error writing committed offset for table '%s' partition '%s'.".formatted(table, partition);
@@ -119,6 +122,7 @@ public class OffsetState {
         try (AutoCloseableLock l = writeLock()) {
             previousLeaderEndOffset = LogPosition.empty();
             Files.deleteIfExists(Path.of(previousLeaderEndOffsetFile));
+            Files.deleteIfExists(Path.of(previousLeaderEndOffsetFile + ".md5"));
             log.debug("Deleted previous leader end offset file '{}' for table '{}' partition '{}'.", previousLeaderEndOffsetFile, table, partition);
         } catch (IOException e) {
             String errorMessage = "Error deleting previous leader end offset file for table '%s' partition '%s'.".formatted(table, partition);
@@ -133,8 +137,9 @@ public class OffsetState {
 
         BufferedWriter writer = Utils.createWriter(replicaEndOffsetsSnapshotFile);
         try (writer) {
-            // TODO - 1. change to Java serialization 2. add checksum
+            // TODO - 1. change to Java serialization once done testing
             writer.write(JsonSerDe.serialize(replicaEndOffsets));
+            ChecksumUtil.generateAndWrite(replicaEndOffsetsSnapshotFile);
             log.debug("Took a snapshot of replica end offsets for table '{}' partition '{}'.", table, partition);
         } catch (IOException e) {
             String errorMessage = "Error taking a snapshot of replica end offsets for table '%s' partition '%s'.".formatted(table, partition);
@@ -143,9 +148,11 @@ public class OffsetState {
         }
     }
 
-    public void loadReplicaEndOffsetsFromSnapshot() {
+    private void loadReplicaEndOffsetsFromSnapshot() {
         if (Files.notExists(Path.of(replicaEndOffsetsSnapshotFile)))
             return;
+
+        ChecksumUtil.readAndVerify(replicaEndOffsetsSnapshotFile);
 
         BufferedReader reader = Utils.createReader(replicaEndOffsetsSnapshotFile);
         try (reader) {
@@ -161,9 +168,11 @@ public class OffsetState {
         }
     }
 
-    public void loadCommittedOffsetFromSnapshot() {
+    private void loadCommittedOffsetFromSnapshot() {
         if (Files.notExists(Path.of(committedOffsetSnapshotFile)))
             return;
+
+        ChecksumUtil.readAndVerify(committedOffsetSnapshotFile);
 
         BufferedReader reader = Utils.createReader(committedOffsetSnapshotFile);
         try (reader) {
@@ -179,9 +188,11 @@ public class OffsetState {
         }
     }
 
-    public void loadPreviousLeaderEndOffset() {
+    private void loadPreviousLeaderEndOffset() {
         if (Files.notExists(Path.of(previousLeaderEndOffsetFile)))
             return;
+
+        ChecksumUtil.readAndVerify(previousLeaderEndOffsetFile);
 
         BufferedReader reader = Utils.createReader(previousLeaderEndOffsetFile);
         try (reader) {

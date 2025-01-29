@@ -7,6 +7,8 @@ import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
 import com.bteshome.keyvaluestore.common.*;
 import com.bteshome.keyvaluestore.common.entities.Item;
 import com.bteshome.keyvaluestore.common.entities.Replica;
+import com.bteshome.keyvaluestore.storage.common.ChecksumUtil;
+import com.bteshome.keyvaluestore.storage.common.CompressionUtil;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
 import com.bteshome.keyvaluestore.storage.core.ISRSynchronizer;
@@ -17,7 +19,6 @@ import org.apache.ratis.util.AutoCloseableLock;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -385,7 +386,8 @@ public class PartitionState implements AutoCloseable {
                 DataSnapshot snapshot = new DataSnapshot();
                 snapshot.setData(data);
                 snapshot.setLastCommittedOffset(committedOffset);
-                JavaSerDe.compressAndWrite(dataSnapshotFile, snapshot);
+                CompressionUtil.compressAndWrite(dataSnapshotFile, snapshot);
+                ChecksumUtil.generateAndWrite(dataSnapshotFile);
                 wal.truncateToAfterExclusive(committedOffset);
                 log.debug("Took data snapshot at last applied offset '{}' for table '{}' partition '{}'. The data size is: {}",
                         committedOffset,
@@ -442,7 +444,8 @@ public class PartitionState implements AutoCloseable {
             return null;
 
         try {
-            return JavaSerDe.readAndDecompress(dataSnapshotFile, DataSnapshot.class);
+            ChecksumUtil.readAndVerify(dataSnapshotFile);
+            return CompressionUtil.readAndDecompress(dataSnapshotFile, DataSnapshot.class);
         } catch (Exception e) {
             String errorMessage = "Error reading data snapshot file for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);

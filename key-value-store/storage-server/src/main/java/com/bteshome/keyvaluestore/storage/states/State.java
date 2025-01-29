@@ -42,34 +42,34 @@ import java.util.stream.Stream;
 public class State {
     @Getter
     private String nodeId;
-    private Map<String, Map<Integer, PartitionState>> partitionStates;
+    private Map<String, Map<Integer, PartitionState>> partitionStates = new ConcurrentHashMap<>();
     private boolean lastHeartbeatSucceeded;
     private ReentrantReadWriteLock lock;
     private ScheduledExecutorService executor = null;
     @Autowired
-    StorageSettings storageSettings;
+    private StorageSettings storageSettings;
     @Autowired
-    ISRSynchronizer isrSynchronizer;
-
+    private ISRSynchronizer isrSynchronizer;
     @Autowired
-    StorageNodeMetadataRefresher storageNodeMetadataRefresher;
+    private StorageNodeMetadataRefresher storageNodeMetadataRefresher;
 
     @PostConstruct
     public void postConstruct() {
         nodeId = Validator.notEmpty(storageSettings.getNode().getId());
-        partitionStates = new ConcurrentHashMap<>();
         lock = new ReentrantReadWriteLock(true);
     }
 
     public void initialize() {
-        createStorageDirectoryIfNotExists();
-        loadFromSnapshotsAndWALFiles();
-        scheduleSnapshots();
+        try (AutoCloseableLock l = writeLock()) {
+            createStorageDirectoryIfNotExists();
+            loadFromSnapshotsAndWALFiles();
+            scheduleSnapshots();
+        }
     }
 
     @PreDestroy
     public void destroy() {
-        try {
+        try (AutoCloseableLock l = writeLock()) {
             if (executor != null)
                 executor.close();
             for (Map<Integer, PartitionState> tableState : partitionStates.values()) {
@@ -82,34 +82,26 @@ public class State {
         }
     }
 
-    public void scheduleSnapshots() {
-        try {
-            long interval = (Long) MetadataCache.getInstance().getConfiguration(ConfigKeys.SNAPSHOT_INTERVAL_MS_KEY);
-            executor = Executors.newSingleThreadScheduledExecutor();
-            executor.scheduleAtFixedRate(this::takeSnapshot, interval, interval, TimeUnit.MILLISECONDS);
-            log.info("Scheduled data and replica end offset snapshots. The interval is {} ms.", interval);
-        } catch (Exception e) {
-            log.error("Error scheduling data and replica end offset snapshots.", e);
+    public PartitionState getPartitionState(String table, int partition) {
+        try (AutoCloseableLock l = readLock()) {
+            if (!partitionStates.containsKey(table))
+                return null;
+            return partitionStates.get(table).getOrDefault(partition, null);
         }
     }
 
-    public PartitionState getPartitionState(String table,
-                                            int partition,
-                                            boolean createIfNotExists) {
-        if (!partitionStates.containsKey(table)) {
-            if (!createIfNotExists)
-                return null;
-            partitionStates.put(table, new ConcurrentHashMap<>());
+    public PartitionState initializePartitionState(String table, int partition) {
+        try (AutoCloseableLock l = writeLock()) {
+            if (!partitionStates.containsKey(table))
+                partitionStates.put(table, new ConcurrentHashMap<>());
+            if (!partitionStates.get(table).containsKey(partition)) {
+                partitionStates.get(table).put(partition, new PartitionState(table,
+                        partition,
+                        storageSettings,
+                        isrSynchronizer));
+            }
+            return partitionStates.get(table).get(partition);
         }
-        if (!partitionStates.get(table).containsKey(partition)) {
-            if (!createIfNotExists)
-                return null;
-            partitionStates.get(table).put(partition, new PartitionState(table,
-                                                                         partition,
-                                                                         storageSettings,
-                                                                         isrSynchronizer));
-        }
-        return partitionStates.get(table).get(partition);
     }
 
     public ResponseEntity<WALFetchResponse> fetch(String table,
@@ -125,7 +117,7 @@ public class State {
                     .build());
         }
 
-        PartitionState partitionState = getPartitionState(table, partition, false);
+        PartitionState partitionState = getPartitionState(table, partition);
 
         if (partitionState == null) {
             return ResponseEntity.ok(WALFetchResponse.builder()
@@ -150,30 +142,39 @@ public class State {
 
     public void newLeaderElected(NewLeaderElectedRequest request) {
         MetadataCache.getInstance().pauseFetch(request.getTableName(), request.getPartitionId());
-        PartitionState partitionState = getPartitionState(request.getTableName(), request.getPartitionId(), true);
+        PartitionState partitionState = initializePartitionState(request.getTableName(), request.getPartitionId());
 
         if (storageSettings.getNode().getId().equals(request.getNewLeaderId())) {
             log.info("This node elected as the new leader for table '{}' partition '{}'. Now performing offset synchronization and truncation.",
                     request.getTableName(),
                     request.getPartitionId());
-            Set<String> isrEndpoints = MetadataCache.getInstance().getISREndpoints(request.getTableName(), request.getPartitionId());
-            WALGetReplicaEndOffsetRequest walGetReplicaEndOffsetRequest = new WALGetReplicaEndOffsetRequest(request.getTableName(), request.getPartitionId());
+            Set<String> isrEndpoints = MetadataCache.getInstance().getISREndpoints(
+                    request.getTableName(),
+                    request.getPartitionId(),
+                    nodeId);
+            WALGetReplicaEndOffsetRequest walGetReplicaEndOffsetRequest = new WALGetReplicaEndOffsetRequest(
+                    request.getTableName(),
+                    request.getPartitionId());
             LogPosition thisReplicaEndOffset = partitionState.getOffsetState().getReplicaEndOffset(nodeId);
             LogPosition earliestISREndOffset = thisReplicaEndOffset;
 
             for (String isrEndpoint : isrEndpoints) {
-                WALGetReplicaEndOffsetResponse response = RestClient.builder()
-                        .build()
-                        .post()
-                        .uri("http://%s/api/wal/get-end-offset/".formatted(isrEndpoint))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(walGetReplicaEndOffsetRequest)
-                        .retrieve()
-                        .toEntity(WALGetReplicaEndOffsetResponse.class)
-                        .getBody();
+                try {
+                    WALGetReplicaEndOffsetResponse response = RestClient.builder()
+                            .build()
+                            .post()
+                            .uri("http://%s/api/wal/get-end-offset/".formatted(isrEndpoint))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body(walGetReplicaEndOffsetRequest)
+                            .retrieve()
+                            .toEntity(WALGetReplicaEndOffsetResponse.class)
+                            .getBody();
 
-                if (response.getEndOffset().isLessThan(earliestISREndOffset))
-                    earliestISREndOffset = response.getEndOffset();
+                    if (response.getEndOffset().isLessThan(earliestISREndOffset))
+                        earliestISREndOffset = response.getEndOffset();
+                } catch (Exception e) {
+                    log.warn("Log synchronization request to endpoint '{}' failed.", isrEndpoint, e);
+                }
             }
 
             if (earliestISREndOffset.isLessThan(thisReplicaEndOffset)) {
@@ -222,9 +223,8 @@ public class State {
                     String table = parts[0];
                     if (MetadataCache.getInstance().tableExists(table)) {
                         int partition = Integer.parseInt(parts[1]);
-                        if (!partitionStates.containsKey(table)) {
+                        if (!partitionStates.containsKey(table))
                             partitionStates.put(table, new ConcurrentHashMap<>());
-                        }
                         if (!partitionStates.get(table).containsKey(partition)) {
                             partitionStates.get(table).put(partition, new PartitionState(table,
                                     partition,
@@ -242,17 +242,30 @@ public class State {
     }
 
     private void takeSnapshot() {
-        log.info("Taking snapshots of data and replica end offsets.");
-        long start = System.nanoTime();
-        try {
-            for (Map<Integer, PartitionState> tableState : partitionStates.values()) {
-                for (PartitionState partitionState : tableState.values()) {
-                    partitionState.takeDataSnapshot();
+        try (AutoCloseableLock l = readLock()) {
+            log.info("Taking snapshots of data and replica end offsets.");
+            long start = System.nanoTime();
+            try {
+                for (Map<Integer, PartitionState> tableState : partitionStates.values()) {
+                    for (PartitionState partitionState : tableState.values()) {
+                        partitionState.takeDataSnapshot();
+                    }
                 }
+            } finally {
+                long end = System.nanoTime();
+                log.info("Finished taking snapshots of data and replica end offsets. Took {} ms.", (end - start) / 1000000);
             }
-        } finally {
-            long end = System.nanoTime();
-            log.info("Finished taking snapshots of data and replica end offsets. Took {} ms.", (end - start) / 1000000);
+        }
+    }
+
+    private void scheduleSnapshots() {
+        try {
+            long interval = (Long) MetadataCache.getInstance().getConfiguration(ConfigKeys.SNAPSHOT_INTERVAL_MS_KEY);
+            executor = Executors.newSingleThreadScheduledExecutor();
+            executor.scheduleAtFixedRate(this::takeSnapshot, interval, interval, TimeUnit.MILLISECONDS);
+            log.info("Scheduled data and replica end offset snapshots. The interval is {} ms.", interval);
+        } catch (Exception e) {
+            log.error("Error scheduling data and replica end offset snapshots.", e);
         }
     }
 }

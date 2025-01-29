@@ -74,7 +74,7 @@ public class WALController {
                     .build());
         }
 
-        PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition(), false);
+        PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition());
 
         if (partitionState == null) {
             return ResponseEntity.ok(WALGetReplicaEndOffsetResponse.builder()
