@@ -1,5 +1,6 @@
 package com.bteshome.keyvaluestore.client;
 
+import com.bteshome.keyvaluestore.common.Validator;
 import com.bteshome.keyvaluestore.common.entities.Item;
 
 public class Requests {
