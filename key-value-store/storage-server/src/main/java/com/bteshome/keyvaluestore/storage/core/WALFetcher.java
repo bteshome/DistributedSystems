@@ -119,7 +119,7 @@ public class WALFetcher {
                                 response.getEntries(),
                                 response.getCommitedOffset());
 
-                        log.debug("Fetched WAL for table '{}' partition '{}' lastFetchedOffset '{}'. entries={}, commited offset={}.",
+                        log.trace("Fetched WAL for table '{}' partition '{}' lastFetchedOffset '{}'. entries={}, commited offset={}.",
                                 followedReplica.getTable(),
                                 followedReplica.getPartition(),
                                 lastFetchOffset,
@@ -128,7 +128,7 @@ public class WALFetcher {
                     } else {
                         partitionState.applyDataSnapshot(response.getDataSnapshot());
 
-                        log.debug("Fetched data snapshot for table '{}' partition '{}' lastFetchedOffset '{}', last snapshot committed offset={}.",
+                        log.trace("Fetched data snapshot for table '{}' partition '{}' lastFetchedOffset '{}', last snapshot committed offset={}.",
                                 followedReplica.getTable(),
                                 followedReplica.getPartition(),
                                 lastFetchOffset,

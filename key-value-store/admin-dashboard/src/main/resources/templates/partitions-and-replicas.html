@@ -29,7 +29,7 @@
                 </div>
             </div>
 
-            <form class="row g-3" method="post" th:action="@{/partitions/}" th:object="${request}">
+            <form class="row g-3" method="post" th:action="@{/partitions-and-replicas/}" th:object="${request}">
                 <div class="col-md-12">
                     <label for="table" class="form-label">Table name</label>
                     <input type="text" class="form-control form-control-sm" id="table" th:field="*{table}">
@@ -39,41 +39,56 @@
                 </div>
             </form>
 
-            <div class="no-data" th:if="${partitions == null}">
+            <div class="no-data" th:if="${tableCountDto == null}">
                 No Data.
                 <p>Enter a valid table name.</p>
             </div>
 
-            <div th:if="${partitions}">
+            <div th:if="${tableCountDto}">
                 <div class="table-responsive">
                     <table class="table table-striped table-sm">
                         <thead>
                         <tr>
-                            <th>Partition Number</th>
+                            <th>Partition Id</th>
                             <th>Leader</th>
                             <th>Replicas</th>
                             <th>In Sync Replicas</th>
-                            <th>Item Count</th>
-                            <th>Committed Offset</th>
-                            <th>Leader End Offset</th>
+                            <th></th>
                         </tr>
                         </thead>
                         <tbody>
-                        <tr th:each="partition: ${partitions}">
-                            <td th:text="${partition.id}"></td>
-                            <td th:text="${partition.leader}"></td>
+                        <tr th:each="partition: ${tableCountDto.partitionCountDtos}">
+                            <td th:text="${partition.partitionId}"></td>
+                            <td th:text="${partition.leaderId}"></td>
                             <td th:text="${partition.replicas}"></td>
                             <td th:text="${partition.inSyncReplicas}"></td>
-                            <td th:text="${counts == null ? '' : counts[partition.id]}"></td>
-                            <td th:text="${committedOffsets == null ? '' : committedOffsets[partition.id]}"></td>
-                            <td th:text="${leaderEndOffsets == null ? '' : leaderEndOffsets[partition.id]}"></td>
+                            <td>
+                                <div class="table-responsive">
+                                    <table class="table table-striped table-sm">
+                                        <thead>
+                                        <tr>
+                                            <td>Replica Id</td>
+                                            <td>Item Count</td>
+                                            <td>Committed Offset</td>
+                                            <td>End Offset</td>
+                                        </tr>
+                                        </thead>
+                                        <tbody>
+                                        <tr th:each="replica: ${partition.replicaCountDtos}">
+                                            <td th:text="${replica.replicaId}" th:classappend="${replica.active ? '' : ' unhealthy '} + ${replica.isLeader() ? ' fw-bold ' : ''}"></td>
+                                            <td th:text="${replica.count}"></td>
+                                            <td th:text="${replica.committedOffset}"></td>
+                                            <td th:text="${replica.endOffset}"></td>
+                                        </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </td>
                         </tr>
                         <tr>
-                            <td>Total</td>
+                            <td th:text="'Total ' + ${tableCountDto.tableTotalCount} + ' items'"></td>
                             <td></td>
                             <td></td>
-                            <td></td>
-                            <td th:text="${totalCount}"></td>
                             <td></td>
                             <td></td>
                         </tr>

@@ -137,8 +137,12 @@ public class ItemReader {
     }
 
     public ItemCountAndOffsetsResponse getCountAndOffsets(ItemCountAndOffsetsRequest request) {
+        String endpoint = MetadataCache.getInstance().getLeaderEndpoint(request.getTable(), request.getPartition());
+        return getCountAndOffsets(endpoint, request);
+    }
+
+    public ItemCountAndOffsetsResponse getCountAndOffsets(ItemCountAndOffsetsRequest request, String endpoint) {
         request.setTable(Validator.notEmpty(request.getTable(), "Table name"));
-        final String endpoint = MetadataCache.getInstance().getLeaderEndpoint(request.getTable(), request.getPartition());
         int retries = 0;
 
         try {

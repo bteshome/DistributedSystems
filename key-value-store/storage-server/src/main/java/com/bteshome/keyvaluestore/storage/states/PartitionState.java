@@ -338,6 +338,7 @@ public class PartitionState implements AutoCloseable {
                     .count(data.size())
                     .commitedOffset(offsetState.getCommittedOffset())
                     .endOffset(offsetState.getEndOffset())
+                    .leaderId(MetadataCache.getInstance().getLeaderNodeId(table, partition))
                     .build());
         }
     }
