@@ -8,12 +8,13 @@ import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class BatchWrite {
+public class BatchWrite<T> {
     private String table;
-    private List<Item> items = new ArrayList<>();
+    private List<Map.Entry<String, T>> items = new ArrayList<>();
 }

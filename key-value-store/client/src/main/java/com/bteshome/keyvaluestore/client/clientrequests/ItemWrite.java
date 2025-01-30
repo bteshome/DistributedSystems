@@ -10,7 +10,8 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class ItemWrite {
+public class ItemWrite<T> {
     private String table;
-    private Item item;
+    private String key;
+    private T value;
 }

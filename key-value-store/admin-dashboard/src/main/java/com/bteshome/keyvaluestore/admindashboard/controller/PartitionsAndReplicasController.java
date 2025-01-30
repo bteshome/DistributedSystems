@@ -3,8 +3,8 @@ package com.bteshome.keyvaluestore.admindashboard.controller;
 import com.bteshome.keyvaluestore.admindashboard.dto.PartitionListRequest;
 import com.bteshome.keyvaluestore.admindashboard.dto.TableCountDto;
 import com.bteshome.keyvaluestore.admindashboard.service.TableService;
+import com.bteshome.keyvaluestore.client.CountAndOffsetReader;
 import com.bteshome.keyvaluestore.client.requests.ItemCountAndOffsetsRequest;
-import com.bteshome.keyvaluestore.client.ItemReader;
 import com.bteshome.keyvaluestore.client.responses.ItemCountAndOffsetsResponse;
 import com.bteshome.keyvaluestore.common.LogPosition;
 import com.bteshome.keyvaluestore.common.MetadataCache;
@@ -27,7 +27,7 @@ public class PartitionsAndReplicasController {
     private TableService tableService;
 
     @Autowired
-    ItemReader itemReader;
+    CountAndOffsetReader countAndOffsetReader;
 
     @GetMapping("/")
     public String list(Model model) {
@@ -59,7 +59,7 @@ public class PartitionsAndReplicasController {
 
                 for (String replicaId : partition.getReplicas()) {
                     String endpoint = MetadataCache.getInstance().getEndpoint(replicaId);
-                    ItemCountAndOffsetsResponse countAndOffsets = itemReader.getCountAndOffsets(itemCountAndOffsetsRequest, endpoint);
+                    ItemCountAndOffsetsResponse countAndOffsets = countAndOffsetReader.getCountAndOffsets(itemCountAndOffsetsRequest, endpoint);
                     TableCountDto.ReplicaCountDto replicaCountDto = new TableCountDto.ReplicaCountDto();
                     replicaCountDto.setReplicaId(replicaId);
                     replicaCountDto.setLeaderId(partition.getLeader());

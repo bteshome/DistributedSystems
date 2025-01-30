@@ -38,11 +38,11 @@
                 </div>
                 <div class="mb-3">
                     <label for="key" class="form-label">Key</label>
-                    <input type="text" class="form-control" id="key" th:field="*{item.key}">
+                    <input type="text" class="form-control" id="key" th:field="*{key}">
                 </div>
                 <div class="mb-3">
                     <label for="value" class="form-label">Value</label>
-                    <input type="text" class="form-control" id="value" th:field="*{item.value}">
+                    <textarea class="form-control" id="value" th:field="*{value}" rows="10"></textarea>
                 </div>
                 <div class="col-auto">
                     <button type="submit" class="btn btn-primary mb-3">Put</button>

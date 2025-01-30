@@ -30,6 +30,12 @@ public class ItemController {
     @Autowired
     ItemReader itemReader;
 
+    @Autowired
+    BatchWriter batchWriter;
+
+    @Autowired
+    BatchReader batchReader;
+
     @GetMapping("/get/")
     public String get(Model model) {
         ItemGet request = new ItemGet();
@@ -43,7 +49,7 @@ public class ItemController {
     @PostMapping("/get/")
     public String get(@ModelAttribute("request") @RequestBody ItemGet request, Model model) {
         try {
-            String response = itemReader.get(request);
+            String response = itemReader.getString(request);
             model.addAttribute("item", response);
             model.addAttribute("request", request);
             model.addAttribute("page", "items-get");
@@ -69,7 +75,7 @@ public class ItemController {
     @PostMapping("/list/")
     public String list(@ModelAttribute("request") @RequestBody ItemList request, Model model) {
         try {
-            Set<Map.Entry<Integer, List<Map.Entry<String, String>>>> response = itemReader.list(request).entrySet();
+            Set<Map.Entry<Integer, List<Map.Entry<String, String>>>> response = batchReader.listStrings(request).entrySet();
             if (!response.isEmpty())
                 model.addAttribute("items", response);
             model.addAttribute("request", request);
@@ -85,18 +91,28 @@ public class ItemController {
 
     @GetMapping("/put/")
     public String put(Model model) {
-        ItemWrite request = new ItemWrite();
+        ItemWrite<String> request = new ItemWrite<>();
         request.setTable("table1");
-        request.setItem(new Item("key1", "value1"));
+        request.setKey("key1");
+        String value = """
+                {
+                  "id": 1,
+                  "name": "Wireless Headphones",
+                  "description": "High-quality noise-canceling headphones with Bluetooth connectivity.",
+                  "price": 199.99,
+                  "currency": "USD",
+                  "available": true
+                }""";
+        request.setValue(value);
         model.addAttribute("request", request);
         model.addAttribute("page", "items-put");
         return "items-put.html";
     }
 
     @PostMapping("/put/")
-    public String put(@ModelAttribute("request") @RequestBody ItemWrite request, Model model) {
+    public String put(@ModelAttribute("request") @RequestBody ItemWrite<String> request, Model model) {
         try {
-            itemWriter.put(request);
+            itemWriter.putString(request);
             return "redirect:/items/get/";
         } catch (Exception e) {
             model.addAttribute("request", request);
@@ -120,13 +136,15 @@ public class ItemController {
     public String putBulk(@ModelAttribute("request") @RequestBody ItemPutBatchDto request, Model model) {
         try {
             Random random = new Random();
-            BatchWrite batchWrite = new BatchWrite();
+            BatchWrite<String> batchWrite = new BatchWrite<>();
             batchWrite.setTable(request.getTable());
             for (int i = 0; i < request.getNumItems(); i++) {
                 int randomNumber = random.nextInt(1, Integer.MAX_VALUE);
-                batchWrite.getItems().add(new Item("key" + randomNumber, "value" + randomNumber));
+                String key = "key" + randomNumber;
+                String value = "value" + randomNumber;
+                batchWrite.getItems().add(Map.entry(key, value));
             }
-            itemWriter.putBatch(batchWrite);
+            batchWriter.putStringBatch(batchWrite);
             return "redirect:/items/get/";
         } catch (Exception e) {
             model.addAttribute("request", request);

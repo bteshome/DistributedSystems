@@ -7,6 +7,16 @@ import java.util.Base64;
 
 @Slf4j
 public class JavaSerDe {
+    public static byte[] serializeToBytes(Object object) {
+        try (ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+             ObjectOutputStream objectStream = new ObjectOutputStream(byteStream)) {
+            objectStream.writeObject(object);
+            return byteStream.toByteArray();
+        } catch (IOException e) {
+            throw new SerDeException(e);
+        }
+    }
+
     public static String serialize(Object object) {
         String serializedString = null;
 
