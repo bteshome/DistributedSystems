@@ -236,6 +236,29 @@ public class WAL implements AutoCloseable {
         }
     }
 
+    public List<WALEntry> readLogs(LogPosition afterOffset, LogPosition upToOffsetInclusive) {
+        try (AutoCloseableLock l = readLock();
+             BufferedReader reader = new BufferedReader(new FileReader(logFile));) {
+            String line;
+            List<WALEntry> entries = new ArrayList<>();
+
+            while ((line = reader.readLine()) != null) {
+                WALEntry walEntry = WALEntry.fromString(line);
+                if (walEntry.isLessThanOrEquals(afterOffset))
+                    continue;
+                if (walEntry.isGreaterThan(upToOffsetInclusive))
+                    break;
+                entries.add(walEntry);
+            }
+
+            return entries;
+        } catch (IOException e) {
+            String errorMessage = "Error reading WAL for table '%s' partition '%s'.".formatted(tableName, partition);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }
+
     public List<WALEntry> loadFromFile() {
         try (AutoCloseableLock l = writeLock()) {
             try (BufferedReader reader = new BufferedReader(new FileReader(logFile));) {

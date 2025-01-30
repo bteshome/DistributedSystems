@@ -45,15 +45,6 @@ public class WALController {
                     .build());
         }
 
-        if (MetadataCache.getInstance().isFetchPaused(request.getTable(), request.getPartition())) {
-            String errorMessage = "Fetch is temporarily paused for table '%s' partition '%s'.".formatted(request.getTable(), request.getPartition());
-            log.debug("{} from replica '{}' failed. {}", "WAL_FETCH", request.getId(), errorMessage);
-            return ResponseEntity.ok(WALFetchResponse.builder()
-                    .httpStatusCode(HttpStatus.SERVICE_UNAVAILABLE.value())
-                    .errorMessage(errorMessage)
-                    .build());
-        }
-
         int maxNumRecordsAllowed = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_FETCH_MAX_NUM_RECORDS_KEY);
 
         return state.fetch(
@@ -84,7 +75,7 @@ public class WALController {
 
         return ResponseEntity.ok(WALGetReplicaEndOffsetResponse.builder()
                 .httpStatusCode(HttpStatus.OK.value())
-                .endOffset(partitionState.getOffsetState().getReplicaEndOffset(state.getNodeId()))
+                .endOffset(partitionState.getOffsetState().getEndOffset())
                 .build());
     }
 }

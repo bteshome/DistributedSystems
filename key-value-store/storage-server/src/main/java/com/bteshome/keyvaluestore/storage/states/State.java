@@ -4,6 +4,8 @@ import com.bteshome.keyvaluestore.common.ConfigKeys;
 import com.bteshome.keyvaluestore.common.LogPosition;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.Validator;
+import com.bteshome.keyvaluestore.common.entities.Partition;
+import com.bteshome.keyvaluestore.common.entities.Table;
 import com.bteshome.keyvaluestore.common.requests.NewLeaderElectedRequest;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
@@ -90,20 +92,6 @@ public class State {
         }
     }
 
-    public PartitionState initializePartitionState(String table, int partition) {
-        try (AutoCloseableLock l = writeLock()) {
-            if (!partitionStates.containsKey(table))
-                partitionStates.put(table, new ConcurrentHashMap<>());
-            if (!partitionStates.get(table).containsKey(partition)) {
-                partitionStates.get(table).put(partition, new PartitionState(table,
-                        partition,
-                        storageSettings,
-                        isrSynchronizer));
-            }
-            return partitionStates.get(table).get(partition);
-        }
-    }
-
     public ResponseEntity<WALFetchResponse> fetch(String table,
                                                   int partition,
                                                   LogPosition lastFetchOffset,
@@ -140,55 +128,26 @@ public class State {
         }
     }
 
-    public void newLeaderElected(NewLeaderElectedRequest request) {
-        MetadataCache.getInstance().pauseFetch(request.getTableName(), request.getPartitionId());
-        PartitionState partitionState = initializePartitionState(request.getTableName(), request.getPartitionId());
-
-        if (storageSettings.getNode().getId().equals(request.getNewLeaderId())) {
-            log.info("This node elected as the new leader for table '{}' partition '{}'. Now performing offset synchronization and truncation.",
-                    request.getTableName(),
-                    request.getPartitionId());
-            Set<String> isrEndpoints = MetadataCache.getInstance().getISREndpoints(
-                    request.getTableName(),
-                    request.getPartitionId(),
-                    nodeId);
-            WALGetReplicaEndOffsetRequest walGetReplicaEndOffsetRequest = new WALGetReplicaEndOffsetRequest(
-                    request.getTableName(),
-                    request.getPartitionId());
-            LogPosition thisReplicaEndOffset = partitionState.getOffsetState().getReplicaEndOffset(nodeId);
-            LogPosition earliestISREndOffset = thisReplicaEndOffset;
-
-            for (String isrEndpoint : isrEndpoints) {
-                try {
-                    WALGetReplicaEndOffsetResponse response = RestClient.builder()
-                            .build()
-                            .post()
-                            .uri("http://%s/api/wal/get-end-offset/".formatted(isrEndpoint))
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .body(walGetReplicaEndOffsetRequest)
-                            .retrieve()
-                            .toEntity(WALGetReplicaEndOffsetResponse.class)
-                            .getBody();
-
-                    if (response.getEndOffset().isLessThan(earliestISREndOffset))
-                        earliestISREndOffset = response.getEndOffset();
-                } catch (Exception e) {
-                    log.warn("Log synchronization request to endpoint '{}' failed.", isrEndpoint, e);
+    public void tableCreated(Table table) {
+        try (AutoCloseableLock l = writeLock()) {
+            for (Partition partition : table.getPartitions().values()) {
+                if (!partitionStates.containsKey(partition.getTableName()))
+                    partitionStates.put(partition.getTableName(), new ConcurrentHashMap<>());
+                if (!partitionStates.get(partition.getTableName()).containsKey(partition.getId())) {
+                    partitionStates.get(partition.getTableName()).put(partition.getId(), new PartitionState(
+                            partition.getTableName(),
+                            partition.getId(),
+                            storageSettings,
+                            isrSynchronizer));
                 }
             }
-
-            if (earliestISREndOffset.isLessThan(thisReplicaEndOffset)) {
-                log.info("Detected uncommitted offsets from the previous leader. Truncating WAL to offset {}.", earliestISREndOffset);
-                partitionState.truncateLogsTo(earliestISREndOffset);
-            }
-
-            partitionState.getOffsetState().setPreviousLeaderEndOffset(earliestISREndOffset);
-        } else {
-            partitionState.getOffsetState().clearPreviousLeaderEndOffset();
         }
+    }
 
-        storageNodeMetadataRefresher.fetchAsync().thenRun(() ->
-                MetadataCache.getInstance().resumeFetch(request.getTableName(), request.getPartitionId()));
+    public void newLeaderElected(NewLeaderElectedRequest request) {
+        PartitionState partitionState = getPartitionState(request.getTableName(), request.getPartitionId());
+        partitionState.newLeaderElected(request);
+        storageNodeMetadataRefresher.fetch();
     }
 
     private AutoCloseableLock readLock() {

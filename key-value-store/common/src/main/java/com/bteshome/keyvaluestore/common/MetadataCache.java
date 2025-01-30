@@ -14,28 +14,23 @@ import java.util.stream.Collectors;
 @Slf4j
 public class MetadataCache {
     private Map<EntityType, Map<String, Object>> state = Map.of();
-    private final Map<String, Map<Integer, Boolean>> partitionsWithPausedFetch = new ConcurrentHashMap<>();
     private String heartbeatEndpoint;
     private static final String CURRENT = "current";
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
+    private boolean ready = false;
     @Getter
     private final static MetadataCache instance = new MetadataCache();
 
-    public void pauseFetch(String table, int partition) {
-        if (!partitionsWithPausedFetch.containsKey(table))
-            partitionsWithPausedFetch.put(table, new ConcurrentHashMap<>());
-        partitionsWithPausedFetch.get(table).put(partition, true);
-        log.info("Paused fetch for table '{}' partition '{}'.", table, partition);
+    public boolean isReady() {
+        try (AutoCloseableLock l = readLock()) {
+            return ready;
+        }
     }
 
-    public void resumeFetch(String table, int partition) {
-        partitionsWithPausedFetch.get(table).remove(partition);
-        log.info("Resumed fetch for table '{}' partition '{}'.", table, partition);
-    }
-
-    public boolean isFetchPaused(String table, int partition) {
-        return partitionsWithPausedFetch.containsKey(table) &&
-                partitionsWithPausedFetch.get(table).containsKey(partition);
+    public void setReady(boolean ready) {
+        try (AutoCloseableLock l = writeLock()) {
+            this.ready = ready;
+        }
     }
 
     public long getLastFetchedVersion() {
@@ -106,6 +101,13 @@ public class MetadataCache {
         try (AutoCloseableLock l = readLock()) {
             Table table = (Table)state.get(EntityType.TABLE).get(tableName);
             return table.getPartitions().get(partition).getLeaderTerm();
+        }
+    }
+
+    public String getEndpoint(String nodeId) {
+        try (AutoCloseableLock l = readLock()) {
+            StorageNode node = (StorageNode)state.get(EntityType.STORAGE_NODE).get(nodeId);
+            return "%s:%s".formatted(node.getHost(), node.getPort());
         }
     }
 

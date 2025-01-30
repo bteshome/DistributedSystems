@@ -2,12 +2,18 @@ package com.bteshome.keyvaluestore.storage.core;
 
 import com.bteshome.keyvaluestore.common.*;
 import com.bteshome.keyvaluestore.common.entities.Replica;
+import com.bteshome.keyvaluestore.storage.requests.WALGetReplicaEndOffsetRequest;
+import com.bteshome.keyvaluestore.storage.responses.WALGetReplicaEndOffsetResponse;
 import com.bteshome.keyvaluestore.storage.states.PartitionState;
 import com.bteshome.keyvaluestore.storage.states.State;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.hc.client5.http.config.RequestConfig;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
 
 import java.util.*;
 import java.util.concurrent.Executors;
@@ -59,24 +65,54 @@ public class ReplicaMonitor {
                 if (partitionState == null)
                     continue;
 
-                Set<String> allReplicaNodeIds = MetadataCache.getInstance().getReplicaNodeIds(table, partition);
-                Set<String> inSyncReplicaNodeIds = MetadataCache.getInstance().getInSyncReplicas(table, partition);
                 LogPosition committedOffset = partitionState.getOffsetState().getCommittedOffset();
+                Set<String> allReplicaNodeIds = MetadataCache.getInstance().getReplicaNodeIds(
+                        table,
+                        partition);
+                Set<String> inSyncReplicaNodeIds = MetadataCache.getInstance().getInSyncReplicas(table, partition);
+                WALGetReplicaEndOffsetRequest walGetReplicaEndOffsetRequest = new WALGetReplicaEndOffsetRequest(
+                        table,
+                        partition);
 
-                for (String replicaId : allReplicaNodeIds) {
-                    if (replicaId.equals(leaderNodeId))
+                for (String nodeId : allReplicaNodeIds) {
+                    if (nodeId.equals(this.state.getNodeId()))
                         continue;
 
-                    LogPosition replicaOffset = partitionState.getOffsetState().getReplicaEndOffset(replicaId);
-                    long lag = partitionState.getWal().getLag(replicaOffset, committedOffset);
-                    boolean isLaggingOnFetch = lag > recordThreshold;
+                    String endpoint = MetadataCache.getInstance().getEndpoint(nodeId);
 
-                    if (inSyncReplicaNodeIds.contains(replicaId)) {
-                        if (isLaggingOnFetch)
-                            laggingReplicas.add(new Replica(replicaId, table, partition));
-                    } else {
-                        if (!isLaggingOnFetch)
-                            caughtUpReplicas.add(new Replica(replicaId, table, partition));
+                    try {
+                        // TODO - 1. what should these numbers be? 2. should they be configurable?
+                        HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory();
+                        factory.setConnectTimeout(1000);
+                        factory.setConnectionRequestTimeout(1000);
+                        factory.setReadTimeout(1000);
+                        WALGetReplicaEndOffsetResponse response = RestClient.builder()
+                                .requestFactory(factory)
+                                .build()
+                                .post()
+                                .uri("http://%s/api/wal/get-end-offset/".formatted(endpoint))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body(walGetReplicaEndOffsetRequest)
+                                .retrieve()
+                                .toEntity(WALGetReplicaEndOffsetResponse.class)
+                                .getBody();
+
+                        long lag = partitionState.getWal().getLag(response.getEndOffset(), committedOffset);
+                        boolean isLaggingOnFetch = lag > recordThreshold;
+
+                        if (inSyncReplicaNodeIds.contains(nodeId)) {
+                            if (isLaggingOnFetch)
+                                laggingReplicas.add(new Replica(nodeId, table, partition));
+                        } else {
+                            if (!isLaggingOnFetch)
+                                caughtUpReplicas.add(new Replica(nodeId, table, partition));
+                        }
+                    } catch (Exception e) {
+                        log.warn("Error getting replica end offset from endpoint '{}' for table '{}' partition '{}'.",
+                                endpoint,
+                                table,
+                                partition,
+                                e);
                     }
                 }
             }

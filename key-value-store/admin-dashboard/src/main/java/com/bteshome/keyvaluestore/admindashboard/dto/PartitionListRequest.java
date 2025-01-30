@@ -9,6 +9,6 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class PartitionAndReplicaListRequest {
+public class PartitionListRequest {
     private String table;
 }

@@ -1,5 +1,7 @@
 package com.bteshome.keyvaluestore.storage.common;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -8,6 +10,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
+@Slf4j
 public class ChecksumUtil {
     public static void readAndVerify(String filePath) {
         try {
@@ -15,9 +18,13 @@ public class ChecksumUtil {
             String readDigest = Files.readString(Path.of(checksumFilePath));
             String generatedDigest = generate(filePath);
             if (!readDigest.equals(generatedDigest)) {
-                throw new RuntimeException("File %s failed checksum verification.");
+                String errorMessage = "File %s failed checksum verification. Generated: '%s', read: '%s'.".formatted(
+                        filePath,
+                        generatedDigest,
+                        readDigest);
+                throw new StorageServerException(errorMessage);
             }
-        } catch (Exception e) {
+        } catch (IOException | NoSuchAlgorithmException e) {
             String errorMessage = "Error verifying checksum for file '%s'.".formatted(filePath);
             throw new StorageServerException(errorMessage, e);
         }
@@ -28,6 +35,7 @@ public class ChecksumUtil {
             String checksumFilePath = filePath + ".md5";
             String digest = generate(filePath);
             Files.writeString(Path.of(checksumFilePath), digest);
+            log.debug("Generated digest for file '{}': '{}'.", filePath, digest);
         } catch (Exception e) {
             String errorMessage = "Error generating checksum for file '%s'.".formatted(filePath);
             throw new StorageServerException(errorMessage, e);

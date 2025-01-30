@@ -29,7 +29,7 @@
                 </div>
             </div>
 
-            <form class="row g-3" method="post" th:action="@{/partitions-and-replicas/}" th:object="${request}">
+            <form class="row g-3" method="post" th:action="@{/partitions/}" th:object="${request}">
                 <div class="col-md-12">
                     <label for="table" class="form-label">Table name</label>
                     <input type="text" class="form-control form-control-sm" id="table" th:field="*{table}">
@@ -55,7 +55,7 @@
                             <th>In Sync Replicas</th>
                             <th>Item Count</th>
                             <th>Committed Offset</th>
-                            <th>Replica End Offsets</th>
+                            <th>Leader End Offset</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -66,7 +66,7 @@
                             <td th:text="${partition.inSyncReplicas}"></td>
                             <td th:text="${counts == null ? '' : counts[partition.id]}"></td>
                             <td th:text="${committedOffsets == null ? '' : committedOffsets[partition.id]}"></td>
-                            <td th:text="${replicaEndOffsets == null ? null : replicaEndOffsets[partition.id]}"></td>
+                            <td th:text="${leaderEndOffsets == null ? '' : leaderEndOffsets[partition.id]}"></td>
                         </tr>
                         <tr>
                             <td>Total</td>

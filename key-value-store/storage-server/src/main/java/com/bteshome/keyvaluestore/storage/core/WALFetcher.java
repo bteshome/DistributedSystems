@@ -54,9 +54,6 @@ public class WALFetcher {
         List<Replica> followedReplicas = MetadataCache.getInstance().getFollowedReplicas(state.getNodeId());
 
         for (Replica followedReplica : followedReplicas) {
-            if (MetadataCache.getInstance().isFetchPaused(followedReplica.getTable(), followedReplica.getPartition()))
-                continue;
-
             try {
                 String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(followedReplica.getTable(), followedReplica.getPartition());
 
@@ -65,8 +62,12 @@ public class WALFetcher {
                     continue;
                 }
 
-                PartitionState partitionState = state.initializePartitionState(followedReplica.getTable(), followedReplica.getPartition());
-                LogPosition lastFetchOffset = partitionState.getOffsetState().getReplicaEndOffset(state.getNodeId());
+                PartitionState partitionState = state.getPartitionState(followedReplica.getTable(), followedReplica.getPartition());
+
+                if (partitionState == null)
+                    continue;
+
+                LogPosition lastFetchOffset = partitionState.getOffsetState().getEndOffset();
                 int maxNumRecords = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_FETCH_MAX_NUM_RECORDS_KEY);
 
                 WALFetchRequest request = new WALFetchRequest(
@@ -107,7 +108,8 @@ public class WALFetcher {
                             followedReplica.getTable(),
                             followedReplica.getPartition(),
                             response.getTruncateToOffset());
-                    partitionState.truncateLogsTo(response.getTruncateToOffset());
+                    partitionState.getWal().truncateToAfterExclusive(response.getTruncateToOffset());
+                    partitionState.getOffsetState().setEndOffset(response.getTruncateToOffset());
                     continue;
                 }
 
@@ -115,26 +117,21 @@ public class WALFetcher {
                     if (response.getPayloadType().equals(WALFetchPayloadType.LOG)) {
                         partitionState.appendLogEntries(
                                 response.getEntries(),
-                                response.getReplicaEndOffsets(),
                                 response.getCommitedOffset());
 
-                        log.debug("Fetched WAL for table '{}' partition '{}' lastFetchedOffset '{}'. entries={}, endOffsets={}, commited offset={}.",
+                        log.debug("Fetched WAL for table '{}' partition '{}' lastFetchedOffset '{}'. entries={}, commited offset={}.",
                                 followedReplica.getTable(),
                                 followedReplica.getPartition(),
                                 lastFetchOffset,
                                 response.getEntries(),
-                                response.getReplicaEndOffsets(),
                                 response.getCommitedOffset());
                     } else {
-                        partitionState.applyDataSnapshot(
-                                response.getDataSnapshot(),
-                                response.getReplicaEndOffsets());
+                        partitionState.applyDataSnapshot(response.getDataSnapshot());
 
-                        log.debug("Fetched data snapshot for table '{}' partition '{}' lastFetchedOffset '{}'. endOffsets={}, last snapshot committed offset={}.",
+                        log.debug("Fetched data snapshot for table '{}' partition '{}' lastFetchedOffset '{}', last snapshot committed offset={}.",
                                 followedReplica.getTable(),
                                 followedReplica.getPartition(),
                                 lastFetchOffset,
-                                response.getReplicaEndOffsets(),
                                 response.getDataSnapshot().getLastCommittedOffset());
                     }
                 }

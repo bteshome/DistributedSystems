@@ -46,14 +46,6 @@ public class ItemController {
                     .build());
         }
 
-        if (MetadataCache.getInstance().isFetchPaused(request.getTable(), request.getPartition())) {
-            String errorMessage = "Fetch is temporarily paused for table '%s' partition '%s'.".formatted(request.getTable(), request.getPartition());
-            return ResponseEntity.ok(ItemGetResponse.builder()
-                    .httpStatusCode(HttpStatus.SERVICE_UNAVAILABLE.value())
-                    .errorMessage(errorMessage)
-                    .build());
-        }
-
         PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition());
 
         if (partitionState == null) {
@@ -79,14 +71,6 @@ public class ItemController {
             return ResponseEntity.ok(ItemListResponse.builder()
                     .httpStatusCode(HttpStatus.NOT_FOUND.value())
                     .errorMessage("Table '%s' does not exist.".formatted(request.getTable()))
-                    .build());
-        }
-
-        if (MetadataCache.getInstance().isFetchPaused(request.getTable(), request.getPartition())) {
-            String errorMessage = "Fetch is temporarily paused for table '%s' partition '%s'.".formatted(request.getTable(), request.getPartition());
-            return ResponseEntity.ok(ItemListResponse.builder()
-                    .httpStatusCode(HttpStatus.SERVICE_UNAVAILABLE.value())
-                    .errorMessage(errorMessage)
                     .build());
         }
 
@@ -119,15 +103,7 @@ public class ItemController {
                     .build());
         }
 
-        if (MetadataCache.getInstance().isFetchPaused(request.getTable(), request.getPartition())) {
-            String errorMessage = "Put is temporarily paused for table '%s' partition '%s'.".formatted(request.getTable(), request.getPartition());
-            return ResponseEntity.ok(ItemPutResponse.builder()
-                    .httpStatusCode(HttpStatus.SERVICE_UNAVAILABLE.value())
-                    .errorMessage(errorMessage)
-                    .build());
-        }
-
-        PartitionState partitionState = state.initializePartitionState(request.getTable(), request.getPartition());
+        PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition());
 
         return partitionState.putItems(request.getItems());
     }

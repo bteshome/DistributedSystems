@@ -1,5 +1,6 @@
 package com.bteshome.keyvaluestore.storage.core;
 
+import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.MetadataClientBuilder;
 import com.bteshome.keyvaluestore.common.ResponseStatus;
 import com.bteshome.keyvaluestore.common.requests.StorageNodeJoinRequest;
@@ -58,11 +59,13 @@ public class Node implements CommandLineRunner {
                 GenericResponse response = ResponseStatus.toGenericResponse(messageString);
                 if (response.getHttpStatusCode() == HttpStatus.OK.value()) {
                     log.info(response.getMessage());
+                    storageNodeMetadataRefresher.fetch();
                     storageNodeMetadataRefresher.schedule();
                     state.initialize();
                     heartbeatSender.schedule();
                     replicaMonitor.schedule();
                     walFetcher.schedule();
+                    MetadataCache.getInstance().setReady(true);
                 } else {
                     log.error(response.getMessage());
                 }

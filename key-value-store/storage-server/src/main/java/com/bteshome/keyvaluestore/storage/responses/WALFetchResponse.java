@@ -17,7 +17,6 @@ public class WALFetchResponse {
     private int httpStatusCode;
     private String errorMessage;
     private List<WALEntry> entries;
-    private Map<String, LogPosition> replicaEndOffsets;
     private LogPosition commitedOffset;
     private LogPosition truncateToOffset;
     private DataSnapshot dataSnapshot;

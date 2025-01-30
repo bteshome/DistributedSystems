@@ -33,6 +33,7 @@ public class MetadataController {
     public ResponseEntity<?> tableCreated(@RequestBody Table table) {
         log.info("Received a TableCreated notification from the metadata node for table '{}'.", table.getName());
         metadataRefresher.fetch();
+        state.tableCreated(table);
         return ResponseEntity.ok().build();
     }
 
