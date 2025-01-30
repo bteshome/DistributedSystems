@@ -35,7 +35,6 @@ public class ChecksumUtil {
             String checksumFilePath = filePath + ".md5";
             String digest = generate(filePath);
             Files.writeString(Path.of(checksumFilePath), digest);
-            log.debug("Generated digest for file '{}': '{}'.", filePath, digest);
         } catch (Exception e) {
             String errorMessage = "Error generating checksum for file '%s'.".formatted(filePath);
             throw new StorageServerException(errorMessage, e);
@@ -48,16 +47,14 @@ public class ChecksumUtil {
         try (FileInputStream fileStream = new FileInputStream(filePath)) {
             byte[] bytes = new byte[1024];
             int bytesRead;
-            while ((bytesRead = fileStream.read(bytes)) != -1) {
+            while ((bytesRead = fileStream.read(bytes)) != -1)
                 md5Digest.update(bytes, 0, bytesRead);
-            }
         }
 
         byte[] checksumBytes = md5Digest.digest();
         StringBuilder hexString = new StringBuilder();
-        for (byte b : checksumBytes) {
+        for (byte b : checksumBytes)
             hexString.append(String.format("%02x", b));
-        }
 
         return hexString.toString();
     }

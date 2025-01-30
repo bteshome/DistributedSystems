@@ -219,27 +219,21 @@ public class PartitionState implements AutoCloseable {
     public void appendLogEntries(List<WALEntry> logEntries,
                                  LogPosition commitedOffset) {
         try (AutoCloseableLock l = writeDataLock()) {
+            LogPosition currentCommitedOffset = offsetState.getCommittedOffset();
             if (!logEntries.isEmpty()) {
                 LogPosition endOffset = wal.appendLogs(logEntries);
                 offsetState.setEndOffset(endOffset);
             }
-            LogPosition currentCommitedOffset = offsetState.getCommittedOffset();
-            List<WALEntry> logEntriesNotAppliedYet = wal.readLogs(currentCommitedOffset, commitedOffset);
-            for (WALEntry walEntry : logEntriesNotAppliedYet) {
-                switch (walEntry.operation()) {
-                    case "PUT" -> data.put(walEntry.key(), walEntry.value());
-                    case "DELETE" -> data.remove(walEntry.key());
-                }
-            }
-            for (WALEntry walEntry : logEntries) {
-                if (walEntry.isLessThanOrEquals(commitedOffset)) {
+            if (!commitedOffset.equals(currentCommitedOffset)) {
+                List<WALEntry> logEntriesNotAppliedYet = wal.readLogs(currentCommitedOffset, commitedOffset);
+                for (WALEntry walEntry : logEntriesNotAppliedYet) {
                     switch (walEntry.operation()) {
                         case "PUT" -> data.put(walEntry.key(), walEntry.value());
                         case "DELETE" -> data.remove(walEntry.key());
                     }
                 }
+                offsetState.setCommittedOffset(commitedOffset);
             }
-            offsetState.setCommittedOffset(commitedOffset);
         }
     }
 

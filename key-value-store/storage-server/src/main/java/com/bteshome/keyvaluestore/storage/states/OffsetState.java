@@ -59,11 +59,9 @@ public class OffsetState {
         BufferedWriter writer = Utils.createWriter(endOffsetSnapshotFile);
         try (writer; AutoCloseableLock l = writeLock()) {
             endOffset = offset;
-            // TODO - change to Java serialization once done testing
-            //writer.write(JsonSerDe.serialize(offset));
             CompressionUtil.compressAndWrite(endOffsetSnapshotFile, offset);
             ChecksumUtil.generateAndWrite(endOffsetSnapshotFile);
-            log.debug("Persisted end offset '{}' for table '{}' partition '{}'.", endOffset, table, partition);
+            log.trace("Persisted end offset '{}' for table '{}' partition '{}'.", endOffset, table, partition);
         } catch (IOException e) {
             String errorMessage = "Error writing end offset for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);
@@ -81,11 +79,9 @@ public class OffsetState {
         BufferedWriter writer = Utils.createWriter(committedOffsetSnapshotFile);
         try (writer; AutoCloseableLock l = writeLock()) {
             committedOffset = offset;
-            // TODO - change to Java serialization once done testing
-            //writer.write(JsonSerDe.serialize(offset));
             CompressionUtil.compressAndWrite(committedOffsetSnapshotFile, offset);
             ChecksumUtil.generateAndWrite(committedOffsetSnapshotFile);
-            log.debug("Persisted committed offset '{}' for table '{}' partition '{}'.", committedOffset, table, partition);
+            log.trace("Persisted committed offset '{}' for table '{}' partition '{}'.", committedOffset, table, partition);
         } catch (IOException e) {
             String errorMessage = "Error writing committed offset for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);
@@ -105,10 +101,9 @@ public class OffsetState {
         BufferedWriter writer = Utils.createWriter(previousLeaderEndOffsetFile);
         try (writer; AutoCloseableLock l = writeLock()) {
             previousLeaderEndOffset = offset;
-            //writer.write(JsonSerDe.serialize(offset));
             CompressionUtil.compressAndWrite(previousLeaderEndOffsetFile, offset);
             ChecksumUtil.generateAndWrite(previousLeaderEndOffsetFile);
-            log.debug("Persisted previous leader end offset '{}' for table '{}' partition '{}'.", previousLeaderEndOffset, table, partition);
+            log.info("Persisted previous leader end offset '{}' for table '{}' partition '{}'.", previousLeaderEndOffset, table, partition);
         } catch (IOException e) {
             String errorMessage = "Error writing previous leader end offset for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);
@@ -122,7 +117,7 @@ public class OffsetState {
                 previousLeaderEndOffset = LogPosition.empty();
                 Files.deleteIfExists(Path.of(previousLeaderEndOffsetFile));
                 Files.deleteIfExists(Path.of(previousLeaderEndOffsetFile + ".md5"));
-                log.debug("Deleted previous leader end offset file '{}' for table '{}' partition '{}'.", previousLeaderEndOffsetFile, table, partition);
+                log.info("Deleted previous leader end offset file '{}' for table '{}' partition '{}'.", previousLeaderEndOffsetFile, table, partition);
             }
         } catch (IOException e) {
             String errorMessage = "Error deleting previous leader end offset file for table '%s' partition '%s'.".formatted(table, partition);

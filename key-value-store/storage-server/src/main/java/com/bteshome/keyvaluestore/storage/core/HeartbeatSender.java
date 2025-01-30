@@ -69,7 +69,7 @@ public class HeartbeatSender {
 
             switch (HttpStatus.valueOf(response.getHttpStatusCode())) {
                 case OK -> {
-                    log.debug("Sent heartbeat successfully");
+                    log.trace("Sent heartbeat successfully");
                     state.setLastHeartbeatSucceeded(true);
                     if (response.isLaggingOnMetadata()) {
                         log.debug("The node is lagging on metadata. Now issuing a fetch request.");

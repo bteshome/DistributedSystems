@@ -40,7 +40,7 @@ public class TableCountDto {
         private boolean active;
 
         public boolean isLeader() {
-            return leaderId.equals(replicaId);
+            return replicaId.equals(leaderId);
         }
     }
 

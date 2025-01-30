@@ -49,25 +49,26 @@
                     <table class="table table-striped table-sm">
                         <thead>
                         <tr>
-                            <th>Partition Id</th>
+                            <th>Partition</th>
                             <th>Leader</th>
                             <th>Replicas</th>
                             <th>In Sync Replicas</th>
-                            <th></th>
+                            <th colspan="4"></th>
                         </tr>
                         </thead>
                         <tbody>
                         <tr th:each="partition: ${tableCountDto.partitionCountDtos}">
                             <td th:text="${partition.partitionId}"></td>
-                            <td th:text="${partition.leaderId}"></td>
+                            <td th:text="${partition.leaderId != null ? partition.leaderId : 'OFFLINE'}"
+                                th:classappend="${partition.leaderId == null ? 'unhealthy' : 'healthy'}"></td>
                             <td th:text="${partition.replicas}"></td>
                             <td th:text="${partition.inSyncReplicas}"></td>
-                            <td>
+                            <td colspan="4">
                                 <div class="table-responsive">
                                     <table class="table table-striped table-sm">
                                         <thead>
                                         <tr>
-                                            <td>Replica Id</td>
+                                            <td>Replica</td>
                                             <td>Item Count</td>
                                             <td>Committed Offset</td>
                                             <td>End Offset</td>
@@ -75,7 +76,8 @@
                                         </thead>
                                         <tbody>
                                         <tr th:each="replica: ${partition.replicaCountDtos}">
-                                            <td th:text="${replica.replicaId}" th:classappend="${replica.active ? '' : ' unhealthy '} + ${replica.isLeader() ? ' fw-bold ' : ''}"></td>
+                                            <td th:text="${replica.replicaId}"
+                                                th:classappend="${replica.active ? '' : ' unhealthy '} + ${replica.isLeader() ? ' fw-bold ' : ''}"></td>
                                             <td th:text="${replica.count}"></td>
                                             <td th:text="${replica.committedOffset}"></td>
                                             <td th:text="${replica.endOffset}"></td>
@@ -86,11 +88,7 @@
                             </td>
                         </tr>
                         <tr>
-                            <td th:text="'Total ' + ${tableCountDto.tableTotalCount} + ' items'"></td>
-                            <td></td>
-                            <td></td>
-                            <td></td>
-                            <td></td>
+                            <td th:text="'Total ' + ${tableCountDto.tableTotalCount} + ' items'" colspan="8"></td>
                         </tr>
                         </tbody>
                         <thead>

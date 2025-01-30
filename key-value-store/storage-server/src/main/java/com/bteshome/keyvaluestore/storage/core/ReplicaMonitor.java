@@ -47,7 +47,7 @@ public class ReplicaMonitor {
     }
 
     private void checkStatus() {
-        log.debug("Replica monitor about to check if any replicas are lagging on fetch.");
+        log.trace("Replica monitor about to check if any replicas are lagging on fetch.");
 
         try {
             String leaderNodeId = state.getNodeId();
