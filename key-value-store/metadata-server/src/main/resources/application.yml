@@ -59,3 +59,4 @@ metadata:
   min-in-sync-replicas-default: 1
   ring-num-virtual-partitions: 3
   write-batch-size-max: 10000
+  expiration-monitor-interval-ms: 10000

@@ -31,7 +31,9 @@
 
             <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}"></div>
 
-            <form class="row g-3" method="post" th:action="@{/items/list/}" th:object="${request}">
+            <div class="alert alert-success" role="alert" th:if="${info}" th:text="${info}"></div>
+
+            <form class="row g-3" method="post" th:action="@{/items/list/}" th:object="${listRequest}" th:if="${listRequest}">
                 <div class="col-md-6">
                     <label for="table" class="form-label">Table name</label>
                     <input type="text" class="form-control form-control-sm" id="table" th:field="*{table}">
@@ -51,10 +53,28 @@
                 </div>
             </form>
 
-            <div class="no-data" th:if="${items == null}">No Data</div>
+            <form method="post" th:action="@{/items/delete-batch-confirmed/}" th:object="${batchDeleteRequest}" th:if="${promptBatchDelete}">
+                <input type="hidden" th:field="*{table}">
+                <input type="hidden" th:field="*{keys}">
+                <p th:text="${promptBatchDelete}"></p>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary mb-3">Delete</button>
+                </div>
+            </form>
 
-            <div th:if="${items != null}">
-                <div th:each="_items: ${items}">
+            <form method="post" th:action="@{/items/delete-item-confirmed/}" th:object="${itemDeleteRequest}" th:if="${promptItemDelete}">
+                <input type="hidden" th:field="*{table}">
+                <input type="hidden" th:field="*{key}">
+                <p th:text="${promptItemDelete}"></p>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary mb-3">Delete</button>
+                </div>
+            </form>
+
+            <div class="no-data" th:if="${(items == null || itemsCount == 0) && promptBatchDelete == null && promptItemDelete == null}">No Data</div>
+
+            <div th:if="${items}">
+                <div th:each="_items: ${items}" th:if="${itemsCount}">
                     <p>Partition <span th:text="${_items.key}"></span></p>
                     <div class="table-responsive">
                         <table class="table table-striped table-sm">
@@ -62,12 +82,31 @@
                             <tr>
                                 <th>Key</th>
                                 <th>Value</th>
+                                <th>
+                                    <form method="post" th:action="@{/items/delete-batch/}" th:object="${batchDeleteRequest}">
+                                        <input type="hidden" th:field="*{table}">
+                                        <input type="hidden" th:field="*{keys}">
+                                        <button type="submit" class="btn btn-secondary btn-sm">
+                                            <span data-feather="x-circle"></span>
+                                            Delete All
+                                        </button>
+                                    </form>
+                                </th>
                             </tr>
                             </thead>
                             <tbody>
                             <tr th:each="_item: ${_items.value}">
                                 <td th:text="${_item.key}"></td>
                                 <td th:text="${_item.value}"></td>
+                                <td>
+                                    <form method="post" th:action="@{/items/delete-item/}" th:object="${itemDeleteRequest}">
+                                        <input type="hidden" th:field="*{table}">
+                                        <input type="hidden" name="key" th:value="${_item.key}">
+                                        <button type="submit" class="btn btn-secondary btn-sm">
+                                            x
+                                        </button>
+                                    </form>
+                                </td>
                             </tr>
                             </tbody>
                         </table>

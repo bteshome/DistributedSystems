@@ -44,6 +44,8 @@ public class ConfigurationLoader {
                 Validator.setDefault(metadataSettings.getRingNumVirtualPartitions(), 3));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.WRITE_BATCH_SIZE_MAX_KEY,
                 Validator.setDefault(metadataSettings.getWriteBatchSizeMax(), 100));
+        state.get(EntityType.CONFIGURATION).put(ConfigKeys.EXPIRATION_MONITOR_INTERVAL_MS_KEY,
+                Validator.setDefault(metadataSettings.getExpirationMonitorIntervalMs(), 10000L));
 
         log.info("Configuration loaded.");
     }

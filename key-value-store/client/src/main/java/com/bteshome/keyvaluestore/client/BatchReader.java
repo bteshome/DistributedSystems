@@ -49,7 +49,7 @@ public class BatchReader {
             resultTyped.put(partition, new ArrayList<>());
             for (Map.Entry<String, String> item : result.get(partition)) {
                 T value = JavaSerDe.deserialize(item.getValue());
-                resultTyped.get(partition).add(new AbstractMap.SimpleEntry<>(item.getKey(), value));
+                resultTyped.get(partition).add(Map.entry(item.getKey(), value));
             }
         }
 
@@ -64,7 +64,7 @@ public class BatchReader {
             resultTyped.put(partition, new ArrayList<>());
             for (Map.Entry<String, String> item : result.get(partition)) {
                 byte[] value = Base64.getDecoder().decode(item.getValue());
-                resultTyped.get(partition).add(new AbstractMap.SimpleEntry<>(item.getKey(), value));
+                resultTyped.get(partition).add(Map.entry(item.getKey(), value));
             }
         }
 

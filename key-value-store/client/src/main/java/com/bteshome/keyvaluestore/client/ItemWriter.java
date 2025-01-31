@@ -1,6 +1,8 @@
 package com.bteshome.keyvaluestore.client;
 
+import com.bteshome.keyvaluestore.client.clientrequests.ItemDelete;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemWrite;
+import com.bteshome.keyvaluestore.client.requests.ItemDeleteRequest;
 import com.bteshome.keyvaluestore.client.requests.ItemPutRequest;
 import com.bteshome.keyvaluestore.common.JavaSerDe;
 import com.bteshome.keyvaluestore.common.Validator;
@@ -44,5 +46,17 @@ public class ItemWriter extends Writer {
 
         setEndpoints(endpoints);
         put(itemPutRequest);
+    }
+
+    public void delete(ItemDelete request) {
+        ItemDeleteRequest itemDeleteRequest = new ItemDeleteRequest();
+        itemDeleteRequest.setTable(Validator.notEmpty(request.getTable(), "Table name"));
+        itemDeleteRequest.getKeys().add(request.getKey());
+
+        int partition = keyToPartitionMapper.map(request.getTable(), request.getKey());
+        itemDeleteRequest.setPartition(partition);
+
+        setEndpoints(endpoints);
+        delete(itemDeleteRequest);
     }
 }

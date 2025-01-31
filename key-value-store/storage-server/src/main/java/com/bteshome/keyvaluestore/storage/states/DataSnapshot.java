@@ -11,5 +11,5 @@ import java.util.concurrent.ConcurrentHashMap;
 @Getter
 public class DataSnapshot implements Serializable {
     private LogPosition lastCommittedOffset;
-    private ConcurrentHashMap<String, String> data;
+    private ConcurrentHashMap<ItemKey, String> data;
 }

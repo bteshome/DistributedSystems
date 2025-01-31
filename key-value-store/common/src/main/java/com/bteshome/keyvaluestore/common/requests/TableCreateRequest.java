@@ -9,6 +9,7 @@ import org.apache.ratis.util.ProtoUtils;
 
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Map;
 
 @Getter
@@ -18,6 +19,7 @@ public class TableCreateRequest implements Serializable, Message {
     private int numPartitions;
     private int replicationFactor;
     private int minInSyncReplicas;
+    private Duration timeToLive = Duration.ZERO;
 
     public void validate(Map<String, Object> configurations) {
         int numPartitionsDefault = (Integer)configurations.get(ConfigKeys.NUM_PARTITIONS_DEFAULT_KEY);

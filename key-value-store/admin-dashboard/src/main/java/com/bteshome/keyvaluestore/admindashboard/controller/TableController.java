@@ -12,6 +12,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Duration;
 import java.util.List;
 
 @Controller
@@ -29,6 +30,7 @@ public class TableController {
         table.setNumPartitions(1);
         table.setReplicationFactor(1);
         table.setMinInSyncReplicas(1);
+        table.setTimeToLive(Duration.ofMinutes(5L));
         model.addAttribute("table", table);
         model.addAttribute("page", "tables");
         return "tables-create.html";

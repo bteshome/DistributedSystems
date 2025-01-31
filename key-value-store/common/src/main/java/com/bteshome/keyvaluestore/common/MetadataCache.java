@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.util.AutoCloseableLock;
 
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -75,6 +76,13 @@ public class MetadataCache {
     public String getState() {
         try (AutoCloseableLock l = readLock()) {
             return JavaSerDe.serialize(state);
+        }
+    }
+
+    public Duration getTableTimeToLive(String tableName, int partition) {
+        try (AutoCloseableLock l = readLock()) {
+            Table table = (Table)state.get(EntityType.TABLE).get(tableName);
+            return table.getTimeToLive();
         }
     }
 

@@ -2,7 +2,9 @@ package com.bteshome.keyvaluestore.client;
 
 import com.bteshome.keyvaluestore.client.clientrequests.BatchWrite;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemWrite;
+import com.bteshome.keyvaluestore.client.requests.ItemDeleteRequest;
 import com.bteshome.keyvaluestore.client.requests.ItemPutRequest;
+import com.bteshome.keyvaluestore.client.responses.ItemDeleteResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
 import com.bteshome.keyvaluestore.common.ConfigKeys;
 import com.bteshome.keyvaluestore.common.JavaSerDe;
@@ -32,10 +34,10 @@ public class Writer {
         this.endpoints = endpoints;
     }
 
-    void put(ItemPutRequest itemPutRequest) {
+    void put(ItemPutRequest request) {
         for (String endpoint : endpoints.split(",")) {
             try {
-                put(endpoint, itemPutRequest);
+                put(endpoint, request);
                 return;
             } catch (Exception e) {
                 log.trace(e.getMessage());
@@ -65,5 +67,40 @@ public class Writer {
             return;
 
         throw new RuntimeException("Unable to write to endpoint '%s'. Http status: %s, error: %s.".formatted(endpoint, response.getHttpStatusCode(), response.getErrorMessage()));
+    }
+
+    void delete(ItemDeleteRequest request) {
+        for (String endpoint : endpoints.split(",")) {
+            try {
+                delete(endpoint, request);
+                return;
+            } catch (Exception e) {
+                log.trace(e.getMessage());
+            }
+        }
+
+        throw new RuntimeException("Unable to write to any endpoint.");
+    }
+
+    private void delete(String endpoint, ItemDeleteRequest request) {
+        ItemDeleteResponse response = RestClient.builder()
+                .build()
+                .post()
+                .uri("http://%s/api/items/delete/".formatted(endpoint))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .toEntity(ItemDeleteResponse.class)
+                .getBody();
+
+        if (response.getHttpStatusCode() == HttpStatus.MOVED_PERMANENTLY.value()) {
+            delete(response.getLeaderEndpoint(), request);
+            return;
+        }
+
+        if (response.getHttpStatusCode() == HttpStatus.OK.value())
+            return;
+
+        throw new RuntimeException("Unable to issue delete to endpoint '%s'. Http status: %s, error: %s.".formatted(endpoint, response.getHttpStatusCode(), response.getErrorMessage()));
     }
 }

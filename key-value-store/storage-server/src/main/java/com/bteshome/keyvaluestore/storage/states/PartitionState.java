@@ -1,9 +1,6 @@
 package com.bteshome.keyvaluestore.storage.states;
 
-import com.bteshome.keyvaluestore.client.responses.ItemCountAndOffsetsResponse;
-import com.bteshome.keyvaluestore.client.responses.ItemGetResponse;
-import com.bteshome.keyvaluestore.client.responses.ItemListResponse;
-import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
+import com.bteshome.keyvaluestore.client.responses.*;
 import com.bteshome.keyvaluestore.common.*;
 import com.bteshome.keyvaluestore.common.entities.Item;
 import com.bteshome.keyvaluestore.common.entities.Replica;
@@ -17,6 +14,7 @@ import com.bteshome.keyvaluestore.storage.requests.WALGetReplicaEndOffsetRequest
 import com.bteshome.keyvaluestore.storage.responses.WALFetchPayloadType;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
 import com.bteshome.keyvaluestore.storage.responses.WALGetReplicaEndOffsetResponse;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.util.AutoCloseableLock;
 import org.springframework.http.HttpStatus;
@@ -27,9 +25,9 @@ import org.springframework.web.client.RestClient;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -39,8 +37,11 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class PartitionState implements AutoCloseable {
     private final String table;
     private final int partition;
+    private final Duration timeToLive;
     private final String nodeId;
-    private final ConcurrentHashMap<String, String> data;
+    private final ConcurrentHashMap<ItemKey, String> data;
+    @Getter
+    private final PriorityQueue<ItemKey> dataExpiryTimes;
     private final WAL wal;
     private final OffsetState offsetState;
     private final ReentrantReadWriteLock dataLock;
@@ -55,10 +56,12 @@ public class PartitionState implements AutoCloseable {
                           ISRSynchronizer isrSynchronizer) {
         this.table = table;
         this.partition = partition;
+        this.timeToLive = MetadataCache.getInstance().getTableTimeToLive(table, partition);
         this.nodeId = storageSettings.getNode().getId();
         dataLock = new ReentrantReadWriteLock(true);
         operationLock = new ReentrantReadWriteLock(true);
         data = new ConcurrentHashMap<>();
+        dataExpiryTimes = new PriorityQueue<>(Comparator.comparing(ItemKey::expiryTime));
         this.storageSettings = storageSettings;
         this.isrSynchronizer = isrSynchronizer;
         createPartitionDirectoryIfNotExists();
@@ -80,6 +83,25 @@ public class PartitionState implements AutoCloseable {
         }
     }
 
+    public void expireItems() {
+        List<ItemKey> itemsToRemove = new ArrayList<>();
+
+        try (AutoCloseableLock l = writeDataLock()) {
+            Instant now = Instant.now();
+            while (!dataExpiryTimes.isEmpty() &&
+                    (dataExpiryTimes.peek().expiryTime().isBefore(now) ||
+                            dataExpiryTimes.peek().expiryTime().equals(now))) {
+                ItemKey itemKey = dataExpiryTimes.poll();
+                itemsToRemove.add(itemKey);
+            }
+        }
+
+        if (!itemsToRemove.isEmpty()) {
+            log.debug("Expiring '{}' items.", itemsToRemove.size());
+            deleteItemsByItemKey(itemsToRemove);
+        }
+    }
+
     public ResponseEntity<ItemPutResponse> putItems(List<Item> items) {
         if (!nodeId.equals(MetadataCache.getInstance().getLeaderNodeId(table, partition))) {
             String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
@@ -94,9 +116,10 @@ public class PartitionState implements AutoCloseable {
         try (AutoCloseableLock l = writeOperationLock()) {
             int leaderTerm = MetadataCache.getInstance().getLeaderTerm(table, partition);
             LogPosition offset;
+            Instant expiryTime = (timeToLive == null || timeToLive.equals(Duration.ZERO)) ? null : Instant.now().plus(timeToLive);
 
             try (AutoCloseableLock l2 = writeDataLock()) {
-                long index = wal.appendItems(leaderTerm, "PUT", items);
+                long index = wal.appendPutOperation(leaderTerm, items, expiryTime);
                 offset = LogPosition.of(leaderTerm, index);
                 offsetState.setEndOffset(offset);
             } catch (Exception e) {
@@ -106,13 +129,13 @@ public class PartitionState implements AutoCloseable {
                         .build());
             }
 
-            long timeoutMs = (Long) MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_LAG_THRESHOLD_TIME_MS_KEY);
+            long timeoutMs = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_LAG_THRESHOLD_TIME_MS_KEY);
             long timeoutNanos = TimeUnit.MILLISECONDS.toNanos(timeoutMs);
             long start = System.nanoTime();
             log.debug("Waiting for sufficient replicas to acknowledge the log entry at offset {}.", offset);
-            Set<String> currentISRNodeIds = null;
-            Set<Replica> newISRs = null;
-            Set<Replica> laggingCurrentISRs = null;
+            Set<String> currentISRNodeIds = Set.of();
+            Set<Replica> newISRs = Set.of();
+            Set<Replica> laggingCurrentISRs = Set.of();
 
             while (System.nanoTime() - start < timeoutNanos) {
                 Tuple4<Boolean, Set<String>, Set<Replica>, Set<Replica>> acknowledgementCheckResult = isFullyAcknowledged(offset);
@@ -124,8 +147,12 @@ public class PartitionState implements AutoCloseable {
                 if (canBeCommitted) {
                     try (AutoCloseableLock l2 = writeDataLock()) {
                         offsetState.setCommittedOffset(offset);
-                        for (Item item : items)
-                            data.put(item.getKey(), item.getValue());
+                        for (Item item : items) {
+                            ItemKey itemKey = ItemKey.of(item.getKey(), expiryTime);
+                            data.put(itemKey, item.getValue());
+                            if (expiryTime != null)
+                                dataExpiryTimes.offer(itemKey);
+                        }
                     } catch (StorageServerException e) {
                         return ResponseEntity.ok(ItemPutResponse.builder()
                                 .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
@@ -133,21 +160,8 @@ public class PartitionState implements AutoCloseable {
                                 .build());
                     }
 
-                    log.debug("Current ISR node ids for table '{}' partition '{}' is: {}.",
-                            table,
-                            partition,
-                            currentISRNodeIds);
-
-                    if (!newISRs.isEmpty()) {
-                        final Set<Replica> newISRsFinal = newISRs;
-                        CompletableFuture.runAsync(() -> isrSynchronizer.addToInSyncReplicaLists(newISRsFinal));
-                        log.debug("Added new ISRs '{}' to table '{}' partition '{}'.",
-                                newISRs,
-                                table,
-                                partition);
-                    }
-
-                    log.debug("Successfully commited PUT '{}' items to table '{}' partition '{}'.", items.size(), table, partition);
+                    sendNewISRsRequest(currentISRNodeIds, newISRs);
+                    log.debug("Successfully committed PUT operation for '{}' items to table '{}' partition '{}'.", items.size(), table, partition);
 
                     return ResponseEntity.ok(ItemPutResponse.builder()
                             .httpStatusCode(HttpStatus.OK.value())
@@ -167,14 +181,7 @@ public class PartitionState implements AutoCloseable {
                 }
             }
 
-            if (!laggingCurrentISRs.isEmpty()) {
-                final Set<Replica> laggingCurrentISRsFinal = laggingCurrentISRs;
-                CompletableFuture.runAsync(() -> isrSynchronizer.removeFromInSyncReplicaLists(laggingCurrentISRsFinal));
-                log.debug("Removed lagging ISRs '{}' from table '{}' partition '{}'.",
-                        laggingCurrentISRs,
-                        table,
-                        partition);
-            }
+            sendLaggingISRsRequest(currentISRNodeIds, laggingCurrentISRs);
 
             String errorMessage = "Request timed out.";
             log.error(errorMessage);
@@ -182,6 +189,130 @@ public class PartitionState implements AutoCloseable {
                     .httpStatusCode(HttpStatus.REQUEST_TIMEOUT.value())
                     .errorMessage(errorMessage)
                     .build());
+        }
+    }
+
+    public ResponseEntity<ItemDeleteResponse> deleteItems(List<String> items) {
+        List<ItemKey> itemKeys = items.stream()
+                .map(item -> ItemKey.of(item, null))
+                .toList();
+        return deleteItemsByItemKey(itemKeys);
+    }
+
+    private ResponseEntity<ItemDeleteResponse> deleteItemsByItemKey(List<ItemKey> items) {
+        if (!nodeId.equals(MetadataCache.getInstance().getLeaderNodeId(table, partition))) {
+            String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
+            return ResponseEntity.ok(ItemDeleteResponse.builder()
+                    .httpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
+                    .leaderEndpoint(leaderEndpoint)
+                    .build());
+        }
+
+        log.debug("Received DELETE request for '{}' items to table '{}' partition '{}'.", items.size(), table, partition);
+
+        try (AutoCloseableLock l = writeOperationLock()) {
+            int leaderTerm = MetadataCache.getInstance().getLeaderTerm(table, partition);
+            LogPosition offset;
+
+            try (AutoCloseableLock l2 = writeDataLock()) {
+                long index = wal.appendDeleteOperation(leaderTerm, items);
+                offset = LogPosition.of(leaderTerm, index);
+                offsetState.setEndOffset(offset);
+            } catch (Exception e) {
+                return ResponseEntity.ok(ItemDeleteResponse.builder()
+                        .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                        .errorMessage(e.getMessage())
+                        .build());
+            }
+
+            long timeoutMs = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_LAG_THRESHOLD_TIME_MS_KEY);
+            long timeoutNanos = TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+            long start = System.nanoTime();
+            log.debug("Waiting for sufficient replicas to acknowledge the log entry at offset {}.", offset);
+            Set<String> currentISRNodeIds = null;
+            Set<Replica> newISRs = Set.of();
+            Set<Replica> laggingCurrentISRs = Set.of();
+
+            while (System.nanoTime() - start < timeoutNanos) {
+                Tuple4<Boolean, Set<String>, Set<Replica>, Set<Replica>> acknowledgementCheckResult = isFullyAcknowledged(offset);
+                boolean canBeCommitted = acknowledgementCheckResult.first();
+                currentISRNodeIds = acknowledgementCheckResult.second();
+                newISRs = acknowledgementCheckResult.third();
+                laggingCurrentISRs = acknowledgementCheckResult.fourth();
+
+                if (canBeCommitted) {
+                    try (AutoCloseableLock l2 = writeDataLock()) {
+                        offsetState.setCommittedOffset(offset);
+                        for (ItemKey itemKey : items) {
+                            data.remove(itemKey);
+                            dataExpiryTimes.remove(itemKey);
+                        }
+                    } catch (StorageServerException e) {
+                        return ResponseEntity.ok(ItemDeleteResponse.builder()
+                                .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                                .errorMessage(e.getMessage())
+                                .build());
+                    }
+
+                    sendNewISRsRequest(currentISRNodeIds, newISRs);
+                    log.debug("Successfully committed DELETE operation for '{}' items to table '{}' partition '{}'.", items.size(), table, partition);
+
+                    return ResponseEntity.ok(ItemDeleteResponse.builder()
+                            .httpStatusCode(HttpStatus.OK.value())
+                            .build());
+                }
+
+                // TODO - this shouldn't be hard coded
+                try {
+                    TimeUnit.MILLISECONDS.sleep(100);
+                } catch (InterruptedException e) {
+                    String errorMessage = "Error waiting for replicas to acknowledge the log entry.";
+                    log.error(errorMessage, e);
+                    return ResponseEntity.ok(ItemDeleteResponse.builder()
+                            .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                            .errorMessage(errorMessage)
+                            .build());
+                }
+            }
+
+            sendLaggingISRsRequest(currentISRNodeIds, laggingCurrentISRs);
+
+            String errorMessage = "Request timed out.";
+            log.error(errorMessage);
+            return ResponseEntity.ok(ItemDeleteResponse.builder()
+                    .httpStatusCode(HttpStatus.REQUEST_TIMEOUT.value())
+                    .errorMessage(errorMessage)
+                    .build());
+        }
+    }
+
+    private void sendNewISRsRequest(Set<String> currentISRNodeIds, final Set<Replica> newISRs) {
+        if (!newISRs.isEmpty()) {
+            log.info("Current ISRs for table '{}' partition '{}' are: {}. News ISRs are {}.",
+                    table,
+                    partition,
+                    currentISRNodeIds,
+                    newISRs.stream().map(Replica::getNodeId));
+
+            CompletableFuture.runAsync(() -> isrSynchronizer.addToInSyncReplicaLists(newISRs));
+            log.debug("Sent new ISRs request for table '{}' partition '{}'.",
+                    table,
+                    partition);
+        }
+    }
+
+    private void sendLaggingISRsRequest(Set<String> currentISRNodeIds, final Set<Replica> laggingCurrentISRs) {
+        if (!laggingCurrentISRs.isEmpty()) {
+            log.info("Current ISRs for table '{}' partition '{}' are: {}. Lagging ISRs are: {}",
+                    table,
+                    partition,
+                    currentISRNodeIds,
+                    laggingCurrentISRs.stream().map(Replica::getNodeId));
+
+            CompletableFuture.runAsync(() -> isrSynchronizer.removeFromInSyncReplicaLists(laggingCurrentISRs));
+            log.debug("Sent lagging ISRs request for table '{}' partition '{}'.",
+                    table,
+                    partition);
         }
     }
 
@@ -208,10 +339,15 @@ public class PartitionState implements AutoCloseable {
                     .build());
         }
 
+        // TODO - 100 shouldn't be hard coded
         try (AutoCloseableLock l = readDataLock()) {
             return ResponseEntity.ok(ItemListResponse.builder()
                     .httpStatusCode(HttpStatus.OK.value())
-                    .items(data.entrySet().stream().limit(Math.min(limit, 100)).toList())
+                    .items(data.entrySet()
+                            .stream()
+                            .map(e -> Map.entry(e.getKey().keyString(), e.getValue()))
+                            .limit(Math.min(limit, 100))
+                            .toList())
                     .build());
         }
     }
@@ -227,9 +363,18 @@ public class PartitionState implements AutoCloseable {
             if (!commitedOffset.equals(currentCommitedOffset)) {
                 List<WALEntry> logEntriesNotAppliedYet = wal.readLogs(currentCommitedOffset, commitedOffset);
                 for (WALEntry walEntry : logEntriesNotAppliedYet) {
+                    ItemKey itemKey = ItemKey.of(walEntry.key(), walEntry.expiryTime());
                     switch (walEntry.operation()) {
-                        case "PUT" -> data.put(walEntry.key(), walEntry.value());
-                        case "DELETE" -> data.remove(walEntry.key());
+                        case OperationType.PUT -> {
+                            data.put(itemKey, walEntry.value());
+                            if (walEntry.expiryTime() != null)
+                                dataExpiryTimes.offer(itemKey);
+                        }
+                        case OperationType.DELETE -> {
+                            data.remove(itemKey);
+                            if (walEntry.expiryTime() != null)
+                                dataExpiryTimes.remove(itemKey);
+                        }
                     }
                 }
                 offsetState.setCommittedOffset(commitedOffset);
@@ -241,7 +386,12 @@ public class PartitionState implements AutoCloseable {
         try (AutoCloseableLock l = writeDataLock()) {
             offsetState.setEndOffset(dataSnapshot.getLastCommittedOffset());
             offsetState.setCommittedOffset(dataSnapshot.getLastCommittedOffset());
-            data.putAll(dataSnapshot.getData());
+
+            for (Map.Entry<ItemKey, String> entry : dataSnapshot.getData().entrySet()) {
+                data.put(entry.getKey(), entry.getValue());
+                if (entry.getKey().expiryTime() != null)
+                    dataExpiryTimes.offer(entry.getKey());
+            }
         }
     }
 
@@ -383,9 +533,19 @@ public class PartitionState implements AutoCloseable {
                     offsetState.setCommittedOffset(earliestISREndOffset);
                     List<WALEntry> walEntries = wal.readLogs(thisReplicaCommittedOffset, earliestISREndOffset);
                     for (WALEntry walEntry : walEntries) {
+                        ItemKey itemKey = ItemKey.of(walEntry.key(), walEntry.expiryTime());
+
                         switch (walEntry.operation()) {
-                            case "PUT" -> data.put(walEntry.key(), walEntry.value());
-                            case "DELETE" -> data.remove(walEntry.key());
+                            case OperationType.PUT -> {
+                                data.put(itemKey, walEntry.value());
+                                if (walEntry.expiryTime() != null)
+                                    dataExpiryTimes.offer(itemKey);
+                            }
+                            case OperationType.DELETE -> {
+                                data.remove(itemKey);
+                                if (walEntry.expiryTime() != null)
+                                    dataExpiryTimes.remove(itemKey);
+                            }
                         }
                     }
                 }
@@ -529,7 +689,11 @@ public class PartitionState implements AutoCloseable {
             if (Files.exists(Path.of(dataSnapshotFile))) {
                 DataSnapshot dataSnapshot = readDataSnapshot();
                 if (dataSnapshot != null) {
-                    data.putAll(dataSnapshot.getData());
+                    for (Map.Entry<ItemKey, String> entry : dataSnapshot.getData().entrySet()) {
+                        data.put(entry.getKey(), entry.getValue());
+                        if (entry.getKey().expiryTime() != null)
+                            dataExpiryTimes.offer(entry.getKey());
+                    }
                     log.debug("Loaded '{}' data items from a snapshot at offset '{}' for table '{}' partition '{}' .",
                             dataSnapshot.getData().size(),
                             dataSnapshot.getLastCommittedOffset(),
@@ -540,9 +704,18 @@ public class PartitionState implements AutoCloseable {
 
             List<WALEntry> logEntriesFromFile = wal.loadFromFile();
             for (WALEntry walEntry : logEntriesFromFile) {
+                ItemKey itemKey = ItemKey.of(walEntry.key(), walEntry.expiryTime());
                 switch (walEntry.operation()) {
-                    case "PUT" -> data.put(walEntry.key(), walEntry.value());
-                    case "DELETE" -> data.remove(walEntry.key());
+                    case OperationType.PUT -> {
+                        data.put(itemKey, walEntry.value());
+                        if (walEntry.expiryTime() != null)
+                            dataExpiryTimes.offer(itemKey);
+                    }
+                    case OperationType.DELETE -> {
+                        data.remove(itemKey);
+                        if (walEntry.expiryTime() != null)
+                            dataExpiryTimes.remove(itemKey);
+                    }
                 }
             }
 

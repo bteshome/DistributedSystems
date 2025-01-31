@@ -12,6 +12,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -157,22 +158,43 @@ public class WAL implements AutoCloseable {
         }
     }
 
-    public long appendItems(int leaderTerm, String operation, List<Item> items) {
+    public long appendPutOperation(int leaderTerm, List<Item> items, Instant expiryTime) {
         if (items.isEmpty())
             return endIndex;
 
         try (AutoCloseableLock l = writeLock()) {
             for (Item item : items) {
                 incrementIndex(leaderTerm);
-                String logEntry = new WALEntry(leaderTerm, endIndex, operation, item.getKey(), item.getValue()).toString();
+                String logEntry = new WALEntry(leaderTerm, endIndex, OperationType.PUT, item.getKey(), item.getValue(), expiryTime).toString();
                 writer.write(logEntry);
                 writer.newLine();
             }
             writer.flush();
-            log.trace("Operation '{}' for '{}' items appended to WAL for table '{}' partition '{}'.", operation, items.size(), tableName, partition);
+            log.trace("Appended PUT operation for '{}' items to WAL for table '{}' partition '{}'.", items.size(), tableName, partition);
             return endIndex;
         } catch (IOException e) {
-            String errorMessage = "Error appending items to WAL for table '%s' partition '%s'.".formatted(tableName, partition);
+            String errorMessage = "Error appending PUT operation to WAL for table '%s' partition '%s'.".formatted(tableName, partition);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }
+
+    public long appendDeleteOperation(int leaderTerm, List<ItemKey> items) {
+        if (items.isEmpty())
+            return endIndex;
+
+        try (AutoCloseableLock l = writeLock()) {
+            for (ItemKey itemKey : items) {
+                incrementIndex(leaderTerm);
+                String logEntry = new WALEntry(leaderTerm, endIndex, OperationType.DELETE, itemKey.keyString(), null, null).toString();
+                writer.write(logEntry);
+                writer.newLine();
+            }
+            writer.flush();
+            log.trace("Appended DELETE operation for '{}' items to WAL for table '{}' partition '{}'.", items.size(), tableName, partition);
+            return endIndex;
+        } catch (IOException e) {
+            String errorMessage = "Error appending DELETE operation to WAL for table '%s' partition '%s'.".formatted(tableName, partition);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
         }

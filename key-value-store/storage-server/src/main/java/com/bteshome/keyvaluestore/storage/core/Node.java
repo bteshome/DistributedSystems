@@ -23,24 +23,20 @@ import java.nio.charset.StandardCharsets;
 public class Node implements CommandLineRunner {
     @Autowired
     MetadataClientBuilder metadataClientBuilder;
-
     @Autowired
     StorageSettings storageSettings;
-
     @Autowired
     HeartbeatSender heartbeatSender;
-
     @Autowired
     StorageNodeMetadataRefresher storageNodeMetadataRefresher;
-
     @Autowired
     ReplicaMonitor replicaMonitor;
-
     @Autowired
     WALFetcher walFetcher;
-
     @Autowired
     State state;
+    @Autowired
+    ExpirationMonitor expirationMonitor;
 
     @Override
     public void run(String... args) throws IOException {
@@ -65,7 +61,9 @@ public class Node implements CommandLineRunner {
                     heartbeatSender.schedule();
                     replicaMonitor.schedule();
                     walFetcher.schedule();
+                    expirationMonitor.schedule();
                     MetadataCache.getInstance().setReady(true);
+                    log.info("Ready to serve requests.");
                 } else {
                     log.error(response.getMessage());
                 }

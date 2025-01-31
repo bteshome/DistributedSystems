@@ -8,6 +8,7 @@ import lombok.Setter;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -20,6 +21,7 @@ public class Table implements Serializable {
     private int replicationFactor;
     private int minInSyncReplicas;
     private Map<Integer, Partition> partitions = new HashMap<>();
+    private Duration timeToLive = Duration.ZERO;
     @Serial
     private static final long serialVersionUID = 1L;
 
@@ -28,9 +30,9 @@ public class Table implements Serializable {
         table.setName(request.getTableName());
         table.setReplicationFactor(request.getReplicationFactor());
         table.setMinInSyncReplicas(request.getMinInSyncReplicas());
-        for (int partitionId = 1; partitionId <= request.getNumPartitions(); partitionId++) {
+        table.setTimeToLive(request.getTimeToLive());
+        for (int partitionId = 1; partitionId <= request.getNumPartitions(); partitionId++)
             table.getPartitions().put(partitionId, new Partition(table.getName(), partitionId));
-        }
         return table;
     }
 
@@ -43,6 +45,7 @@ public class Table implements Serializable {
         table.setName(this.getName());
         table.setReplicationFactor(this.getReplicationFactor());
         table.setMinInSyncReplicas(this.getMinInSyncReplicas());
+        table.setTimeToLive(this.getTimeToLive());
         for (Map.Entry<Integer, Partition> entry : this.getPartitions().entrySet())
             table.getPartitions().put(entry.getKey(), entry.getValue().copy());
         return table;

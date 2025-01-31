@@ -44,6 +44,7 @@
                         <th>Name</th>
                         <th>Replication Factor</th>
                         <th>Min In Sync Replicas</th>
+                        <th>Time to Live</th>
                         <th>Partitions</th>
                         <th>Offline Partitions</th>
                     </tr>
@@ -53,6 +54,7 @@
                         <td th:text="${table.name}"></td>
                         <td th:text="${table.replicationFactor}"></td>
                         <td th:text="${table.minInSyncReplicas}"></td>
+                        <td th:text="${table.timeToLive}"></td>
                         <td th:text="${table.partitions.size}"></td>
                         <td th:text="${table.numOfflinePartitions}" th:classappend="${table.numOfflinePartitions == 0 ? 'healthy' : 'unhealthy'}"></td>
                     </tr>
