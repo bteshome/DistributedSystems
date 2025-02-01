@@ -32,11 +32,11 @@
             <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}"></div>
 
             <form class="row g-3" method="post" th:action="@{/items/get/}" th:object="${request}">
-                <div class="col-md-6">
+                <div class="col-md-12">
                     <label for="table" class="form-label">Table name</label>
                     <input type="text" class="form-control form-control-sm" id="table" th:field="*{table}">
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-12">
                     <label for="key" class="form-label">Key</label>
                     <input type="text" class="form-control form-control-sm" id="key" th:field="*{key}">
                 </div>

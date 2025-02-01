@@ -34,11 +34,11 @@
             <div class="alert alert-success" role="alert" th:if="${info}" th:text="${info}"></div>
 
             <form class="row g-3" method="post" th:action="@{/items/list/}" th:object="${listRequest}" th:if="${listRequest}">
-                <div class="col-md-6">
+                <div class="col-md-12">
                     <label for="table" class="form-label">Table name</label>
                     <input type="text" class="form-control form-control-sm" id="table" th:field="*{table}">
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-12">
                     <label for="limit" class="form-label">Limit</label>
                     <input type="text" class="form-control form-control-sm" id="limit" th:field="*{limit}">
                 </div>

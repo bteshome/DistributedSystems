@@ -8,3 +8,12 @@
   });*/
   feather.replace();
 })()
+
+function toggleTTL() {
+  let timeToLiveContainer = document.getElementById("timeToLiveContainer");
+  if (timeToLiveContainer.style.display === "none") {
+      timeToLiveContainer.style.display = "block";
+  } else {
+      timeToLiveContainer.style.display = "none";
+  }
+}

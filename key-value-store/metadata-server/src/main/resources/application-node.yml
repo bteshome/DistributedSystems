@@ -20,7 +20,7 @@ metadata:
     - id: ${metadata.node.id}
       host: ${metadata.node.host}
       port: ${metadata.node.port}
-  storage-dir: /tmp/raft-server-1
+  storage-dir: /tmp/raft-server-0
 
 info:
   app:

@@ -32,16 +32,16 @@
             <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}"></div>
 
             <form class="row g-3" method="post" th:action="@{/items/put-bulk/}" th:object="${request}">
-                <div class="mb-3">
+                <div class="col-md-12">
                     <label for="table" class="form-label">Table name</label>
                     <input type="text" class="form-control" id="table" th:field="*{table}">
                 </div>
-                <div class="mb-3">
+                <div class="col-md-12">
                     <label for="numItems" class="form-label">Number Items</label>
                     <input type="text" class="form-control" id="numItems" th:field="*{numItems}">
                 </div>
                 <div class="col-auto">
-                    <button type="submit" class="btn btn-primary mb-3">Put In Batch</button>
+                    <button type="submit" class="btn btn-primary mb-3">Put in Bulk</button>
                 </div>
             </form>
         </main>

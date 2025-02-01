@@ -30,8 +30,6 @@ public class TableService {
     MetadataClientBuilder metadataClientBuilder;
 
     public void createTable(TableCreateRequest request) {
-        request.validate(MetadataCache.getInstance().getConfigurations());
-
         try (RaftClient client = this.metadataClientBuilder.createRaftClient()) {
             final RaftClientReply reply = client.io().send(request);
             if (reply.isSuccess()) {

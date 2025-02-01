@@ -32,15 +32,15 @@
             <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}"></div>
 
             <form class="row g-3" method="post" th:action="@{/items/put/}" th:object="${request}">
-                <div class="mb-3">
+                <div class="col-md-6">
                     <label for="table" class="form-label">Table name</label>
                     <input type="text" class="form-control" id="table" th:field="*{table}">
                 </div>
-                <div class="mb-3">
+                <div class="col-md-6">
                     <label for="key" class="form-label">Key</label>
                     <input type="text" class="form-control" id="key" th:field="*{key}">
                 </div>
-                <div class="mb-3">
+                <div class="col-md-12">
                     <label for="value" class="form-label">Value</label>
                     <textarea class="form-control" id="value" th:field="*{value}" rows="10"></textarea>
                 </div>

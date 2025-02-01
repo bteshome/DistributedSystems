@@ -83,14 +83,14 @@ public class PartitionState implements AutoCloseable {
         }
     }
 
-    public void expireItems() {
+    public void deleteExpiredItems() {
         List<ItemKey> itemsToRemove = new ArrayList<>();
 
         try (AutoCloseableLock l = writeDataLock()) {
             Instant now = Instant.now();
             while (!dataExpiryTimes.isEmpty() &&
-                    (dataExpiryTimes.peek().expiryTime().isBefore(now) ||
-                            dataExpiryTimes.peek().expiryTime().equals(now))) {
+                   (dataExpiryTimes.peek().expiryTime().isBefore(now) ||
+                    dataExpiryTimes.peek().expiryTime().equals(now))) {
                 ItemKey itemKey = dataExpiryTimes.poll();
                 itemsToRemove.add(itemKey);
             }

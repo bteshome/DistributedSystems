@@ -54,7 +54,7 @@ public class ExpirationMonitor {
                 if (partitionState == null)
                     continue;
 
-                partitionState.expireItems();
+                partitionState.deleteExpiredItems();
             }
         } catch (Exception e) {
             log.error("Error checking item expiration.", e);

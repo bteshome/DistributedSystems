@@ -1,5 +1,6 @@
 package com.bteshome.keyvaluestore.admindashboard.controller;
 
+import com.bteshome.keyvaluestore.admindashboard.dto.TableCreateDto;
 import com.bteshome.keyvaluestore.admindashboard.service.TableService;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.entities.Table;
@@ -25,25 +26,34 @@ public class TableController {
 
     @GetMapping("/create/")
     public String create(Model model) {
-        TableCreateRequest table = new TableCreateRequest();
-        table.setTableName("table1");
-        table.setNumPartitions(1);
-        table.setReplicationFactor(1);
-        table.setMinInSyncReplicas(1);
-        table.setTimeToLive(Duration.ofMinutes(5L));
-        model.addAttribute("table", table);
+        TableCreateDto tableCreateDto = new TableCreateDto();
+        tableCreateDto.setTableName("table1");
+        tableCreateDto.setNumPartitions(1);
+        tableCreateDto.setReplicationFactor(1);
+        tableCreateDto.setMinInSyncReplicas(1);
+        tableCreateDto.setTimeToLiveEnabled(false);
+        tableCreateDto.setTimeToLive(Duration.ofMinutes(5L));
+        model.addAttribute("table", tableCreateDto);
         model.addAttribute("page", "tables");
         return "tables-create.html";
     }
 
     @PostMapping("/create/")
-    public String create(@ModelAttribute("table") @RequestBody TableCreateRequest table, Model model) {
+    public String create(@ModelAttribute("table") @RequestBody TableCreateDto tableCreateDto, Model model) {
         try {
-            table.validate(MetadataCache.getInstance().getConfigurations());
+            tableCreateDto.validate(MetadataCache.getInstance().getConfigurations());
+            TableCreateRequest table = new TableCreateRequest();
+            table.setTableName(tableCreateDto.getTableName());
+            table.setNumPartitions(tableCreateDto.getNumPartitions());
+            table.setReplicationFactor(tableCreateDto.getReplicationFactor());
+            table.setMinInSyncReplicas(tableCreateDto.getMinInSyncReplicas());
+            if (tableCreateDto.isTimeToLiveEnabled())
+                table.setTimeToLive(tableCreateDto.getTimeToLive());
+
             tableService.createTable(table);
             return "redirect:/tables/";
         } catch (Exception e) {
-            model.addAttribute("table", table);
+            model.addAttribute("table", tableCreateDto);
             model.addAttribute("error", e.getMessage());
             model.addAttribute("page", "tables");
             return "tables-create.html";

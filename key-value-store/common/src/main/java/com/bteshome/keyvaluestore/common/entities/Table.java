@@ -21,7 +21,7 @@ public class Table implements Serializable {
     private int replicationFactor;
     private int minInSyncReplicas;
     private Map<Integer, Partition> partitions = new HashMap<>();
-    private Duration timeToLive = Duration.ZERO;
+    private Duration timeToLive;
     @Serial
     private static final long serialVersionUID = 1L;
 
