@@ -71,7 +71,7 @@ public class Writer {
             response = delete(response.getLeaderEndpoint(), itemDeleteRequest);
         }
 
-        if (response.getHttpStatusCode() != HttpStatus.OK.value()) {
+        if (response.getHttpStatusCode() != HttpStatus.ACCEPTED.value()) {
             throw new RuntimeException("Unable to delete at endpoint %s. Http status: %s, error: %s.".formatted(
                     endpoint,
                     response.getHttpStatusCode(),

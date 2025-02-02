@@ -41,6 +41,8 @@ public class State implements ApplicationListener<ContextClosedEvent> {
     private ScheduledExecutorService walFlushingExecutor;
     private ExecutorService walFlushingWorker;
     private ScheduledExecutorService dataExpirationScheduler;
+    private ScheduledExecutorService endOffsetSnapshotsScheduler;
+
     @Autowired
     private StorageSettings storageSettings;
     @Autowired
@@ -58,9 +60,10 @@ public class State implements ApplicationListener<ContextClosedEvent> {
         try (AutoCloseableLock l = writeLock()) {
             createStorageDirectoryIfNotExists();
             loadFromSnapshotsAndWALFiles();
-            scheduleSnapshots();
+            scheduleDataSnapshots();
             scheduleWALFlushing();
             scheduleDataExpirationMonitor();
+            scheduleEndOffsetSnapshots();
         }
     }
 
@@ -81,6 +84,8 @@ public class State implements ApplicationListener<ContextClosedEvent> {
                     walFlushingWorker.close();
                 if (dataExpirationScheduler != null)
                     dataExpirationScheduler.close();
+                if (endOffsetSnapshotsScheduler != null)
+                    endOffsetSnapshotsScheduler.close();
                 closed = true;
             } catch (Exception e) {
                 log.error("Error closing state.", e);
@@ -202,14 +207,25 @@ public class State implements ApplicationListener<ContextClosedEvent> {
         }
     }
 
-    private void scheduleSnapshots() {
+    private void scheduleDataSnapshots() {
         try {
-            long interval = (Long) MetadataCache.getInstance().getConfiguration(ConfigKeys.SNAPSHOT_INTERVAL_MS_KEY);
+            long interval = (Long) MetadataCache.getInstance().getConfiguration(ConfigKeys.DATA_SNAPSHOT_INTERVAL_MS_KEY);
             snapshotsScheduler = Executors.newSingleThreadScheduledExecutor();
-            snapshotsScheduler.scheduleAtFixedRate(this::takeSnapshot, interval, interval, TimeUnit.MILLISECONDS);
+            snapshotsScheduler.scheduleAtFixedRate(this::takeDataSnapshots, interval, interval, TimeUnit.MILLISECONDS);
             log.info("Scheduled data snapshots. The interval is {} ms.", interval);
         } catch (Exception e) {
             log.error("Error scheduling data snapshots.", e);
+        }
+    }
+
+    private void scheduleEndOffsetSnapshots() {
+        try {
+            long interval = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.END_OFFSET_SNAPSHOT_INTERVAL_MS_KEY);
+            endOffsetSnapshotsScheduler = Executors.newSingleThreadScheduledExecutor();
+            dataExpirationScheduler.scheduleAtFixedRate(this::takeEndOffsetSnapshots, interval, interval, TimeUnit.MILLISECONDS);
+            log.info("Scheduled end offset snapshots. The interval is {} ms.", interval);
+        } catch (Exception e) {
+            log.error("Error scheduling end offset snapshots.", e);
         }
     }
 
@@ -237,8 +253,8 @@ public class State implements ApplicationListener<ContextClosedEvent> {
         }
     }
 
-    private void takeSnapshot() {
-        log.info("Taking snapshots of data.");
+    private void takeDataSnapshots() {
+        log.debug("Taking snapshots of data.");
         long start = System.nanoTime();
 
         try {
@@ -248,8 +264,19 @@ public class State implements ApplicationListener<ContextClosedEvent> {
             }
         } finally {
             long end = System.nanoTime();
-            log.info("Finished taking snapshots of data. Took {} ms.", (end - start) / 1000000);
+            log.debug("Finished taking snapshots of data. Took {} ms.", (end - start) / 1000000);
         }
+    }
+
+    private void takeEndOffsetSnapshots() {
+        log.debug("Taking snapshots of end offsets.");
+
+        for (Map<Integer, PartitionState> tableState : partitionStates.values()) {
+            for (PartitionState partitionState : tableState.values())
+                partitionState.getOffsetState().takeEndOffsetSnapshot();
+        }
+
+        log.debug("Finished taking snapshots of end offsets.");
     }
 
     private void flushWAL() {

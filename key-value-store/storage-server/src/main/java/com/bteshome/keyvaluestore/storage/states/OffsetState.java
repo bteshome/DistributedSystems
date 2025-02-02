@@ -20,7 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @Slf4j
-public class OffsetState {
+public class OffsetState implements AutoCloseable {
     private final String table;
     private final int partition;
     private final String nodeId;
@@ -74,15 +74,19 @@ public class OffsetState {
     }
 
     public void setEndOffset(LogPosition offset) {
+        replicaEndOffsets.put(nodeId, offset);
+    }
+
+    public void takeEndOffsetSnapshot() {
+        LogPosition endOffset = getEndOffset();
+
         try {
-            replicaEndOffsets.put(nodeId, offset);
-            CompressionUtil.compressAndWrite(endOffsetSnapshotFile, offset);
+            CompressionUtil.compressAndWrite(endOffsetSnapshotFile, endOffset);
             ChecksumUtil.generateAndWrite(endOffsetSnapshotFile);
-            log.trace("Persisted end offset '{}' for table '{}' partition '{}'.", offset, table, partition);
+            log.trace("Persisted end offset '{}' for table '{}' partition '{}'.", endOffset, table, partition);
         } catch (Exception e) {
-            String errorMessage = "Error writing end offset for table '%s' partition '%s'.".formatted(table, partition);
+            String errorMessage = "Error writing end offset '%s' for table '%s' partition '%s'.".formatted(endOffset, table, partition);
             log.error(errorMessage, e);
-            throw new StorageServerException(errorMessage, e);
         }
     }
 
@@ -139,6 +143,11 @@ public class OffsetState {
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
         }
+    }
+
+    @Override
+    public void close() {
+        takeEndOffsetSnapshot();
     }
 
     private void loadEndOffsetFromSnapshot() {

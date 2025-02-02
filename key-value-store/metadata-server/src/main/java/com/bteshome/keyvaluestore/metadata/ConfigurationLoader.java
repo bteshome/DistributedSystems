@@ -20,8 +20,10 @@ public class ConfigurationLoader {
                 Validator.setDefault(metadataSettings.getStorageNodeHeartbeatSendIntervalMs(), 15000L));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.STORAGE_NODE_METADATA_REFRESH_INTERVAL_MS_KEY,
                 Validator.setDefault(metadataSettings.getStorageNodeMetadataRefreshIntervalMs(), 30000L));
+        state.get(EntityType.CONFIGURATION).put(ConfigKeys.WAL_FLUSH_INTERVAL_MS_KEY,
+                Validator.setDefault(metadataSettings.getWalFlushIntervalMs(), 200L));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.REPLICA_MONITOR_INTERVAL_MS_KEY,
-                Validator.setDefault(metadataSettings.getReplicaMonitorIntervalMs(), 10000L));
+                Validator.setDefault(metadataSettings.getReplicaMonitorIntervalMs(), 500L));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.REPLICA_LAG_THRESHOLD_RECORDS_KEY,
                 Validator.setDefault(metadataSettings.getReplicaLagThresholdRecords(), 4000L));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.REPLICA_LAG_THRESHOLD_TIME_MS_KEY,
@@ -29,9 +31,11 @@ public class ConfigurationLoader {
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.REPLICA_FETCH_INTERVAL_MS_KEY,
                 Validator.setDefault(metadataSettings.getReplicaFetchIntervalMs(), 500L));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.REPLICA_FETCH_MAX_NUM_RECORDS_KEY,
-                Validator.setDefault(metadataSettings.getReplicaFetchMaxNumRecords(), 1000));
-        state.get(EntityType.CONFIGURATION).put(ConfigKeys.SNAPSHOT_INTERVAL_MS_KEY,
-                Validator.setDefault(metadataSettings.getSnapshotIntervalMs(), 60000L));
+                Validator.setDefault(metadataSettings.getReplicaFetchMaxNumRecords(), 10000));
+        state.get(EntityType.CONFIGURATION).put(ConfigKeys.DATA_SNAPSHOT_INTERVAL_MS_KEY,
+                Validator.setDefault(metadataSettings.getDataSnapshotIntervalMs(), 300000L));
+        state.get(EntityType.CONFIGURATION).put(ConfigKeys.END_OFFSET_SNAPSHOT_INTERVAL_MS_KEY,
+                Validator.setDefault(metadataSettings.getEndOffsetSnapshotIntervalMs(), 10000L));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.NUM_PARTITIONS_DEFAULT_KEY,
                 Validator.setDefault(metadataSettings.getNumPartitionsDefault(), 1));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.NUM_PARTITIONS_MAX_KEY,

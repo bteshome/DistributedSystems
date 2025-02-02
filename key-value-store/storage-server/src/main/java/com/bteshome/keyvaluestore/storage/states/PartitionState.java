@@ -155,7 +155,7 @@ public class PartitionState implements AutoCloseable {
             }
 
             if (!committed) {
-                String errorMessage = "PUT operation for '{}' items to table '{}' partition '{}' was not committed was in the expected time.".formatted(
+                String errorMessage = "PUT operation for '{}' items to table '{}' partition '{}' was not committed in the expected time.".formatted(
                         items.size(),
                         table,
                         partition);
@@ -207,40 +207,43 @@ public class PartitionState implements AutoCloseable {
         long start = System.nanoTime();
         log.debug("Waiting for sufficient replicas to acknowledge the log entry at offset {}.", offset);
 
-        while (System.nanoTime() - start < timeoutNanos) {
-            if (offsetState.getCommittedOffset().isGreaterThanOrEquals(offset)) {
-                try (AutoCloseableLock l2 = writeDataLock()) {
-                    for (ItemKey itemKey : items) {
-                        data.remove(itemKey);
-                        dataExpiryTimes.remove(itemKey);
+        CompletableFuture.runAsync(() -> {
+            boolean committed = false;
+
+            while (System.nanoTime() - start < timeoutNanos) {
+                if (offsetState.getCommittedOffset().isGreaterThanOrEquals(offset)) {
+                    try (AutoCloseableLock l2 = writeDataLock()) {
+                        for (ItemKey itemKey : items) {
+                            data.remove(itemKey);
+                            dataExpiryTimes.remove(itemKey);
+                        }
                     }
+
+                    log.debug("Successfully committed DELETE operation for '{}' items to table '{}' partition '{}'.", items.size(), table, partition);
+                    committed = true;
+                    break;
                 }
 
-                log.debug("Successfully committed DELETE operation for '{}' items to table '{}' partition '{}'.", items.size(), table, partition);
-
-                return ResponseEntity.ok(ItemDeleteResponse.builder()
-                        .httpStatusCode(HttpStatus.OK.value())
-                        .build());
+                // TODO - this shouldn't be hard coded
+                try {
+                    TimeUnit.MILLISECONDS.sleep(100);
+                } catch (InterruptedException e) {
+                    String errorMessage = "Error waiting for replicas to acknowledge the log entry.";
+                    log.error(errorMessage, e);
+                }
             }
 
-            // TODO - this shouldn't be hard coded
-            try {
-                TimeUnit.MILLISECONDS.sleep(100);
-            } catch (InterruptedException e) {
-                String errorMessage = "Error waiting for replicas to acknowledge the log entry.";
-                log.error(errorMessage, e);
-                return ResponseEntity.ok(ItemDeleteResponse.builder()
-                        .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                        .errorMessage(errorMessage)
-                        .build());
+            if (!committed) {
+                String errorMessage = "DELETE operation for '{}' items to table '{}' partition '{}' was not committed in the expected time.".formatted(
+                        items.size(),
+                        table,
+                        partition);
+                log.error(errorMessage);
             }
-        }
+        });
 
-        String errorMessage = "Request timed out.";
-        log.error(errorMessage);
-        return ResponseEntity.ok(ItemDeleteResponse.builder()
-                .httpStatusCode(HttpStatus.REQUEST_TIMEOUT.value())
-                .errorMessage(errorMessage)
+        return ResponseEntity.ok().body(ItemDeleteResponse.builder()
+                .httpStatusCode(HttpStatus.ACCEPTED.value())
                 .build());
     }
 
@@ -491,6 +494,8 @@ public class PartitionState implements AutoCloseable {
         if (wal != null) {
             wal.close();
         }
+        if (offsetState != null)
+            offsetState.close();
     }
 
     public void takeDataSnapshot() {
