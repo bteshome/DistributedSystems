@@ -13,6 +13,10 @@ import org.apache.ratis.util.AutoCloseableLock;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @Slf4j
@@ -20,21 +24,23 @@ public class OffsetState {
     private final String table;
     private final int partition;
     private final String nodeId;
-    private LogPosition endOffset;
+    private final Map<String, LogPosition> replicaEndOffsets;
+    private final ConcurrentHashMap<LogPosition, Long> logTimestamps;
     private LogPosition committedOffset;
     private LogPosition previousLeaderEndOffset;
-    private final ReentrantReadWriteLock lock;
     private final String endOffsetSnapshotFile;
     private final String committedOffsetSnapshotFile;
     private final String previousLeaderEndOffsetFile;
+    private final ReentrantReadWriteLock lock;
 
     public OffsetState(String table, int partition, StorageSettings storageSettings) {
         this.table = table;
         this.partition = partition;
         this.nodeId = storageSettings.getNode().getId();
-        committedOffset = LogPosition.empty();
-        endOffset = LogPosition.empty();
-        previousLeaderEndOffset = LogPosition.empty();
+        committedOffset = LogPosition.ZERO;
+        replicaEndOffsets = new ConcurrentHashMap<>();
+        logTimestamps = new ConcurrentHashMap<>();
+        previousLeaderEndOffset = LogPosition.ZERO;
         lock = new ReentrantReadWriteLock(true);
         endOffsetSnapshotFile = "%s/%s-%s/endOffset.ser".formatted(storageSettings.getNode().getStorageDir(), table, partition);
         committedOffsetSnapshotFile = "%s/%s-%s/committedOffset.ser".formatted(storageSettings.getNode().getStorageDir(), table, partition);
@@ -44,20 +50,36 @@ public class OffsetState {
         loadPreviousLeaderEndOffset();
     }
 
+    public void trimLogTimestamps() {
+        // TODO - should be configurable?
+        long timestampTTL = Duration.ofMinutes(15).toMillis();
+        for (LogPosition offset : logTimestamps.keySet())
+            logTimestamps.compute(offset, (key, value) -> value < System.currentTimeMillis() - timestampTTL ? null : value);
+    }
+
+    public void setLogTimestamp(LogPosition offset, long logTimestamp) {
+        logTimestamps.put(offset, logTimestamp);
+    }
+
+    public long getLogTimestamp(LogPosition offset) {
+        return logTimestamps.get(offset);
+    }
+
     public LogPosition getEndOffset() {
-        try (AutoCloseableLock l = readLock()) {
-            return endOffset;
-        }
+        return replicaEndOffsets.getOrDefault(nodeId, LogPosition.ZERO);
+    }
+
+    public Map<String, LogPosition> getReplicaEndOffsets() {
+        return new HashMap<>(replicaEndOffsets);
     }
 
     public void setEndOffset(LogPosition offset) {
-        BufferedWriter writer = Utils.createWriter(endOffsetSnapshotFile);
-        try (writer; AutoCloseableLock l = writeLock()) {
-            endOffset = offset;
+        try {
+            replicaEndOffsets.put(nodeId, offset);
             CompressionUtil.compressAndWrite(endOffsetSnapshotFile, offset);
             ChecksumUtil.generateAndWrite(endOffsetSnapshotFile);
-            log.trace("Persisted end offset '{}' for table '{}' partition '{}'.", endOffset, table, partition);
-        } catch (IOException e) {
+            log.trace("Persisted end offset '{}' for table '{}' partition '{}'.", offset, table, partition);
+        } catch (Exception e) {
             String errorMessage = "Error writing end offset for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
@@ -71,13 +93,12 @@ public class OffsetState {
     }
 
     public void setCommittedOffset(LogPosition offset) {
-        BufferedWriter writer = Utils.createWriter(committedOffsetSnapshotFile);
-        try (writer; AutoCloseableLock l = writeLock()) {
+        try (AutoCloseableLock l = writeLock()) {
             committedOffset = offset;
             CompressionUtil.compressAndWrite(committedOffsetSnapshotFile, offset);
             ChecksumUtil.generateAndWrite(committedOffsetSnapshotFile);
             log.trace("Persisted committed offset '{}' for table '{}' partition '{}'.", committedOffset, table, partition);
-        } catch (IOException e) {
+        } catch (Exception e) {
             String errorMessage = "Error writing committed offset for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
@@ -93,13 +114,12 @@ public class OffsetState {
     }
 
     public void setPreviousLeaderEndOffset(LogPosition offset) {
-        BufferedWriter writer = Utils.createWriter(previousLeaderEndOffsetFile);
-        try (writer; AutoCloseableLock l = writeLock()) {
+        try (AutoCloseableLock l = writeLock()) {
             previousLeaderEndOffset = offset;
             CompressionUtil.compressAndWrite(previousLeaderEndOffsetFile, offset);
             ChecksumUtil.generateAndWrite(previousLeaderEndOffsetFile);
             log.info("Persisted previous leader end offset '{}' for table '{}' partition '{}'.", previousLeaderEndOffset, table, partition);
-        } catch (IOException e) {
+        } catch (Exception e) {
             String errorMessage = "Error writing previous leader end offset for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
@@ -108,8 +128,8 @@ public class OffsetState {
 
     public void clearPreviousLeaderEndOffset() {
         try (AutoCloseableLock l = writeLock()) {
-            if (!previousLeaderEndOffset.equals(LogPosition.empty())) {
-                previousLeaderEndOffset = LogPosition.empty();
+            if (!previousLeaderEndOffset.equals(LogPosition.ZERO)) {
+                previousLeaderEndOffset = LogPosition.ZERO;
                 Files.deleteIfExists(Path.of(previousLeaderEndOffsetFile));
                 Files.deleteIfExists(Path.of(previousLeaderEndOffsetFile + ".md5"));
                 log.info("Deleted previous leader end offset file '{}' for table '{}' partition '{}'.", previousLeaderEndOffsetFile, table, partition);
@@ -131,8 +151,8 @@ public class OffsetState {
         try (reader) {
             String line = reader.readLine();
             if (line != null) {
-                //endOffset = JsonSerDe.deserialize(line, LogPosition.class);
-                endOffset = CompressionUtil.readAndDecompress(endOffsetSnapshotFile, LogPosition.class);
+                LogPosition endOffset = CompressionUtil.readAndDecompress(endOffsetSnapshotFile, LogPosition.class);
+                replicaEndOffsets.put(nodeId, endOffset);
                 log.debug("Loaded end offset from snapshot for table '{}' partition '{}'.", table, partition);
             }
         } catch (IOException e) {
@@ -152,7 +172,6 @@ public class OffsetState {
         try (reader) {
             String line = reader.readLine();
             if (line != null) {
-                //committedOffset = JsonSerDe.deserialize(line, LogPosition.class);
                 committedOffset = CompressionUtil.readAndDecompress(committedOffsetSnapshotFile, LogPosition.class);
                 log.debug("Loaded replica committed offset from snapshot for table '{}' partition '{}'.", table, partition);
             }
@@ -173,7 +192,6 @@ public class OffsetState {
         try (reader) {
             String line = reader.readLine();
             if (line != null) {
-                //previousLeaderEndOffset = JsonSerDe.deserialize(line, LogPosition.class);
                 previousLeaderEndOffset = CompressionUtil.readAndDecompress(previousLeaderEndOffsetFile, LogPosition.class);
                 log.debug("Loaded previous leader end offset from snapshot for table '{}' partition '{}'.", table, partition);
             }

@@ -36,7 +36,7 @@ public class Node implements CommandLineRunner {
     @Autowired
     State state;
     @Autowired
-    ExpirationMonitor expirationMonitor;
+    LogTimestampsTrimmer logTimestampsTrimmer;
 
     @Override
     public void run(String... args) throws IOException {
@@ -61,7 +61,7 @@ public class Node implements CommandLineRunner {
                     heartbeatSender.schedule();
                     replicaMonitor.schedule();
                     walFetcher.schedule();
-                    expirationMonitor.schedule();
+                    logTimestampsTrimmer.schedule();
                     MetadataCache.getInstance().setReady(true);
                     log.info("Ready to serve requests.");
                 } else {

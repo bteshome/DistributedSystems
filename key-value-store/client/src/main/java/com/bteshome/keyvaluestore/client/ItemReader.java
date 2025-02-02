@@ -21,9 +21,6 @@ import java.util.concurrent.TimeUnit;
 @Component
 @Slf4j
 public class ItemReader {
-    @Value("${client.storage-node-endpoints}")
-    private String endpoints;
-
     @Autowired
     KeyToPartitionMapper keyToPartitionMapper;
 
@@ -65,10 +62,7 @@ public class ItemReader {
 
         while (response.getHttpStatusCode() == HttpStatus.MOVED_PERMANENTLY.value() && retries < 3) {
             retries++;
-            try {
-                TimeUnit.SECONDS.sleep(1L);
-            } catch (Exception ignored) { }
-            response = get(endpoint, itemGetRequest);
+            response = get(response.getLeaderEndpoint(), itemGetRequest);
         }
 
         if (response.getHttpStatusCode() == HttpStatus.NOT_FOUND.value())

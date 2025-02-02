@@ -18,6 +18,20 @@ public class PartitionLeaderElector {
     }
 
     public static List<Partition> oustAndReelect(StorageNode storageNode, Map<String, Object> tables, Map<String, Object> storageNodes) {
+        storageNode.getReplicaAssignmentSet()
+                .forEach(replicaAssignment -> {
+                    ((Table)tables.get(replicaAssignment.getTableName()))
+                            .getPartitions()
+                            .values()
+                            .forEach(partition -> {
+                                partition.getInSyncReplicas().remove(storageNode.getId());
+                                log.info("Storage node '{}' removed from ISR list of table '{}' partition '{}'.",
+                                        storageNode.getId(),
+                                        partition.getTableName(),
+                                        partition.getId());
+                            });
+                });
+
         Stream<Partition> partitionsThatNeedReelection = storageNode.getReplicaAssignmentSet()
                 .stream()
                 .filter(ReplicaAssignment::isLeader)
@@ -30,8 +44,7 @@ public class PartitionLeaderElector {
                             .filter(partition -> storageNode.getId().equals(partition.getLeader()))
                             .peek(partition -> {
                                 partition.setLeader(null);
-                                partition.getInSyncReplicas().remove(storageNode.getId());
-                                log.info("Storage node '{}' removed from leadership and ISR list of table '{}' partition '{}'.",
+                                log.info("Storage node '{}' removed from leadership for table '{}' partition '{}'.",
                                         storageNode.getId(),
                                         partition.getTableName(),
                                         partition.getId());

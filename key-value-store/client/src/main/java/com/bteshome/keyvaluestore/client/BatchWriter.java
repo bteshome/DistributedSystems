@@ -20,15 +20,8 @@ import java.util.concurrent.CompletableFuture;
 @Component
 @Slf4j
 public class BatchWriter extends Writer {
-    @Value("${client.storage-node-endpoints}")
-    private String endpoints;
-
     @Autowired
     KeyToPartitionMapper keyToPartitionMapper;
-
-    public BatchWriter(){
-        setEndpoints(endpoints);
-    }
 
     public void putStringBatch(BatchWrite<String> request) {
         List<Map.Entry<String, byte[]>> items = new ArrayList<>();
@@ -57,7 +50,6 @@ public class BatchWriter extends Writer {
     }
 
     public void putBytes(String table, List<Map.Entry<String, byte[]>> items) {
-        setEndpoints(endpoints);
         table = Validator.notEmpty(table, "Table name");
 
         HashMap<Integer, ItemPutRequest> partitionRequests = new HashMap<>();
@@ -82,7 +74,7 @@ public class BatchWriter extends Writer {
         for (HashMap.Entry<Integer, ItemPutRequest> partitionRequest : partitionRequests.entrySet()) {
             if (partitionRequest.getValue().getItems().size() > maxBatchSize)
                 throw new RuntimeException("Batch size exceeds max batch size of %s for a single partition.".formatted(maxBatchSize));
-            futures.add(CompletableFuture.runAsync(() -> put(partitionRequest.getValue())));
+            futures.add(CompletableFuture.runAsync(() -> put(partitionRequest.getValue(), partitionRequest.getKey())));
         }
 
         try {
@@ -96,8 +88,6 @@ public class BatchWriter extends Writer {
         for (String key: request.getKeys())
             Validator.notEmpty(key, "Key");
         String table = Validator.notEmpty(request.getTable(), "Table name");
-
-        setEndpoints(endpoints);
 
         HashMap<Integer, ItemDeleteRequest> partitionRequests = new HashMap<>();
 
@@ -120,7 +110,7 @@ public class BatchWriter extends Writer {
         for (HashMap.Entry<Integer, ItemDeleteRequest> partitionRequest : partitionRequests.entrySet()) {
             if (partitionRequest.getValue().getKeys().size() > maxBatchSize)
                 throw new RuntimeException("Batch size exceeds max batch size of %s for a single partition.".formatted(maxBatchSize));
-            futures.add(CompletableFuture.runAsync(() -> delete(partitionRequest.getValue())));
+            futures.add(CompletableFuture.runAsync(() -> delete(partitionRequest.getValue(), partitionRequest.getKey())));
         }
 
         try {

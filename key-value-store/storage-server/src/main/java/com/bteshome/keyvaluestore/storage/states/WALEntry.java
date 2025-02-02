@@ -6,6 +6,7 @@ import java.time.Instant;
 
 public record WALEntry(int leaderTerm,
                        long index,
+                       long timestamp,
                        String operation,
                        String key,
                        String value,
@@ -14,16 +15,18 @@ public record WALEntry(int leaderTerm,
         String[] parts = logEntry.split(" ");
         return new WALEntry(Integer.parseInt(parts[0]),
                             Long.parseLong(parts[1]),
-                            parts[2],
+                            Long.parseLong(parts[2]),
                             parts[3],
-                            parts.length > 4 ? parts[4] : null,
-                            parts.length > 5 ? Instant.parse(parts[5]) : null);
+                            parts[4],
+                            parts.length > 5 ? parts[5] : null,
+                            parts.length > 6 ? Instant.parse(parts[6]) : null);
     }
 
     @Override
     public String toString() {
-        return "%s %s %s %s %s %s".formatted(leaderTerm,
+        return "%s %s %s %s %s %s %s".formatted(leaderTerm,
                                              index,
+                                             timestamp,
                                              operation,
                                              key,
                                              value != null ? value : "",

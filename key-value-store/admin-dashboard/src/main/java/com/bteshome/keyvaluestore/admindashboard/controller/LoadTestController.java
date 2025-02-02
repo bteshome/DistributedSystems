@@ -44,17 +44,22 @@ public class LoadTestController {
             Random random = new Random();
             int requestIntervalMs = 1000 / request.getRequestsPerSecond();
             long totalNumRequests = request.getRequestsPerSecond() * request.getDuration().toSeconds();
-            Instant startTime = Instant.now();
             List<CompletableFuture<Void>> futures = new ArrayList<>();
+            List<ItemWrite<String>> itemWrites = new ArrayList<>();
 
             for (int i = 0; i < totalNumRequests; i++) {
                 int randomNumber = random.nextInt(1, Integer.MAX_VALUE);
                 String key = "key" + randomNumber;
                 String value = "value" + randomNumber;
                 ItemWrite<String> itemWrite = new ItemWrite<>(request.getTable(), key, value);
+                itemWrites.add(itemWrite);
+            }
+
+            Instant startTime = Instant.now();
+
+            for (ItemWrite<String> itemWrite : itemWrites) {
                 CompletableFuture<Void> future = CompletableFuture.runAsync(() -> itemWriter.putString(itemWrite), executor);
                 futures.add(future);
-
                 try {
                     Thread.sleep(requestIntervalMs);
                 } catch (InterruptedException ignored) {}

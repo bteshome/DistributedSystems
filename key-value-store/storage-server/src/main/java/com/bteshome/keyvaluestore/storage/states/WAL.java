@@ -1,6 +1,9 @@
 package com.bteshome.keyvaluestore.storage.states;
 
+import com.bteshome.keyvaluestore.common.ConfigKeys;
 import com.bteshome.keyvaluestore.common.LogPosition;
+import com.bteshome.keyvaluestore.common.MetadataCache;
+import com.bteshome.keyvaluestore.common.Tuple;
 import com.bteshome.keyvaluestore.common.entities.Item;
 import com.bteshome.keyvaluestore.storage.common.ChecksumUtil;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
@@ -15,6 +18,9 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @Slf4j
@@ -28,7 +34,7 @@ public class WAL implements AutoCloseable {
     private long startIndex = 0L;
     private int endLeaderTerm = 0;
     private long endIndex = 0L;
-    private LogPosition previousLeaderEndOffset = LogPosition.empty();
+    private LogPosition previousLeaderEndOffset = LogPosition.ZERO;
 
     public WAL(String storageDirectory, String tableName, int partition) {
         try {
@@ -62,6 +68,9 @@ public class WAL implements AutoCloseable {
                         this.endIndex));
             }
 
+            writer.flush();
+            writer.close();
+
             String line;
             long position = 0;
 
@@ -93,14 +102,27 @@ public class WAL implements AutoCloseable {
                     toOffset);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
+        } finally {
+            try {
+                writer = new BufferedWriter(new FileWriter(logFile, true));
+            } catch (IOException e) {
+                String errorMessage = "Error recreating WAL writer for table '%s' partition '%s'.".formatted(
+                        tableName,
+                        partition);
+                log.error(errorMessage, e);
+            }
         }
     }
 
+
     public void truncateToAfterExclusive(LogPosition toOffset) {
-        if (toOffset.equals(LogPosition.empty()))
+        if (toOffset.equals(LogPosition.ZERO))
             return;
 
         try (AutoCloseableLock l = writeLock()) {
+            writer.flush();
+            writer.close();
+
             if (toOffset.equals(this.endLeaderTerm, this.endIndex)) {
                 try (RandomAccessFile raf = new RandomAccessFile(logFile, "rw");
                      FileChannel channel = raf.getChannel()) {
@@ -155,42 +177,49 @@ public class WAL implements AutoCloseable {
                     .formatted(tableName, partition, toOffset);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
+        } finally {
+            try {
+                writer = new BufferedWriter(new FileWriter(logFile, true));
+            } catch (IOException e) {
+                String errorMessage = "Error recreating WAL writer for table '%s' partition '%s'.".formatted(
+                        tableName,
+                        partition);
+                log.error(errorMessage, e);
+            }
         }
     }
 
-    public long appendPutOperation(int leaderTerm, List<Item> items, Instant expiryTime) {
+    public long appendPutOperation(int leaderTerm, long timestamp, List<Item> items, Instant expiryTime) {
         if (items.isEmpty())
             return endIndex;
 
         try (AutoCloseableLock l = writeLock()) {
             for (Item item : items) {
                 incrementIndex(leaderTerm);
-                String logEntry = new WALEntry(leaderTerm, endIndex, OperationType.PUT, item.getKey(), item.getValue(), expiryTime).toString();
+                String logEntry = new WALEntry(leaderTerm, endIndex, timestamp, OperationType.PUT, item.getKey(), item.getValue(), expiryTime).toString();
                 writer.write(logEntry);
                 writer.newLine();
             }
-            writer.flush();
-            log.trace("Appended PUT operation for '{}' items to WAL for table '{}' partition '{}'.", items.size(), tableName, partition);
+            log.trace("Appended PUT operation for '{}' items to the WAL buffer for table '{}' partition '{}'.", items.size(), tableName, partition);
             return endIndex;
         } catch (IOException e) {
-            String errorMessage = "Error appending PUT operation to WAL for table '%s' partition '%s'.".formatted(tableName, partition);
+            String errorMessage = "Error appending PUT operation to the WAL buffer for table '%s' partition '%s'.".formatted(tableName, partition);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
         }
     }
 
-    public long appendDeleteOperation(int leaderTerm, List<ItemKey> items) {
+    public long appendDeleteOperation(int leaderTerm, long timestamp, List<ItemKey> items) {
         if (items.isEmpty())
             return endIndex;
 
         try (AutoCloseableLock l = writeLock()) {
             for (ItemKey itemKey : items) {
                 incrementIndex(leaderTerm);
-                String logEntry = new WALEntry(leaderTerm, endIndex, OperationType.DELETE, itemKey.keyString(), null, null).toString();
+                String logEntry = new WALEntry(leaderTerm, endIndex, timestamp, OperationType.DELETE, itemKey.keyString(), null, null).toString();
                 writer.write(logEntry);
                 writer.newLine();
             }
-            writer.flush();
             log.trace("Appended DELETE operation for '{}' items to WAL for table '{}' partition '{}'.", items.size(), tableName, partition);
             return endIndex;
         } catch (IOException e) {
@@ -206,7 +235,6 @@ public class WAL implements AutoCloseable {
                 writer.write(logEntry.toString());
                 writer.newLine();
             }
-            writer.flush();
             this.endLeaderTerm = logEntries.getLast().leaderTerm();
             this.endIndex = logEntries.getLast().index();
             log.trace("'{}' log entries appended for table '{}' partition '{}'.", logEntries.size(), tableName, partition);
@@ -308,15 +336,10 @@ public class WAL implements AutoCloseable {
         }
     }
 
-    public LogPosition getStartOffset() {
+    public Tuple<LogPosition, LogPosition> getStartAndEndOffsets() {
         try (AutoCloseableLock l = readLock()) {
-            return LogPosition.of(startLeaderTerm, startIndex);
-        }
-    }
-
-    public LogPosition getEndOffset() {
-        try (AutoCloseableLock l = readLock()) {
-            return LogPosition.of(endLeaderTerm, endIndex);
+            return Tuple.of(LogPosition.of(startLeaderTerm, startIndex),
+                            LogPosition.of(endLeaderTerm, endIndex));
         }
     }
 
@@ -352,16 +375,25 @@ public class WAL implements AutoCloseable {
     @Override
     public void close() {
         try {
-            if (writer != null)
+            if (writer != null) {
+                writer.flush();
                 writer.close();
+            }
             if (Files.exists(Path.of(logFile)))
                 ChecksumUtil.generateAndWrite(logFile);
         } catch (IOException e) {
             String errorMessage = "Error closing WAL file for table '%s' partition '%s'.".formatted(tableName, partition);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
-        } finally {
-            writer = null;
+        }
+    }
+
+    public void flush() {
+        try {
+            writer.flush();
+        } catch (IOException e) {
+            String errorMessage = "Error flushing WAL entries for table '%s' partition '%s'.".formatted(tableName, partition);
+            log.error(errorMessage, e);
         }
     }
 

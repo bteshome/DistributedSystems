@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
 import java.io.Serializable;
@@ -28,27 +29,27 @@ import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 public class Writer {
-    private String endpoints;
+    void put(ItemPutRequest itemPutRequest, int partition) {
+        String endpoint = MetadataCache.getInstance().getLeaderEndpoint(itemPutRequest.getTable(), partition);
+        int retries = 0;
 
-    protected void setEndpoints(String endpoints) {
-        this.endpoints = endpoints;
-    }
+        ItemPutResponse response = put(endpoint, itemPutRequest);
 
-    void put(ItemPutRequest request) {
-        for (String endpoint : endpoints.split(",")) {
-            try {
-                put(endpoint, request);
-                return;
-            } catch (Exception e) {
-                log.trace(e.getMessage());
-            }
+        while (response.getHttpStatusCode() == HttpStatus.MOVED_PERMANENTLY.value() && retries < 3) {
+            retries++;
+            response = put(response.getLeaderEndpoint(), itemPutRequest);
         }
 
-        throw new RuntimeException("Unable to write to any endpoint.");
+        if (response.getHttpStatusCode() != HttpStatus.ACCEPTED.value()) {
+            throw new RuntimeException("Unable to write to endpoint %s. Http status: %s, error: %s.".formatted(
+                    endpoint,
+                    response.getHttpStatusCode(),
+                    response.getErrorMessage()));
+        }
     }
 
-    private void put(String endpoint, ItemPutRequest request) {
-        ItemPutResponse response = RestClient.builder()
+    ItemPutResponse put(String endpoint, ItemPutRequest request) {
+        return  RestClient.builder()
                 .build()
                 .post()
                 .uri("http://%s/api/items/put/".formatted(endpoint))
@@ -57,33 +58,29 @@ public class Writer {
                 .retrieve()
                 .toEntity(ItemPutResponse.class)
                 .getBody();
-
-        if (response.getHttpStatusCode() == HttpStatus.MOVED_PERMANENTLY.value()) {
-            put(response.getLeaderEndpoint(), request);
-            return;
-        }
-
-        if (response.getHttpStatusCode() == HttpStatus.OK.value())
-            return;
-
-        throw new RuntimeException("Unable to write to endpoint '%s'. Http status: %s, error: %s.".formatted(endpoint, response.getHttpStatusCode(), response.getErrorMessage()));
     }
 
-    void delete(ItemDeleteRequest request) {
-        for (String endpoint : endpoints.split(",")) {
-            try {
-                delete(endpoint, request);
-                return;
-            } catch (Exception e) {
-                log.trace(e.getMessage());
-            }
+    void delete(ItemDeleteRequest itemDeleteRequest, int partition) {
+        String endpoint = MetadataCache.getInstance().getLeaderEndpoint(itemDeleteRequest.getTable(), partition);
+        int retries = 0;
+
+        ItemDeleteResponse response = delete(endpoint, itemDeleteRequest);
+
+        while (response.getHttpStatusCode() == HttpStatus.MOVED_PERMANENTLY.value() && retries < 3) {
+            retries++;
+            response = delete(response.getLeaderEndpoint(), itemDeleteRequest);
         }
 
-        throw new RuntimeException("Unable to write to any endpoint.");
+        if (response.getHttpStatusCode() != HttpStatus.OK.value()) {
+            throw new RuntimeException("Unable to delete at endpoint %s. Http status: %s, error: %s.".formatted(
+                    endpoint,
+                    response.getHttpStatusCode(),
+                    response.getErrorMessage()));
+        }
     }
 
-    private void delete(String endpoint, ItemDeleteRequest request) {
-        ItemDeleteResponse response = RestClient.builder()
+    ItemDeleteResponse delete(String endpoint, ItemDeleteRequest request) {
+        return RestClient.builder()
                 .build()
                 .post()
                 .uri("http://%s/api/items/delete/".formatted(endpoint))
@@ -92,15 +89,5 @@ public class Writer {
                 .retrieve()
                 .toEntity(ItemDeleteResponse.class)
                 .getBody();
-
-        if (response.getHttpStatusCode() == HttpStatus.MOVED_PERMANENTLY.value()) {
-            delete(response.getLeaderEndpoint(), request);
-            return;
-        }
-
-        if (response.getHttpStatusCode() == HttpStatus.OK.value())
-            return;
-
-        throw new RuntimeException("Unable to issue delete to endpoint '%s'. Http status: %s, error: %s.".formatted(endpoint, response.getHttpStatusCode(), response.getErrorMessage()));
     }
 }

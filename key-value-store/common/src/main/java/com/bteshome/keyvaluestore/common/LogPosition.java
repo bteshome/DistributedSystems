@@ -3,12 +3,8 @@ package com.bteshome.keyvaluestore.common;
 import java.io.Serializable;
 import java.util.Objects;
 
-public record LogPosition(int leaderTerm, long index) implements Serializable {
-    private static final LogPosition empty = new LogPosition(0, 0);
-
-    public static LogPosition empty() {
-        return empty;
-    }
+public record LogPosition(int leaderTerm, long index) implements Serializable, Comparable<LogPosition> {
+    public static final LogPosition ZERO = new LogPosition(0, 0);
 
     public static LogPosition of(int leaderTerm, long index) {
         return new LogPosition(leaderTerm, index);
@@ -19,8 +15,21 @@ public record LogPosition(int leaderTerm, long index) implements Serializable {
         return String.format("%d:%d", leaderTerm, index);
     }
 
-    public boolean equals(LogPosition other) {
-        return compare(this, other) == 0;
+    @Override
+    public int compareTo(LogPosition other) {
+        return compare(this, other);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(leaderTerm, index);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        LogPosition that = (LogPosition) o;
+        return compare(this, that) == 0;
     }
 
     public boolean equals(int otherLeaderTerm, long otherIndex) {

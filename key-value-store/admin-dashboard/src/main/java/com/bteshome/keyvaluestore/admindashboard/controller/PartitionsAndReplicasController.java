@@ -71,8 +71,8 @@ public class PartitionsAndReplicasController {
                         replicaCountDto.setActive(true);
                     } else {
                         replicaCountDto.setCount(0);
-                        replicaCountDto.setCommittedOffset(LogPosition.empty());
-                        replicaCountDto.setEndOffset(LogPosition.empty());
+                        replicaCountDto.setCommittedOffset(LogPosition.ZERO);
+                        replicaCountDto.setEndOffset(LogPosition.ZERO);
                         replicaCountDto.setActive(false);
                     }
                     partitionCountDto.getReplicaCountDtos().add(replicaCountDto);
