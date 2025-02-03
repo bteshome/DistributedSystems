@@ -108,7 +108,7 @@ public class WALFetcher {
                             followedReplica.getTable(),
                             followedReplica.getPartition(),
                             response.getTruncateToOffset());
-                    partitionState.getWal().truncateToAfterExclusive(response.getTruncateToOffset());
+                    partitionState.getWal().truncateToBeforeInclusive(response.getTruncateToOffset());
                     partitionState.getOffsetState().setEndOffset(response.getTruncateToOffset());
                     continue;
                 }
