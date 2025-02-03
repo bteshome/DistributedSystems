@@ -53,7 +53,7 @@ metadata:
   replica-lag-threshold-time-ms: 10000
   replica-fetch-interval-ms: 500
   replica-fetch-max-num-records: 10000
-  data-snapshot-interval-ms: 300000
+  data-snapshot-interval-ms: 60000
   end-offset-snapshot-interval-ms: 10000
   num-partitions-default: 1
   num-partitions-max: 10000

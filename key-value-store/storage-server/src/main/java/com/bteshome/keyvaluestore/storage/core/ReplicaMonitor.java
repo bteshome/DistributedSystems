@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
 
 @Component
 @Slf4j
@@ -58,6 +59,7 @@ public class ReplicaMonitor implements ApplicationListener<ContextClosedEvent> {
             for (Tuple<String, Integer> ownedPartition : ownedPartitions) {
                 CompletableFuture.runAsync(() ->
                     checkStatusForAPartition(ownedPartition,
+                                             recordLagThreshold,
                                              timeLagThresholdMs,
                                              caughtUpReplicas,
                                              laggingReplicas),
@@ -81,6 +83,7 @@ public class ReplicaMonitor implements ApplicationListener<ContextClosedEvent> {
     }
 
     private void checkStatusForAPartition(Tuple<String, Integer> ownedPartition,
+                                          long recordLagThreshold,
                                           long timeLagThresholdMs,
                                           Set<Replica> caughtUpReplicas,
                                           Set<Replica> laggingReplicas) {
@@ -134,8 +137,15 @@ public class ReplicaMonitor implements ApplicationListener<ContextClosedEvent> {
                 } else {
                     if (inSyncReplicaIds.contains(replicaId)) {
                         long timeLag = System.currentTimeMillis() - partitionState.getOffsetState().getLogTimestamp(newCommittedOffset);
-                        if (timeLag > timeLagThresholdMs)
+                        if (timeLag > timeLagThresholdMs) {
                             laggingReplicas.add(new Replica(replicaId, table, partition));
+                        }
+                        else {
+                            // TODO - how do we determine the right record lag threshold?
+                            long recordLag = partitionState.getWal().getLag(replicaEndOffsets.get(replicaId), newCommittedOffset);
+                            if (recordLag > recordLagThreshold)
+                                laggingReplicas.add(new Replica(replicaId, table, partition));
+                        }
                     }
                 }
             }

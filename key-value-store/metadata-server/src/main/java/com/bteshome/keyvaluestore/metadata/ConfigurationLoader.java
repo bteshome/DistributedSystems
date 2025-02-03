@@ -33,7 +33,7 @@ public class ConfigurationLoader {
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.REPLICA_FETCH_MAX_NUM_RECORDS_KEY,
                 Validator.setDefault(metadataSettings.getReplicaFetchMaxNumRecords(), 10000));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.DATA_SNAPSHOT_INTERVAL_MS_KEY,
-                Validator.setDefault(metadataSettings.getDataSnapshotIntervalMs(), 300000L));
+                Validator.setDefault(metadataSettings.getDataSnapshotIntervalMs(), 60000L));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.END_OFFSET_SNAPSHOT_INTERVAL_MS_KEY,
                 Validator.setDefault(metadataSettings.getEndOffsetSnapshotIntervalMs(), 10000L));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.NUM_PARTITIONS_DEFAULT_KEY,
