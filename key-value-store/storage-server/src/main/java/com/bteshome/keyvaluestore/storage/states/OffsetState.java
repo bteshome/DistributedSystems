@@ -20,7 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @Slf4j
-public class OffsetState implements AutoCloseable {
+public class OffsetState {
     private final String table;
     private final int partition;
     private final String nodeId;
@@ -28,7 +28,6 @@ public class OffsetState implements AutoCloseable {
     private final ConcurrentHashMap<LogPosition, Long> logTimestamps;
     private LogPosition committedOffset;
     private LogPosition previousLeaderEndOffset;
-    private final String endOffsetSnapshotFile;
     private final String committedOffsetSnapshotFile;
     private final String previousLeaderEndOffsetFile;
     private final ReentrantReadWriteLock lock;
@@ -42,10 +41,8 @@ public class OffsetState implements AutoCloseable {
         logTimestamps = new ConcurrentHashMap<>();
         previousLeaderEndOffset = LogPosition.ZERO;
         lock = new ReentrantReadWriteLock(true);
-        endOffsetSnapshotFile = "%s/%s-%s/endOffset.ser".formatted(storageSettings.getNode().getStorageDir(), table, partition);
         committedOffsetSnapshotFile = "%s/%s-%s/committedOffset.ser".formatted(storageSettings.getNode().getStorageDir(), table, partition);
         previousLeaderEndOffsetFile = "%s/%s-%s/previousLeaderEndOffset.ser".formatted(storageSettings.getNode().getStorageDir(), table, partition);
-        loadEndOffsetFromSnapshot();
         loadCommittedOffsetFromSnapshot();
         loadPreviousLeaderEndOffset();
     }
@@ -65,29 +62,12 @@ public class OffsetState implements AutoCloseable {
         return logTimestamps.get(offset);
     }
 
-    public LogPosition getEndOffset() {
-        return replicaEndOffsets.getOrDefault(nodeId, LogPosition.ZERO);
-    }
-
     public Map<String, LogPosition> getReplicaEndOffsets() {
         return new HashMap<>(replicaEndOffsets);
     }
 
-    public void setEndOffset(LogPosition offset) {
-        replicaEndOffsets.put(nodeId, offset);
-    }
-
-    public void takeEndOffsetSnapshot() {
-        LogPosition endOffset = getEndOffset();
-
-        try {
-            CompressionUtil.compressAndWrite(endOffsetSnapshotFile, endOffset);
-            ChecksumUtil.generateAndWrite(endOffsetSnapshotFile);
-            log.trace("Persisted end offset '{}' for table '{}' partition '{}'.", endOffset, table, partition);
-        } catch (Exception e) {
-            String errorMessage = "Error writing end offset '%s' for table '%s' partition '%s'.".formatted(endOffset, table, partition);
-            log.error(errorMessage, e);
-        }
+    public void setReplicaEndOffset(String replicaId, LogPosition offset) {
+        replicaEndOffsets.put(replicaId, offset);
     }
 
     public LogPosition getCommittedOffset() {
@@ -140,32 +120,6 @@ public class OffsetState implements AutoCloseable {
             }
         } catch (IOException e) {
             String errorMessage = "Error deleting previous leader end offset file for table '%s' partition '%s'.".formatted(table, partition);
-            log.error(errorMessage, e);
-            throw new StorageServerException(errorMessage, e);
-        }
-    }
-
-    @Override
-    public void close() {
-        takeEndOffsetSnapshot();
-    }
-
-    private void loadEndOffsetFromSnapshot() {
-        if (Files.notExists(Path.of(endOffsetSnapshotFile)))
-            return;
-
-        ChecksumUtil.readAndVerify(endOffsetSnapshotFile);
-
-        BufferedReader reader = Utils.createReader(endOffsetSnapshotFile);
-        try (reader) {
-            String line = reader.readLine();
-            if (line != null) {
-                LogPosition endOffset = CompressionUtil.readAndDecompress(endOffsetSnapshotFile, LogPosition.class);
-                replicaEndOffsets.put(nodeId, endOffset);
-                log.debug("Loaded end offset from snapshot for table '{}' partition '{}'.", table, partition);
-            }
-        } catch (IOException e) {
-            String errorMessage = "Error loading from a snapshot of end offset for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
         }

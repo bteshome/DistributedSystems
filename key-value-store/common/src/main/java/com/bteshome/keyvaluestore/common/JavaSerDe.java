@@ -49,4 +49,21 @@ public class JavaSerDe {
             throw new SerDeException(e);
         }
     }
+
+    public static <T> T deserialize(byte[] bytes) {
+        Object object = null;
+
+        try (ByteArrayInputStream byteStream = new ByteArrayInputStream(bytes);
+             ObjectInputStream objectStream = new ObjectInputStream(byteStream)) {
+            object = objectStream.readObject();
+        } catch (Exception e) {
+            throw new SerDeException(e);
+        }
+
+        try {
+            return (T)object;
+        } catch (ClassCastException e) {
+            throw new SerDeException(e);
+        }
+    }
 }

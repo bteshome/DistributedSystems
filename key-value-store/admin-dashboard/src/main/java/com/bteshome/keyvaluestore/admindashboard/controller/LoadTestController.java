@@ -32,7 +32,7 @@ public class LoadTestController {
         LoadTestDto request = new LoadTestDto();
         request.setTable("table1");
         request.setRequestsPerSecond(10);
-        request.setDuration(Duration.ofSeconds(10));
+        request.setDuration(Duration.ofSeconds(1));
         model.addAttribute("request", request);
         model.addAttribute("page", "load-test");
         return "load-test.html";

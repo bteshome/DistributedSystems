@@ -38,10 +38,8 @@ public class State implements ApplicationListener<ContextClosedEvent> {
     private boolean lastHeartbeatSucceeded;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
     private ScheduledExecutorService snapshotsScheduler;
-    private ScheduledExecutorService walFlushingExecutor;
-    private ExecutorService walFlushingWorker;
+    private ScheduledExecutorService walFlushingScheduler;
     private ScheduledExecutorService dataExpirationScheduler;
-    private ScheduledExecutorService endOffsetSnapshotsScheduler;
 
     @Autowired
     private StorageSettings storageSettings;
@@ -63,7 +61,6 @@ public class State implements ApplicationListener<ContextClosedEvent> {
             scheduleDataSnapshots();
             scheduleWALFlushing();
             scheduleDataExpirationMonitor();
-            scheduleEndOffsetSnapshots();
         }
     }
 
@@ -74,18 +71,14 @@ public class State implements ApplicationListener<ContextClosedEvent> {
                 log.info("Closing state.");
                 for (ConcurrentHashMap<Integer, PartitionState> tableState : partitionStates.values()) {
                     for (PartitionState partitionState : tableState.values())
-                        CompletableFuture.runAsync(partitionState::close);
+                        partitionState.close();
                 }
                 if (snapshotsScheduler != null)
                     snapshotsScheduler.close();
-                if (walFlushingExecutor != null)
-                    walFlushingExecutor.close();
-                if (walFlushingWorker != null)
-                    walFlushingWorker.close();
+                if (walFlushingScheduler != null)
+                    walFlushingScheduler.close();
                 if (dataExpirationScheduler != null)
                     dataExpirationScheduler.close();
-                if (endOffsetSnapshotsScheduler != null)
-                    endOffsetSnapshotsScheduler.close();
                 closed = true;
             } catch (Exception e) {
                 log.error("Error closing state.", e);
@@ -211,31 +204,20 @@ public class State implements ApplicationListener<ContextClosedEvent> {
         try {
             long interval = (Long) MetadataCache.getInstance().getConfiguration(ConfigKeys.DATA_SNAPSHOT_INTERVAL_MS_KEY);
             snapshotsScheduler = Executors.newSingleThreadScheduledExecutor();
-            snapshotsScheduler.scheduleAtFixedRate(this::takeDataSnapshots, interval, interval, TimeUnit.MILLISECONDS);
+            snapshotsScheduler.scheduleWithFixedDelay(this::takeDataSnapshots, interval, interval, TimeUnit.MILLISECONDS);
             log.info("Scheduled data snapshots. The interval is {} ms.", interval);
         } catch (Exception e) {
             log.error("Error scheduling data snapshots.", e);
         }
     }
 
-    private void scheduleEndOffsetSnapshots() {
-        try {
-            long interval = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.END_OFFSET_SNAPSHOT_INTERVAL_MS_KEY);
-            endOffsetSnapshotsScheduler = Executors.newSingleThreadScheduledExecutor();
-            dataExpirationScheduler.scheduleAtFixedRate(this::takeEndOffsetSnapshots, interval, interval, TimeUnit.MILLISECONDS);
-            log.info("Scheduled end offset snapshots. The interval is {} ms.", interval);
-        } catch (Exception e) {
-            log.error("Error scheduling end offset snapshots.", e);
-        }
-    }
-
     private void scheduleWALFlushing() {
         try {
-            // TODO - use a more explicit configurable value
+            // TODO - use a more explicit configurable value.
             long interval = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_FETCH_INTERVAL_MS_KEY);
-            walFlushingExecutor = Executors.newSingleThreadScheduledExecutor();
-            walFlushingWorker = Executors.newFixedThreadPool(2);
-            walFlushingExecutor.scheduleAtFixedRate(this::flushWAL, interval, interval, TimeUnit.MILLISECONDS);
+            int numThreads = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.WAL_FLUSH_THREAD_POOL_SIZE_KEY);
+            walFlushingScheduler = Executors.newScheduledThreadPool(numThreads);
+            walFlushingScheduler.scheduleWithFixedDelay(this::flushWAL, interval, interval, TimeUnit.MILLISECONDS);
             log.info("Scheduled WAL flushing. The interval is '%s' ms.".formatted(interval));
         } catch (Exception e) {
             log.error("Error scheduling WAL flushing.", e);
@@ -246,7 +228,7 @@ public class State implements ApplicationListener<ContextClosedEvent> {
         try {
             long interval = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.EXPIRATION_MONITOR_INTERVAL_MS_KEY);
             dataExpirationScheduler = Executors.newSingleThreadScheduledExecutor();
-            dataExpirationScheduler.scheduleAtFixedRate(this::checkForExpiredDataItems, interval, interval, TimeUnit.MILLISECONDS);
+            dataExpirationScheduler.scheduleWithFixedDelay(this::checkForExpiredDataItems, interval, interval, TimeUnit.MILLISECONDS);
             log.info("Scheduled item expiration monitor. The interval is {} ms.", interval);
         } catch (Exception e) {
             log.error("Error scheduling item expiration monitor.", e);
@@ -268,21 +250,10 @@ public class State implements ApplicationListener<ContextClosedEvent> {
         }
     }
 
-    private void takeEndOffsetSnapshots() {
-        log.debug("Taking snapshots of end offsets.");
-
-        for (Map<Integer, PartitionState> tableState : partitionStates.values()) {
-            for (PartitionState partitionState : tableState.values())
-                partitionState.getOffsetState().takeEndOffsetSnapshot();
-        }
-
-        log.debug("Finished taking snapshots of end offsets.");
-    }
-
     private void flushWAL() {
         for (Map<Integer, PartitionState> tableState : partitionStates.values()) {
             for (PartitionState partitionState : tableState.values())
-                CompletableFuture.runAsync(partitionState.getWal()::flush, walFlushingWorker);
+                partitionState.flushLeaderWAL();
         }
     }
 

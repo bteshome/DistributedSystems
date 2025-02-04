@@ -10,11 +10,14 @@ public class ConfigKeys {
     public static final String STORAGE_NODE_HEARTBEAT_SEND_INTERVAL_MS_KEY = "storage-node-heartbeat-send-interval-ms";
     public static final String STORAGE_NODE_METADATA_REFRESH_INTERVAL_MS_KEY = "storage-node-metadata-refresh-interval-ms";
     public static final String WAL_FLUSH_INTERVAL_MS_KEY = "wal-flush-interval-ms";
+    public static final String WAL_FLUSH_THREAD_POOL_SIZE_KEY = "wal-flush-thread-pool-size";
     public static final String REPLICA_MONITOR_INTERVAL_MS_KEY = "replica-monitor-interval-ms";
+    public static final String REPLICA_MONITOR_THREAD_POOL_SIZE_KEY = "replica-monitor-thread-pool-size";
     public static final String REPLICA_LAG_THRESHOLD_RECORDS_KEY = "replica-lag-threshold-records";
     public static final String REPLICA_LAG_THRESHOLD_TIME_MS_KEY = "replica-lag-threshold-time-ms";
     public static final String REPLICA_FETCH_INTERVAL_MS_KEY = "replica-fetch-interval-ms";
     public static final String REPLICA_FETCH_MAX_NUM_RECORDS_KEY = "replica-fetch-max-num-records";
+    public static final String REPLICA_FETCH_THREAD_POOL_SIZE_KEY = "replica-fetch-thread-pool-size";
     public static final String DATA_SNAPSHOT_INTERVAL_MS_KEY = "data-snapshot-interval-ms";
     public static final String END_OFFSET_SNAPSHOT_INTERVAL_MS_KEY = "end-offset-snapshot-interval-ms";
     public static final String RING_NUM_VIRTUAL_PARTITIONS_KEY = "ring-num-virtual-partitions";

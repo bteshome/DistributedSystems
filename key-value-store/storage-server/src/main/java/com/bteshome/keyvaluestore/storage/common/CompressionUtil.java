@@ -41,4 +41,19 @@ public class CompressionUtil {
             throw new StorageServerException(errorMessage, e);
         }
     }
+
+    public static byte[] readAndDecompress(String fileName) {
+        try {
+            byte[] compressedBytes;
+
+            try (FileInputStream fileStream = new FileInputStream(fileName);) {
+                compressedBytes = fileStream.readAllBytes();
+            }
+
+            return Snappy.uncompress(compressedBytes);
+        } catch (Exception e) {
+            String errorMessage = "Error reading from file '%s'.".formatted(fileName);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }
 }

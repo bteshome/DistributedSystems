@@ -39,7 +39,7 @@ public class StorageNodeMetadataRefresher {
                     executor.close();
                 }
             });
-            executor.scheduleAtFixedRate(this::fetch,
+            executor.scheduleWithFixedDelay(this::fetch,
                     0L,
                     interval,
                     TimeUnit.MILLISECONDS);
@@ -79,9 +79,5 @@ public class StorageNodeMetadataRefresher {
         } catch (Exception e) {
             log.error("Error refreshing metadata.", e);
         }
-    }
-
-    public CompletableFuture<Void> fetchAsync() {
-        return CompletableFuture.runAsync(this::fetch);
     }
 }

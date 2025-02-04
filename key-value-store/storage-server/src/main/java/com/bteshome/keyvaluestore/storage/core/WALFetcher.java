@@ -1,12 +1,16 @@
 package com.bteshome.keyvaluestore.storage.core;
 
 import com.bteshome.keyvaluestore.common.ConfigKeys;
+import com.bteshome.keyvaluestore.common.JavaSerDe;
 import com.bteshome.keyvaluestore.common.LogPosition;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.entities.Replica;
+import com.bteshome.keyvaluestore.storage.common.ChecksumUtil;
+import com.bteshome.keyvaluestore.storage.common.CompressionUtil;
 import com.bteshome.keyvaluestore.storage.requests.WALFetchRequest;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchPayloadType;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
+import com.bteshome.keyvaluestore.storage.states.DataSnapshot;
 import com.bteshome.keyvaluestore.storage.states.PartitionState;
 import com.bteshome.keyvaluestore.storage.states.State;
 import jakarta.annotation.PreDestroy;
@@ -32,16 +36,16 @@ public class WALFetcher {
 
     @PreDestroy
     public void close() {
-        if (executor != null) {
+        if (executor != null)
             executor.close();
-        }
     }
 
     public void schedule() {
         try {
             long interval = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_FETCH_INTERVAL_MS_KEY);
-            executor = Executors.newSingleThreadScheduledExecutor();
-            executor.scheduleAtFixedRate(this::fetch, interval, interval, TimeUnit.MILLISECONDS);
+            int numThreads = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_FETCH_THREAD_POOL_SIZE_KEY);
+            executor = Executors.newScheduledThreadPool(numThreads);
+            executor.scheduleWithFixedDelay(this::fetch, interval, interval, TimeUnit.MILLISECONDS);
             log.info("Scheduled replica WAL fetcher. The interval is {} ms.", interval);
         } catch (Exception e) {
             log.error("Error scheduling replica WAL fetcher.", e);
@@ -67,7 +71,7 @@ public class WALFetcher {
                 if (partitionState == null)
                     continue;
 
-                LogPosition lastFetchOffset = partitionState.getOffsetState().getEndOffset();
+                LogPosition lastFetchOffset = partitionState.getWal().getEndOffset();
                 int maxNumRecords = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_FETCH_MAX_NUM_RECORDS_KEY);
 
                 WALFetchRequest request = new WALFetchRequest(
@@ -83,6 +87,7 @@ public class WALFetcher {
                         .post()
                         .uri("http://%s/api/wal/fetch/".formatted(leaderEndpoint))
                         .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
                         .body(request)
                         .retrieve()
                         .toEntity(WALFetchResponse.class)
@@ -101,6 +106,7 @@ public class WALFetcher {
                             followedReplica.getPartition(),
                             response.getHttpStatusCode(),
                             response.getErrorMessage());
+                    continue;
                 }
 
                 if (response.getHttpStatusCode() == HttpStatus.CONFLICT.value()) {
@@ -109,7 +115,6 @@ public class WALFetcher {
                             followedReplica.getPartition(),
                             response.getTruncateToOffset());
                     partitionState.getWal().truncateToBeforeInclusive(response.getTruncateToOffset());
-                    partitionState.getOffsetState().setEndOffset(response.getTruncateToOffset());
                     continue;
                 }
 
@@ -126,13 +131,15 @@ public class WALFetcher {
                                 response.getEntries(),
                                 response.getCommitedOffset());
                     } else {
-                        partitionState.applyDataSnapshot(response.getDataSnapshot());
+                        byte[] dataSnapshotBytes = response.getDataSnapshotBytes();
+                        DataSnapshot dataSnapshot = JavaSerDe.deserialize(dataSnapshotBytes);
+                        partitionState.applyDataSnapshot(dataSnapshot);
 
                         log.trace("Fetched data snapshot for table '{}' partition '{}' lastFetchedOffset '{}', last snapshot committed offset={}.",
                                 followedReplica.getTable(),
                                 followedReplica.getPartition(),
                                 lastFetchOffset,
-                                response.getDataSnapshot().getLastCommittedOffset());
+                                dataSnapshot.getLastCommittedOffset());
                     }
                 }
             } catch (Exception e) {

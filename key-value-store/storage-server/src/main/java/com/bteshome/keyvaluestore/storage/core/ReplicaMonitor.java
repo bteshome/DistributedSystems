@@ -36,9 +36,9 @@ public class ReplicaMonitor implements ApplicationListener<ContextClosedEvent> {
         try {
             // TODO - increase # of threads for the worker
             long interval = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_MONITOR_INTERVAL_MS_KEY);
-            scheduler = Executors.newSingleThreadScheduledExecutor();
-            worker = Executors.newFixedThreadPool(4);
-            scheduler.scheduleAtFixedRate(this::checkStatus, interval, interval, TimeUnit.MILLISECONDS);
+            int numThreads = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_MONITOR_THREAD_POOL_SIZE_KEY);
+            scheduler = Executors.newScheduledThreadPool(numThreads);
+            scheduler.scheduleWithFixedDelay(this::checkStatus, interval, interval, TimeUnit.MILLISECONDS);
             log.info("Scheduled replica monitor. The interval is {} ms.", interval);
         } catch (Exception e) {
             log.error("Error scheduling replica monitor.", e);
@@ -57,13 +57,12 @@ public class ReplicaMonitor implements ApplicationListener<ContextClosedEvent> {
             long timeLagThresholdMs = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_LAG_THRESHOLD_TIME_MS_KEY);
 
             for (Tuple<String, Integer> ownedPartition : ownedPartitions) {
-                CompletableFuture.runAsync(() ->
-                    checkStatusForAPartition(ownedPartition,
-                                             recordLagThreshold,
-                                             timeLagThresholdMs,
-                                             caughtUpReplicas,
-                                             laggingReplicas),
-                    worker);
+                checkStatusForAPartition(state.getNodeId(),
+                                         ownedPartition,
+                                         recordLagThreshold,
+                                         timeLagThresholdMs,
+                                         caughtUpReplicas,
+                                         laggingReplicas);
             }
 
             if (!laggingReplicas.isEmpty()) {
@@ -82,7 +81,8 @@ public class ReplicaMonitor implements ApplicationListener<ContextClosedEvent> {
         }
     }
 
-    private void checkStatusForAPartition(Tuple<String, Integer> ownedPartition,
+    private void checkStatusForAPartition(String nodeId,
+                                          Tuple<String, Integer> ownedPartition,
                                           long recordLagThreshold,
                                           long timeLagThresholdMs,
                                           Set<Replica> caughtUpReplicas,
@@ -95,66 +95,41 @@ public class ReplicaMonitor implements ApplicationListener<ContextClosedEvent> {
             return;
 
         LogPosition committedOffset = partitionState.getOffsetState().getCommittedOffset();
-        LogPosition endOffset = partitionState.getOffsetState().getEndOffset();
+        LogPosition endOffset = partitionState.getWal().getEndOffset();
 
-        if (committedOffset.equals(endOffset))
-            return;
-
-        int minISRCount = MetadataCache.getInstance().getMinInSyncReplicas(table);
         Map<String, LogPosition> replicaEndOffsets = partitionState.getOffsetState().getReplicaEndOffsets();
-        Set<String> allReplicaIds = MetadataCache.getInstance().getReplicaNodeIds(
-                table,
-                partition);
+        replicaEndOffsets.put(state.getNodeId(), endOffset);
+        Set<String> allReplicaIds = MetadataCache.getInstance().getReplicaNodeIds(table, partition);
         Set<String> inSyncReplicaIds = MetadataCache.getInstance().getInSyncReplicas(table, partition);
-        PriorityQueue<Map.Entry<String, LogPosition>> upToDateReplicas = new PriorityQueue<>(Map.Entry.comparingByValue());
 
-        for (Map.Entry<String, LogPosition> replicaEndOffset : replicaEndOffsets.entrySet()) {
-            if (upToDateReplicas.isEmpty() || upToDateReplicas.size() < minISRCount)
-                upToDateReplicas.offer(replicaEndOffset);
-            else {
-                if (replicaEndOffset.getValue().isGreaterThan(upToDateReplicas.peek().getValue())) {
-                    upToDateReplicas.poll();
+        if (committedOffset.isLessThan(endOffset)) {
+            int minISRCount = MetadataCache.getInstance().getMinInSyncReplicas(table);
+            PriorityQueue<Map.Entry<String, LogPosition>> upToDateReplicas = new PriorityQueue<>(Map.Entry.comparingByValue());
+
+            for (Map.Entry<String, LogPosition> replicaEndOffset : replicaEndOffsets.entrySet()) {
+                if (upToDateReplicas.isEmpty() || upToDateReplicas.size() < minISRCount)
                     upToDateReplicas.offer(replicaEndOffset);
-                }
-            }
-        }
-
-        while (upToDateReplicas.size() > 1)
-            upToDateReplicas.poll();
-
-        LogPosition newCommittedOffset = upToDateReplicas.poll().getValue();
-
-        if (newCommittedOffset.isGreaterThan(committedOffset)) {
-            partitionState.getOffsetState().setCommittedOffset(newCommittedOffset);
-
-            for (String replicaId : allReplicaIds) {
-                if (replicaId.equals(this.state.getNodeId()))
-                    continue;
-
-                if (replicaEndOffsets.get(replicaId).isGreaterThanOrEquals(newCommittedOffset)) {
-                    if (!inSyncReplicaIds.contains(replicaId))
-                        caughtUpReplicas.add(new Replica(replicaId, table, partition));
-                } else {
-                    if (inSyncReplicaIds.contains(replicaId)) {
-                        long timeLag = System.currentTimeMillis() - partitionState.getOffsetState().getLogTimestamp(newCommittedOffset);
-                        if (timeLag > timeLagThresholdMs) {
-                            laggingReplicas.add(new Replica(replicaId, table, partition));
-                        }
-                        else {
-                            // TODO - how do we determine the right record lag threshold?
-                            long recordLag = partitionState.getWal().getLag(replicaEndOffsets.get(replicaId), newCommittedOffset);
-                            if (recordLag > recordLagThreshold)
-                                laggingReplicas.add(new Replica(replicaId, table, partition));
-                        }
+                else {
+                    if (replicaEndOffset.getValue().isGreaterThan(upToDateReplicas.peek().getValue())) {
+                        upToDateReplicas.poll();
+                        upToDateReplicas.offer(replicaEndOffset);
                     }
                 }
             }
 
-            return;
+            while (upToDateReplicas.size() > 1)
+                upToDateReplicas.poll();
+
+            LogPosition newCommittedOffset = upToDateReplicas.poll().getValue();
+
+            if (newCommittedOffset.isGreaterThan(committedOffset)) {
+                partitionState.getOffsetState().setCommittedOffset(newCommittedOffset);
+                committedOffset = newCommittedOffset;
+            }
         }
 
         for (String replicaId : allReplicaIds) {
-            if (replicaId.equals(this.state.getNodeId()))
+            if (replicaId.equals(nodeId))
                 continue;
 
             if (replicaEndOffsets.get(replicaId).isGreaterThanOrEquals(committedOffset)) {
@@ -163,8 +138,14 @@ public class ReplicaMonitor implements ApplicationListener<ContextClosedEvent> {
             } else {
                 if (inSyncReplicaIds.contains(replicaId)) {
                     long timeLag = System.currentTimeMillis() - partitionState.getOffsetState().getLogTimestamp(committedOffset);
-                    if (timeLag > timeLagThresholdMs)
+                    if (timeLag > timeLagThresholdMs) {
                         laggingReplicas.add(new Replica(replicaId, table, partition));
+                    } else {
+                        // TODO - how do we determine the right record lag threshold?
+                        long recordLag = partitionState.getWal().getLag(replicaEndOffsets.get(replicaId), committedOffset);
+                        if (recordLag > recordLagThreshold)
+                            laggingReplicas.add(new Replica(replicaId, table, partition));
+                    }
                 }
             }
         }

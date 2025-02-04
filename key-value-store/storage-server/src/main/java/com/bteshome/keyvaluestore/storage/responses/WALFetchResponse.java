@@ -5,6 +5,7 @@ import com.bteshome.keyvaluestore.storage.states.DataSnapshot;
 import com.bteshome.keyvaluestore.storage.states.WALEntry;
 import lombok.*;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 
@@ -19,6 +20,6 @@ public class WALFetchResponse {
     private List<WALEntry> entries;
     private LogPosition commitedOffset;
     private LogPosition truncateToOffset;
-    private DataSnapshot dataSnapshot;
-    private WALFetchPayloadType payloadType = WALFetchPayloadType.LOG;
+    private byte[] dataSnapshotBytes;
+    private WALFetchPayloadType payloadType;
 }

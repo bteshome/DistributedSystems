@@ -38,7 +38,7 @@ public class LogTimestampsTrimmer {
             // TODO - should be configurable?
             long interval = Duration.ofMinutes(15).toMillis();
             executor = Executors.newSingleThreadScheduledExecutor();
-            executor.scheduleAtFixedRate(this::checkStatus, interval, interval, TimeUnit.MILLISECONDS);
+            executor.scheduleWithFixedDelay(this::checkStatus, interval, interval, TimeUnit.MILLISECONDS);
             log.info("Scheduled log timestamps trimmer. The interval is {} ms.", interval);
         } catch (Exception e) {
             log.error("Error scheduling log timestamps trimmer.", e);

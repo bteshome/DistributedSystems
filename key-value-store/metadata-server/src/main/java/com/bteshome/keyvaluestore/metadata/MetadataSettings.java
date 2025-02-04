@@ -30,11 +30,14 @@ public class MetadataSettings {
     private long storageNodeHeartbeatSendIntervalMs;
     private long storageNodeMetadataRefreshIntervalMs;
     private long walFlushIntervalMs;
+    private int walFlushThreadPoolSize;
     private long replicaMonitorIntervalMs;
+    private int replicaMonitorThreadPoolSize;
     private long replicaLagThresholdRecords;
     private long replicaLagThresholdTimeMs;
     private long replicaFetchIntervalMs;
     private int replicaFetchMaxNumRecords;
+    private int replicaFetchThreadPoolSize;
     private long dataSnapshotIntervalMs;
     private long endOffsetSnapshotIntervalMs;
     private int numPartitionsDefault;
