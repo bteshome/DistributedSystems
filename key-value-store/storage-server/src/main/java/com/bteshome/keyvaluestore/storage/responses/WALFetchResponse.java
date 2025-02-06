@@ -1,13 +1,10 @@
 package com.bteshome.keyvaluestore.storage.responses;
 
 import com.bteshome.keyvaluestore.common.LogPosition;
-import com.bteshome.keyvaluestore.storage.states.DataSnapshot;
-import com.bteshome.keyvaluestore.storage.states.WALEntry;
+import com.bteshome.keyvaluestore.storage.entities.WALEntry;
 import lombok.*;
 
-import java.io.Serializable;
 import java.util.List;
-import java.util.Map;
 
 @Getter
 @Setter

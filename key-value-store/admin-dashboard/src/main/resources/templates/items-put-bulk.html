@@ -40,6 +40,14 @@
                     <label for="numItems" class="form-label">Number Items</label>
                     <input type="text" class="form-control" id="numItems" th:field="*{numItems}">
                 </div>
+                <div class="col-md-12">
+                    <label for="ack" class="form-label">Ack Type</label>
+                    <select class="form-select" id="ack" th:field="*{ack}">
+                        <option selected value="NONE">None</option>
+                        <option value="LEADER">Leader</option>
+                        <option value="MIN_ISR_COUNT">Min ISR Count</option>
+                    </select>
+                </div>
                 <div class="col-auto">
                     <button type="submit" class="btn btn-primary mb-3">Put in Bulk</button>
                 </div>

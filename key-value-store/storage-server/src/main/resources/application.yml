@@ -44,7 +44,7 @@ endpoints:
 logging:
   level:
     com:
-      bteshome: DEBUG
+      bteshome: INFO
     root: ERROR
     org:
       apache:

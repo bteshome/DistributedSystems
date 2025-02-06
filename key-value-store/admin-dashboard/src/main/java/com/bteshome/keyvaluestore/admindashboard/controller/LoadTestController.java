@@ -3,6 +3,7 @@ package com.bteshome.keyvaluestore.admindashboard.controller;
 import com.bteshome.keyvaluestore.admindashboard.dto.LoadTestDto;
 import com.bteshome.keyvaluestore.client.ItemWriter;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemWrite;
+import com.bteshome.keyvaluestore.client.requests.AckType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +34,7 @@ public class LoadTestController {
         request.setTable("table1");
         request.setRequestsPerSecond(10);
         request.setDuration(Duration.ofSeconds(1));
+        request.setAck(AckType.NONE);
         model.addAttribute("request", request);
         model.addAttribute("page", "load-test");
         return "load-test.html";
@@ -51,7 +53,7 @@ public class LoadTestController {
                 int randomNumber = random.nextInt(1, Integer.MAX_VALUE);
                 String key = "key" + randomNumber;
                 String value = "value" + randomNumber;
-                ItemWrite<String> itemWrite = new ItemWrite<>(request.getTable(), key, value);
+                ItemWrite<String> itemWrite = new ItemWrite<>(request.getTable(), key, value, AckType.NONE);
                 itemWrites.add(itemWrite);
             }
 

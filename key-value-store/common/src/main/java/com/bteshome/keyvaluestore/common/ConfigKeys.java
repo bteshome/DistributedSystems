@@ -9,8 +9,6 @@ public class ConfigKeys {
     public static final String STORAGE_NODE_HEARTBEAT_EXPECT_INTERVAL_MS_KEY = "storage-node-heartbeat-expect-interval-ms";
     public static final String STORAGE_NODE_HEARTBEAT_SEND_INTERVAL_MS_KEY = "storage-node-heartbeat-send-interval-ms";
     public static final String STORAGE_NODE_METADATA_REFRESH_INTERVAL_MS_KEY = "storage-node-metadata-refresh-interval-ms";
-    public static final String WAL_FLUSH_INTERVAL_MS_KEY = "wal-flush-interval-ms";
-    public static final String WAL_FLUSH_THREAD_POOL_SIZE_KEY = "wal-flush-thread-pool-size";
     public static final String REPLICA_MONITOR_INTERVAL_MS_KEY = "replica-monitor-interval-ms";
     public static final String REPLICA_MONITOR_THREAD_POOL_SIZE_KEY = "replica-monitor-thread-pool-size";
     public static final String REPLICA_LAG_THRESHOLD_RECORDS_KEY = "replica-lag-threshold-records";

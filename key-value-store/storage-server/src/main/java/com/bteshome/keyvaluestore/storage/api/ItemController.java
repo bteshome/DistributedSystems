@@ -13,6 +13,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.concurrent.CompletableFuture;
+
 @RestController
 @RequestMapping("/api/items")
 @RequiredArgsConstructor
@@ -23,21 +25,6 @@ public class ItemController {
 
     @PostMapping("/get/")
     public ResponseEntity<ItemGetResponse> getItem(@RequestBody ItemGetRequest request) {
-        if (!state.getLastHeartbeatSucceeded()) {
-            String errorMessage = "Node '%s' is not active.".formatted(state.getNodeId());
-            return ResponseEntity.ok(ItemGetResponse.builder()
-                    .httpStatusCode(HttpStatus.SERVICE_UNAVAILABLE.value())
-                    .errorMessage(errorMessage)
-                    .build());
-        }
-
-        if (!MetadataCache.getInstance().tableExists(request.getTable())) {
-            return ResponseEntity.ok(ItemGetResponse.builder()
-                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
-                    .errorMessage("Table '%s' does not exist.".formatted(request.getTable()))
-                    .build());
-        }
-
         PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition());
 
         if (partitionState == null) {
@@ -51,21 +38,6 @@ public class ItemController {
 
     @PostMapping("/list/")
     public ResponseEntity<ItemListResponse> listItems(@RequestBody ItemListRequest request) {
-        if (!state.getLastHeartbeatSucceeded()) {
-            String errorMessage = "Node '%s' is not active.".formatted(state.getNodeId());
-            return ResponseEntity.ok(ItemListResponse.builder()
-                    .httpStatusCode(HttpStatus.SERVICE_UNAVAILABLE.value())
-                    .errorMessage(errorMessage)
-                    .build());
-        }
-
-        if (!MetadataCache.getInstance().tableExists(request.getTable())) {
-            return ResponseEntity.ok(ItemListResponse.builder()
-                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
-                    .errorMessage("Table '%s' does not exist.".formatted(request.getTable()))
-                    .build());
-        }
-
         PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition());
 
         if (partitionState == null) {
@@ -78,68 +50,33 @@ public class ItemController {
     }
 
     @PostMapping("/put/")
-    public ResponseEntity<ItemPutResponse> putItem(@RequestBody ItemPutRequest request) {
-        if (!state.getLastHeartbeatSucceeded()) {
-            String errorMessage = "Node '%s' is not active.".formatted(state.getNodeId());
-            return ResponseEntity.ok(ItemPutResponse.builder()
-                    .httpStatusCode(HttpStatus.SERVICE_UNAVAILABLE.value())
-                    .errorMessage(errorMessage)
-                    .build());
-        }
-
-        if (!MetadataCache.getInstance().tableExists(request.getTable())) {
-            String errorMessage = "Table '%s' does not exist.".formatted(request.getTable());
-            return ResponseEntity.ok(ItemPutResponse.builder()
-                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
-                    .errorMessage(errorMessage)
-                    .build());
-        }
-
+    public CompletableFuture<ResponseEntity<ItemPutResponse>> putItem(@RequestBody ItemPutRequest request) {
         PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition());
 
-        return partitionState.putItems(request.getItems());
+        if (partitionState == null) {
+            return CompletableFuture.completedFuture(ResponseEntity.ok(ItemPutResponse.builder()
+                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
+                    .build()));
+        }
+
+        return partitionState.putItems(request);
     }
 
     @PostMapping("/delete/")
-    public ResponseEntity<ItemDeleteResponse> deleteItem(@RequestBody ItemDeleteRequest request) {
-        if (!state.getLastHeartbeatSucceeded()) {
-            String errorMessage = "Node '%s' is not active.".formatted(state.getNodeId());
-            return ResponseEntity.ok(ItemDeleteResponse.builder()
-                    .httpStatusCode(HttpStatus.SERVICE_UNAVAILABLE.value())
-                    .errorMessage(errorMessage)
-                    .build());
-        }
-
-        if (!MetadataCache.getInstance().tableExists(request.getTable())) {
-            String errorMessage = "Table '%s' does not exist.".formatted(request.getTable());
-            return ResponseEntity.ok(ItemDeleteResponse.builder()
-                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
-                    .errorMessage(errorMessage)
-                    .build());
-        }
-
+    public CompletableFuture<ResponseEntity<ItemDeleteResponse>> deleteItem(@RequestBody ItemDeleteRequest request) {
         PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition());
 
-        return partitionState.deleteItems(request.getKeys());
+        if (partitionState == null) {
+            return CompletableFuture.completedFuture(ResponseEntity.ok(ItemDeleteResponse.builder()
+                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
+                    .build()));
+        }
+
+        return partitionState.deleteItems(request);
     }
 
     @PostMapping("/count-and-offsets/")
     public ResponseEntity<ItemCountAndOffsetsResponse> countItems(@RequestBody ItemCountAndOffsetsRequest request) {
-        if (!state.getLastHeartbeatSucceeded()) {
-            String errorMessage = "Node '%s' is not active.".formatted(state.getNodeId());
-            return ResponseEntity.ok(ItemCountAndOffsetsResponse.builder()
-                    .httpStatusCode(HttpStatus.SERVICE_UNAVAILABLE.value())
-                    .errorMessage(errorMessage)
-                    .build());
-        }
-
-        if (!MetadataCache.getInstance().tableExists(request.getTable())) {
-            return ResponseEntity.ok(ItemCountAndOffsetsResponse.builder()
-                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
-                    .errorMessage("Table '%s' does not exist.".formatted(request.getTable()))
-                    .build());
-        }
-
         PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition());
 
         if (partitionState == null) {

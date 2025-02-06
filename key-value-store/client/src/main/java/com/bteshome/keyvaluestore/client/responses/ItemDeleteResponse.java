@@ -1,5 +1,6 @@
 package com.bteshome.keyvaluestore.client.responses;
 
+import com.bteshome.keyvaluestore.common.LogPosition;
 import lombok.*;
 
 @Getter
@@ -11,4 +12,5 @@ public class ItemDeleteResponse {
     private int httpStatusCode;
     private String errorMessage;
     private String leaderEndpoint;
+    private LogPosition endOffset;
 }

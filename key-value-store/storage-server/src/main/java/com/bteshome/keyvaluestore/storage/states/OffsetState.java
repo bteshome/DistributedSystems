@@ -1,7 +1,6 @@
 package com.bteshome.keyvaluestore.storage.states;
 
 import com.bteshome.keyvaluestore.common.LogPosition;
-import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.Utils;
 import com.bteshome.keyvaluestore.storage.common.ChecksumUtil;
 import com.bteshome.keyvaluestore.storage.common.CompressionUtil;
@@ -29,6 +28,7 @@ public class OffsetState {
     private LogPosition committedOffset;
     private LogPosition previousLeaderEndOffset;
     private final String committedOffsetSnapshotFile;
+    private final String endOffsetSnapshotFile;
     private final String previousLeaderEndOffsetFile;
     private final ReentrantReadWriteLock lock;
 
@@ -42,8 +42,10 @@ public class OffsetState {
         previousLeaderEndOffset = LogPosition.ZERO;
         lock = new ReentrantReadWriteLock(true);
         committedOffsetSnapshotFile = "%s/%s-%s/committedOffset.ser".formatted(storageSettings.getNode().getStorageDir(), table, partition);
+        endOffsetSnapshotFile = "%s/%s-%s/endOffset.ser".formatted(storageSettings.getNode().getStorageDir(), table, partition);
         previousLeaderEndOffsetFile = "%s/%s-%s/previousLeaderEndOffset.ser".formatted(storageSettings.getNode().getStorageDir(), table, partition);
         loadCommittedOffsetFromSnapshot();
+        loadEndOffsetFromSnapshot();
         loadPreviousLeaderEndOffset();
     }
 
@@ -62,8 +64,25 @@ public class OffsetState {
         return logTimestamps.get(offset);
     }
 
+    public LogPosition getEndOffset() {
+        return replicaEndOffsets.getOrDefault(nodeId, LogPosition.ZERO);
+    }
+
     public Map<String, LogPosition> getReplicaEndOffsets() {
         return new HashMap<>(replicaEndOffsets);
+    }
+
+    public void setEndOffset(LogPosition offset) {
+        try (AutoCloseableLock l = writeLock()) {
+            replicaEndOffsets.put(nodeId, offset);
+            CompressionUtil.compressAndWrite(endOffsetSnapshotFile, offset);
+            ChecksumUtil.generateAndWrite(endOffsetSnapshotFile);
+            log.trace("Persisted end offset '{}' for table '{}' partition '{}'.", offset, table, partition);
+        } catch (Exception e) {
+            String errorMessage = "Error writing end offset for table '%s' partition '%s'.".formatted(table, partition);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
     }
 
     public void setReplicaEndOffset(String replicaId, LogPosition offset) {
@@ -91,8 +110,6 @@ public class OffsetState {
 
     public LogPosition getPreviousLeaderEndOffset() {
         try (AutoCloseableLock l = readLock()) {
-            if (!nodeId.equals(MetadataCache.getInstance().getLeaderNodeId(table, partition)))
-                throw new StorageServerException("Illegal access. Not the leader for table '%s' partition '%s'.".formatted(table, partition));
             return previousLeaderEndOffset;
         }
     }
@@ -140,6 +157,27 @@ public class OffsetState {
             }
         } catch (IOException e) {
             String errorMessage = "Error loading from a snapshot of committed offset for table '%s' partition '%s'.".formatted(table, partition);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }
+
+    private void loadEndOffsetFromSnapshot() {
+        if (Files.notExists(Path.of(endOffsetSnapshotFile)))
+            return;
+
+        ChecksumUtil.readAndVerify(endOffsetSnapshotFile);
+
+        BufferedReader reader = Utils.createReader(endOffsetSnapshotFile);
+        try (reader) {
+            String line = reader.readLine();
+            if (line != null) {
+                LogPosition offset = CompressionUtil.readAndDecompress(endOffsetSnapshotFile, LogPosition.class);
+                replicaEndOffsets.put(nodeId, offset);
+                log.debug("Loaded end offset from snapshot for table '{}' partition '{}'.", table, partition);
+            }
+        } catch (IOException e) {
+            String errorMessage = "Error loading from a snapshot of end offset for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);
             throw new StorageServerException(errorMessage, e);
         }

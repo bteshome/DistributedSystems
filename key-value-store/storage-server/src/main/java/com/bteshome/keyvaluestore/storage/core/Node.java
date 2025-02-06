@@ -30,13 +30,7 @@ public class Node implements CommandLineRunner {
     @Autowired
     StorageNodeMetadataRefresher storageNodeMetadataRefresher;
     @Autowired
-    ReplicaMonitor replicaMonitor;
-    @Autowired
-    WALFetcher walFetcher;
-    @Autowired
     State state;
-    @Autowired
-    LogTimestampsTrimmer logTimestampsTrimmer;
 
     @Override
     public void run(String... args) throws IOException {
@@ -57,13 +51,8 @@ public class Node implements CommandLineRunner {
                     log.info(response.getMessage());
                     storageNodeMetadataRefresher.fetch();
                     storageNodeMetadataRefresher.schedule();
-                    state.initialize();
                     heartbeatSender.schedule();
-                    replicaMonitor.schedule();
-                    walFetcher.schedule();
-                    logTimestampsTrimmer.schedule();
-                    MetadataCache.getInstance().setReady(true);
-                    log.info("Ready to serve requests.");
+                    state.initialize();
                 } else {
                     log.error(response.getMessage());
                 }

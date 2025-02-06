@@ -14,45 +14,34 @@ import java.util.stream.Collectors;
 
 @Slf4j
 public class MetadataCache {
-    private Map<EntityType, Map<String, Object>> state = Map.of();
+    private final Map<EntityType, Map<String, Object>> state;
     private String heartbeatEndpoint;
     private static final String CURRENT = "current";
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
-    private boolean ready = false;
     @Getter
     private final static MetadataCache instance = new MetadataCache();
 
-    public boolean isReady() {
-        try (AutoCloseableLock l = readLock()) {
-            return ready;
-        }
-    }
-
-    public void setReady(boolean ready) {
-        try (AutoCloseableLock l = writeLock()) {
-            this.ready = ready;
-        }
+    public MetadataCache() {
+        this.state = new ConcurrentHashMap<>();
+        state.put(EntityType.TABLE, new ConcurrentHashMap<>());
+        state.put(EntityType.STORAGE_NODE, new ConcurrentHashMap<>());
+        state.put(EntityType.CONFIGURATION, new ConcurrentHashMap<>());
+        state.put(EntityType.VERSION, new ConcurrentHashMap<>());
+        state.get(EntityType.VERSION).put(CURRENT, 0L);
     }
 
     public long getLastFetchedVersion() {
-        try (AutoCloseableLock l = readLock()) {
-            if (state.containsKey(EntityType.VERSION)) {
-                return (Long)state.get(EntityType.VERSION).getOrDefault(CURRENT, 0L);
-            }
-            return 0L;
-        }
+        if (state.containsKey(EntityType.VERSION))
+            return (Long)state.get(EntityType.VERSION).getOrDefault(CURRENT, 0L);
+        return 0L;
     }
 
     public Object getConfiguration(String key) {
-        try (AutoCloseableLock l = readLock()) {
-            return state.get(EntityType.CONFIGURATION).get(key);
-        }
+        return state.get(EntityType.CONFIGURATION).get(key);
     }
 
     public Map<String, Object> getConfigurations() {
-        try (AutoCloseableLock l = readLock()) {
-            return state.get(EntityType.CONFIGURATION);
-        }
+        return new HashMap<>(state.get(EntityType.CONFIGURATION));
     }
 
     public String getHeartbeatEndpoint() {
@@ -68,111 +57,90 @@ public class MetadataCache {
     }
 
     public void setState(Map<EntityType, Map<String, Object>> state) {
-        try (AutoCloseableLock l = writeLock()) {
-            this.state = new HashMap<>(state);
-        }
+        this.state.get(EntityType.TABLE).putAll(state.get(EntityType.TABLE));
+        this.state.get(EntityType.STORAGE_NODE).putAll(state.get(EntityType.STORAGE_NODE));
+        this.state.get(EntityType.CONFIGURATION).putAll(state.get(EntityType.CONFIGURATION));
+        this.state.get(EntityType.VERSION).putAll(state.get(EntityType.VERSION));
     }
 
     public String getState() {
-        try (AutoCloseableLock l = readLock()) {
-            return JavaSerDe.serialize(state);
-        }
+        return JavaSerDe.serialize(state);
     }
 
     public Duration getTableTimeToLive(String tableName, int partition) {
-        try (AutoCloseableLock l = readLock()) {
-            Table table = (Table)state.get(EntityType.TABLE).get(tableName);
-            return table.getTimeToLive();
-        }
+        Table table = (Table)state.get(EntityType.TABLE).get(tableName);
+        return table.getTimeToLive();
     }
 
     public String getLeaderNodeId(String tableName, int partition) {
-        try (AutoCloseableLock l = readLock()) {
-            Table table = (Table)state.get(EntityType.TABLE).get(tableName);
-            return table.getPartitions().get(partition).getLeader();
-        }
+        Table table = (Table)state.get(EntityType.TABLE).get(tableName);
+        return table.getPartitions().get(partition).getLeader();
     }
 
     public String getLeaderEndpoint(String tableName, int partition) {
-        try (AutoCloseableLock l = readLock()) {
-            Table table = (Table)state.get(EntityType.TABLE).get(tableName);
-            String leaderNodeId = table.getPartitions().get(partition).getLeader();
-            if (leaderNodeId == null) {
-                return null;
-            }
-            StorageNode leaderNode = (StorageNode)state.get(EntityType.STORAGE_NODE).get(leaderNodeId);
-            return "%s:%s".formatted(leaderNode.getHost(), leaderNode.getPort());
+        Table table = (Table)state.get(EntityType.TABLE).get(tableName);
+        String leaderNodeId = table.getPartitions().get(partition).getLeader();
+        if (leaderNodeId == null) {
+            return null;
         }
+        StorageNode leaderNode = (StorageNode)state.get(EntityType.STORAGE_NODE).get(leaderNodeId);
+        return "%s:%s".formatted(leaderNode.getHost(), leaderNode.getPort());
     }
 
     public int getLeaderTerm(String tableName, int partition) {
-        try (AutoCloseableLock l = readLock()) {
-            Table table = (Table)state.get(EntityType.TABLE).get(tableName);
-            return table.getPartitions().get(partition).getLeaderTerm();
-        }
+        Table table = (Table)state.get(EntityType.TABLE).get(tableName);
+        return table.getPartitions().get(partition).getLeaderTerm();
     }
 
     public String getEndpoint(String nodeId) {
-        try (AutoCloseableLock l = readLock()) {
-            StorageNode node = (StorageNode)state.get(EntityType.STORAGE_NODE).get(nodeId);
-            return "%s:%s".formatted(node.getHost(), node.getPort());
-        }
+        StorageNode node = (StorageNode)state.get(EntityType.STORAGE_NODE).get(nodeId);
+        return "%s:%s".formatted(node.getHost(), node.getPort());
     }
 
     public Set<String> getISREndpoints(String tableName, int partition, String excludedNodeId) {
-        try (AutoCloseableLock l = readLock()) {
-            Table table = (Table)state.get(EntityType.TABLE).get(tableName);
-            return table.getPartitions()
-                    .get(partition)
-                    .getInSyncReplicas()
-                    .stream()
-                    .filter(nodeId -> !nodeId.equals(excludedNodeId))
-                    .map(nodeId -> {
-                        StorageNode node = (StorageNode)state.get(EntityType.STORAGE_NODE).get(nodeId);
-                        return "%s:%s".formatted(node.getHost(), node.getPort());
-                    })
-                    .collect(Collectors.toSet());
-        }
+        Table table = (Table)state.get(EntityType.TABLE).get(tableName);
+        return table.getPartitions()
+                .get(partition)
+                .getInSyncReplicas()
+                .stream()
+                .filter(nodeId -> !nodeId.equals(excludedNodeId))
+                .map(nodeId -> {
+                    StorageNode node = (StorageNode)state.get(EntityType.STORAGE_NODE).get(nodeId);
+                    return "%s:%s".formatted(node.getHost(), node.getPort());
+                })
+                .collect(Collectors.toSet());
     }
 
     public Set<String> getReplicaNodeIds(String tableName, int partition) {
-        try (AutoCloseableLock l = readLock()) {
-            Table table = (Table)state.get(EntityType.TABLE).get(tableName);
-            return new HashSet<>(table.getPartitions()
-                    .get(partition)
-                    .getReplicas());
-        }
+        Table table = (Table)state.get(EntityType.TABLE).get(tableName);
+        return new HashSet<>(table.getPartitions()
+                .get(partition)
+                .getReplicas());
     }
 
     public Set<String> getInSyncReplicas(String tableName, int partition) {
-        try (AutoCloseableLock l = readLock()) {
-            Table table = (Table)state.get(EntityType.TABLE).get(tableName);
-            return new HashSet<>(table.getPartitions()
-                    .get(partition)
-                    .getInSyncReplicas());
-        }
+        Table table = (Table)state.get(EntityType.TABLE).get(tableName);
+        return new HashSet<>(table.getPartitions()
+                .get(partition)
+                .getInSyncReplicas());
     }
 
     public List<Tuple<String, Integer>> getOwnedPartitions(String nodeId) {
-        try (AutoCloseableLock l = readLock()) {
-            StorageNode node = (StorageNode)state.get(EntityType.STORAGE_NODE).get(nodeId);
-            return node.getReplicaAssignmentSet()
-                    .stream()
-                    .filter(ReplicaAssignment::isLeader)
-                    .map(a -> new Tuple<>(a.getTableName(), a.getPartitionIid()))
-                    .toList();
-        }
+        StorageNode node = (StorageNode)state.get(EntityType.STORAGE_NODE).get(nodeId);
+        return node.getReplicaAssignmentSet()
+                .stream()
+                .filter(ReplicaAssignment::isLeader)
+                .map(a -> new Tuple<>(a.getTableName(), a.getPartitionIid()))
+                .toList();
     }
 
     public List<Replica> getFollowedReplicas(String nodeId) {
-        try (AutoCloseableLock l = readLock()) {
-            StorageNode node = (StorageNode)state.get(EntityType.STORAGE_NODE).get(nodeId);
-            return node.getReplicaAssignmentSet()
-                    .stream()
-                    .filter(ReplicaAssignment::isFollower)
-                    .map(a -> new Replica(nodeId, a.getTableName(), a.getPartitionIid()))
-                    .toList();
-        }
+        StorageNode node = (StorageNode)state.get(EntityType.STORAGE_NODE).get(nodeId);
+        return node.getReplicaAssignmentSet()
+                .stream()
+                .filter(ReplicaAssignment::isFollower)
+                .map(a -> new Replica(nodeId, a.getTableName(), a.getPartitionIid()))
+                .toList();
     }
 
     public boolean tableExists(String tableName) {

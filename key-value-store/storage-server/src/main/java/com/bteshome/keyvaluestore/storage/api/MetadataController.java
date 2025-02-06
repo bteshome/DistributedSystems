@@ -7,6 +7,7 @@ import com.bteshome.keyvaluestore.common.requests.NewLeaderElectedRequest;
 import com.bteshome.keyvaluestore.client.responses.ClientMetadataFetchResponse;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
 import com.bteshome.keyvaluestore.storage.core.StorageNodeMetadataRefresher;
+import com.bteshome.keyvaluestore.storage.states.PartitionState;
 import com.bteshome.keyvaluestore.storage.states.State;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,7 +45,9 @@ public class MetadataController {
                 request.getTableName(),
                 request.getPartitionId(),
                 request.getNewLeaderId());
-        state.newLeaderElected(request);
+        PartitionState partitionState = state.getPartitionState(request.getTableName(), request.getPartitionId());
+        partitionState.newLeaderElected(request);
+        metadataRefresher.fetch();
         return ResponseEntity.ok().build();
     }
 
@@ -53,6 +56,8 @@ public class MetadataController {
         log.info("Received an ISRListChanged notification from the metadata node for table '{}' partition '{}'.",
                 request.getTableName(),
                 request.getPartitionId());
+        PartitionState partitionState = state.getPartitionState(request.getTableName(), request.getPartitionId());
+        partitionState.isrListChanged(request);
         metadataRefresher.fetch();
         return ResponseEntity.ok().build();
     }

@@ -15,5 +15,6 @@ import java.util.List;
 public class ItemDeleteRequest {
     private String table;
     private int partition;
+    private AckType ack;
     private List<String> keys = new ArrayList<>();
 }

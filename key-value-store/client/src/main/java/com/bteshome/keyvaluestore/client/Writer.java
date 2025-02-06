@@ -40,11 +40,14 @@ public class Writer {
             response = put(response.getLeaderEndpoint(), itemPutRequest);
         }
 
-        if (response.getHttpStatusCode() != HttpStatus.ACCEPTED.value()) {
-            throw new RuntimeException("Unable to write to endpoint %s. Http status: %s, error: %s.".formatted(
+        if (response.getHttpStatusCode() != HttpStatus.OK.value()) {
+            String errorMessage = "Unable to write to endpoint %s. Http status: %s, error: %s, end offset: %s.".formatted(
                     endpoint,
                     response.getHttpStatusCode(),
-                    response.getErrorMessage()));
+                    response.getErrorMessage(),
+                    response.getEndOffset());
+
+            throw new RuntimeException(errorMessage);
         }
     }
 
@@ -71,7 +74,7 @@ public class Writer {
             response = delete(response.getLeaderEndpoint(), itemDeleteRequest);
         }
 
-        if (response.getHttpStatusCode() != HttpStatus.ACCEPTED.value()) {
+        if (response.getHttpStatusCode() != HttpStatus.OK.value()) {
             throw new RuntimeException("Unable to delete at endpoint %s. Http status: %s, error: %s.".formatted(
                     endpoint,
                     response.getHttpStatusCode(),

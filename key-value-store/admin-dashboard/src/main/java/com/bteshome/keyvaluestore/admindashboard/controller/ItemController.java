@@ -4,6 +4,7 @@ import com.bteshome.keyvaluestore.admindashboard.dto.ItemDeleteBatchDto;
 import com.bteshome.keyvaluestore.admindashboard.dto.ItemPutBatchDto;
 import com.bteshome.keyvaluestore.client.*;
 import com.bteshome.keyvaluestore.client.clientrequests.*;
+import com.bteshome.keyvaluestore.client.requests.AckType;
 import com.bteshome.keyvaluestore.client.requests.ItemDeleteRequest;
 import com.bteshome.keyvaluestore.common.entities.Item;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -25,13 +27,10 @@ import java.util.Set;
 public class ItemController {
     @Autowired
     ItemWriter itemWriter;
-
     @Autowired
     ItemReader itemReader;
-
     @Autowired
     BatchWriter batchWriter;
-
     @Autowired
     BatchReader batchReader;
 
@@ -106,6 +105,7 @@ public class ItemController {
         ItemWrite<String> request = new ItemWrite<>();
         request.setTable("table1");
         request.setKey("key1");
+        request.setAck(AckType.MIN_ISR_COUNT);
         String value = """
                 {
                   "id": 1,
@@ -139,6 +139,7 @@ public class ItemController {
         ItemPutBatchDto request = new ItemPutBatchDto();
         request.setTable("table1");
         request.setNumItems(10);
+        request.setAck(AckType.MIN_ISR_COUNT);
         model.addAttribute("request", request);
         model.addAttribute("page", "items-put-bulk");
         return "items-put-bulk.html";
@@ -150,10 +151,11 @@ public class ItemController {
             Random random = new Random();
             BatchWrite<String> batchWrite = new BatchWrite<>();
             batchWrite.setTable(request.getTable());
+            batchWrite.setAck(request.getAck());
+            Instant now = Instant.now();
             for (int i = 0; i < request.getNumItems(); i++) {
-                int randomNumber = random.nextInt(1, Integer.MAX_VALUE);
-                String key = "key" + randomNumber;
-                String value = "value" + randomNumber;
+                String key = "key" + now.toEpochMilli() + "_" + i;
+                String value = "value" + now.toEpochMilli() + "_" + i;
                 batchWrite.getItems().add(Map.entry(key, value));
             }
             batchWriter.putStringBatch(batchWrite);
@@ -185,6 +187,7 @@ public class ItemController {
     @PostMapping("/delete-item-confirmed/")
     public String deleteItemConfirmed(@ModelAttribute("itemDeleteRequest") @RequestBody ItemDelete itemDeleteRequest, Model model) {
         try {
+            itemDeleteRequest.setAck(AckType.MIN_ISR_COUNT);
             itemWriter.delete(itemDeleteRequest);
             model.addAttribute("info", "Deleted item with key '%s' in table '%s'.".formatted(
                     itemDeleteRequest.getKey(),
@@ -227,6 +230,7 @@ public class ItemController {
     public String deleteBatchConfirmed(@ModelAttribute("batchDeleteRequest") @RequestBody BatchDelete batchDeleteRequest, Model model) {
         try {
             if (!batchDeleteRequest.getKeys().isEmpty()) {
+                batchDeleteRequest.setAck(AckType.MIN_ISR_COUNT);
                 batchWriter.deleteBatch(batchDeleteRequest);
                 model.addAttribute("info", "Deleted %s items.".formatted(batchDeleteRequest.getKeys().size()));
             }

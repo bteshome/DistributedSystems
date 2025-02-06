@@ -1,4 +1,4 @@
-package com.bteshome.keyvaluestore.storage.states;
+package com.bteshome.keyvaluestore.storage.entities;
 
 public class OperationType {
     public static final String PUT = "PUT";

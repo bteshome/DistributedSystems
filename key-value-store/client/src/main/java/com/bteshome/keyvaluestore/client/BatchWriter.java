@@ -2,6 +2,7 @@ package com.bteshome.keyvaluestore.client;
 
 import com.bteshome.keyvaluestore.client.clientrequests.BatchDelete;
 import com.bteshome.keyvaluestore.client.clientrequests.BatchWrite;
+import com.bteshome.keyvaluestore.client.requests.AckType;
 import com.bteshome.keyvaluestore.client.requests.ItemDeleteRequest;
 import com.bteshome.keyvaluestore.client.requests.ItemPutRequest;
 import com.bteshome.keyvaluestore.common.ConfigKeys;
@@ -33,7 +34,7 @@ public class BatchWriter extends Writer {
             items.add(new AbstractMap.SimpleEntry<>(key, bytes));
         }
 
-        putBytes(request.getTable(), items);
+        putBytes(request.getTable(), request.getAck(), items);
     }
 
     public <T> void putObjectBatch(BatchWrite<T> request) {
@@ -46,10 +47,10 @@ public class BatchWriter extends Writer {
             items.add(new AbstractMap.SimpleEntry<>(key, bytes));
         }
 
-        putBytes(request.getTable(), items);
+        putBytes(request.getTable(), request.getAck(), items);
     }
 
-    public void putBytes(String table, List<Map.Entry<String, byte[]>> items) {
+    public void putBytes(String table, AckType ack, List<Map.Entry<String, byte[]>> items) {
         table = Validator.notEmpty(table, "Table name");
 
         HashMap<Integer, ItemPutRequest> partitionRequests = new HashMap<>();
@@ -63,6 +64,7 @@ public class BatchWriter extends Writer {
                 partitionRequests.put(partition, new ItemPutRequest());
                 partitionRequests.get(partition).setTable(table);
                 partitionRequests.get(partition).setPartition(partition);
+                partitionRequests.get(partition).setAck(ack);
             }
 
             partitionRequests.get(partition).getItems().add(new Item(item.getKey(), base64EncodedString));
@@ -98,6 +100,7 @@ public class BatchWriter extends Writer {
                 partitionRequests.put(partition, new ItemDeleteRequest());
                 partitionRequests.get(partition).setTable(table);
                 partitionRequests.get(partition).setPartition(partition);
+                partitionRequests.get(partition).setAck(request.getAck());
             }
 
             partitionRequests.get(partition).getKeys().add(key);

@@ -1,4 +1,4 @@
-package com.bteshome.keyvaluestore.storage.states;
+package com.bteshome.keyvaluestore.storage.entities;
 
 import java.io.Serializable;
 import java.time.Instant;

@@ -1,4 +1,4 @@
-package com.bteshome.keyvaluestore.storage.states;
+package com.bteshome.keyvaluestore.storage.entities;
 
 import com.bteshome.keyvaluestore.common.LogPosition;
 import lombok.AllArgsConstructor;
@@ -8,7 +8,6 @@ import lombok.Setter;
 
 import java.io.Serializable;
 import java.util.HashMap;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Setter
 @Getter

@@ -20,10 +20,6 @@ public class ConfigurationLoader {
                 Validator.setDefault(metadataSettings.getStorageNodeHeartbeatSendIntervalMs(), 15000L));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.STORAGE_NODE_METADATA_REFRESH_INTERVAL_MS_KEY,
                 Validator.setDefault(metadataSettings.getStorageNodeMetadataRefreshIntervalMs(), 30000L));
-        state.get(EntityType.CONFIGURATION).put(ConfigKeys.WAL_FLUSH_INTERVAL_MS_KEY,
-                Validator.setDefault(metadataSettings.getWalFlushIntervalMs(), 200L));
-        state.get(EntityType.CONFIGURATION).put(ConfigKeys.WAL_FLUSH_THREAD_POOL_SIZE_KEY,
-                Validator.setDefault(metadataSettings.getWalFlushThreadPoolSize(), Runtime.getRuntime().availableProcessors()));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.REPLICA_MONITOR_INTERVAL_MS_KEY,
                 Validator.setDefault(metadataSettings.getReplicaMonitorIntervalMs(), 500L));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.REPLICA_MONITOR_THREAD_POOL_SIZE_KEY,

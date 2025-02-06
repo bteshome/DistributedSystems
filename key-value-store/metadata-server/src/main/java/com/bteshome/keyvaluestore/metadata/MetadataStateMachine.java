@@ -563,7 +563,9 @@ public class MetadataStateMachine extends BaseStateMachine {
             NewLeaderElectedRequest newLeaderElectedRequest = new NewLeaderElectedRequest(
                     partition.getTableName(),
                     partition.getId(),
-                    partition.getLeader());
+                    partition.getLeader(),
+                    partition.getLeaderTerm(),
+                    partition.getInSyncReplicas());
             List<CompletableFuture<Void>> futures = new ArrayList<>();
             List<String> replicaEndpoints = partition
                     .getReplicas()
@@ -604,7 +606,8 @@ public class MetadataStateMachine extends BaseStateMachine {
         affectedPartitions.forEach(partition -> {
             ISRListChangedRequest isrListChangedRequest = new ISRListChangedRequest(
                     partition.getTableName(),
-                    partition.getId());
+                    partition.getId(),
+                    partition.getInSyncReplicas());
             List<CompletableFuture<Void>> futures = new ArrayList<>();
             List<String> replicaEndpoints = partition
                     .getReplicas()

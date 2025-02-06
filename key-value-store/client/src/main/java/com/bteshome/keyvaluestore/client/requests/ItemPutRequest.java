@@ -17,4 +17,5 @@ public class ItemPutRequest {
     private String table;
     private int partition;
     private List<Item> items = new ArrayList<>();
+    private AckType Ack;
 }

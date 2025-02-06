@@ -29,8 +29,6 @@ public class MetadataSettings {
     private long storageNodeHeartbeatExpectIntervalMs;
     private long storageNodeHeartbeatSendIntervalMs;
     private long storageNodeMetadataRefreshIntervalMs;
-    private long walFlushIntervalMs;
-    private int walFlushThreadPoolSize;
     private long replicaMonitorIntervalMs;
     private int replicaMonitorThreadPoolSize;
     private long replicaLagThresholdRecords;

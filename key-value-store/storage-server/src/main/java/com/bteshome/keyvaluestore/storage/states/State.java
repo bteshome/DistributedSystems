@@ -3,30 +3,25 @@ package com.bteshome.keyvaluestore.storage.states;
 import com.bteshome.keyvaluestore.common.*;
 import com.bteshome.keyvaluestore.common.entities.Partition;
 import com.bteshome.keyvaluestore.common.entities.Table;
-import com.bteshome.keyvaluestore.common.requests.NewLeaderElectedRequest;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
 import com.bteshome.keyvaluestore.storage.core.ISRSynchronizer;
 import com.bteshome.keyvaluestore.storage.core.StorageNodeMetadataRefresher;
-import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.ratis.util.AutoCloseableLock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextClosedEvent;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Stream;
 
 @Component
@@ -35,12 +30,11 @@ public class State implements ApplicationListener<ContextClosedEvent> {
     @Getter
     private String nodeId;
     private final ConcurrentHashMap<String, ConcurrentHashMap<Integer, PartitionState>> partitionStates = new ConcurrentHashMap<>();
-    private boolean lastHeartbeatSucceeded;
-    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
+    private ScheduledExecutorService replicationMonitorScheduler;
+    private ScheduledExecutorService walFetcherScheduler;
     private ScheduledExecutorService snapshotsScheduler;
-    private ScheduledExecutorService walFlushingScheduler;
     private ScheduledExecutorService dataExpirationScheduler;
-
+    private ScheduledExecutorService logTimestampsTrimmerScheduler;
     @Autowired
     private StorageSettings storageSettings;
     @Autowired
@@ -55,13 +49,13 @@ public class State implements ApplicationListener<ContextClosedEvent> {
     }
 
     public void initialize() {
-        try (AutoCloseableLock l = writeLock()) {
-            createStorageDirectoryIfNotExists();
-            loadFromSnapshotsAndWALFiles();
-            scheduleDataSnapshots();
-            scheduleWALFlushing();
-            scheduleDataExpirationMonitor();
-        }
+        createStorageDirectoryIfNotExists();
+        loadFromSnapshotsAndWALFiles();
+        scheduleReplicationMonitor();
+        scheduleWalFetcher();
+        //scheduleDataSnapshots();
+        scheduleDataExpirationMonitor();
+        scheduleLogTimestampsTrimmer();
     }
 
     @Override
@@ -73,12 +67,16 @@ public class State implements ApplicationListener<ContextClosedEvent> {
                     for (PartitionState partitionState : tableState.values())
                         partitionState.close();
                 }
+                if (replicationMonitorScheduler != null)
+                    replicationMonitorScheduler.close();
+                if (walFetcherScheduler != null)
+                    walFetcherScheduler.close();
                 if (snapshotsScheduler != null)
                     snapshotsScheduler.close();
-                if (walFlushingScheduler != null)
-                    walFlushingScheduler.close();
                 if (dataExpirationScheduler != null)
                     dataExpirationScheduler.close();
+                if (logTimestampsTrimmerScheduler != null)
+                    logTimestampsTrimmerScheduler.close();
                 closed = true;
             } catch (Exception e) {
                 log.error("Error closing state.", e);
@@ -92,70 +90,16 @@ public class State implements ApplicationListener<ContextClosedEvent> {
         return partitionStates.get(table).getOrDefault(partition, null);
     }
 
-    public ResponseEntity<WALFetchResponse> fetch(String table,
-                                                  int partition,
-                                                  LogPosition lastFetchOffset,
-                                                  int maxNumRecords,
-                                                  String replicaId) {
-        if (!nodeId.equals(MetadataCache.getInstance().getLeaderNodeId(table, partition))) {
-            String errorMessage = "Not the leader for table '%s' partition '%s'.".formatted(table, partition);
-            return ResponseEntity.ok(WALFetchResponse.builder()
-                    .httpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
-                    .errorMessage(errorMessage)
-                    .build());
-        }
-
-        PartitionState partitionState = getPartitionState(table, partition);
-
-        if (partitionState == null) {
-            return ResponseEntity.ok(WALFetchResponse.builder()
-                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
-                    .build());
-        }
-
-        return partitionState.getLogEntries(lastFetchOffset, maxNumRecords, replicaId);
-    }
-
-    public boolean getLastHeartbeatSucceeded() {
-        try (AutoCloseableLock l = readLock()) {
-            return this.lastHeartbeatSucceeded;
-        }
-    }
-
-    public void setLastHeartbeatSucceeded(boolean lastHeartbeatSucceeded) {
-        try (AutoCloseableLock l = writeLock()) {
-            this.lastHeartbeatSucceeded = lastHeartbeatSucceeded;
-        }
-    }
-
     public void tableCreated(Table table) {
-        try (AutoCloseableLock l = writeLock()) {
-            for (Partition partition : table.getPartitions().values()) {
-                if (!partitionStates.containsKey(partition.getTableName()))
-                    partitionStates.put(partition.getTableName(), new ConcurrentHashMap<>());
-                if (!partitionStates.get(partition.getTableName()).containsKey(partition.getId())) {
-                    partitionStates.get(partition.getTableName()).put(partition.getId(), new PartitionState(
-                            partition.getTableName(),
-                            partition.getId(),
-                            storageSettings,
-                            isrSynchronizer));
-                }
-            }
-        }
-    }
-
-    public void newLeaderElected(NewLeaderElectedRequest request) {
-        PartitionState partitionState = getPartitionState(request.getTableName(), request.getPartitionId());
-        partitionState.newLeaderElected(request);
         storageNodeMetadataRefresher.fetch();
-    }
-
-    private AutoCloseableLock readLock() {
-        return AutoCloseableLock.acquire(lock.readLock());
-    }
-
-    private AutoCloseableLock writeLock() {
-        return AutoCloseableLock.acquire(lock.writeLock());
+        partitionStates.put(table.getName(), new ConcurrentHashMap<>());
+        for (Partition partition : table.getPartitions().values()) {
+            partitionStates.get(partition.getTableName()).put(partition.getId(), new PartitionState(
+                        partition.getTableName(),
+                        partition.getId(),
+                        storageSettings,
+                        isrSynchronizer));
+        }
     }
 
     private void createStorageDirectoryIfNotExists() {
@@ -200,6 +144,30 @@ public class State implements ApplicationListener<ContextClosedEvent> {
         }
     }
 
+    private void scheduleReplicationMonitor() {
+        try {
+            long interval = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_MONITOR_INTERVAL_MS_KEY);
+            int numThreads = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_MONITOR_THREAD_POOL_SIZE_KEY);
+            replicationMonitorScheduler = Executors.newScheduledThreadPool(numThreads);
+            replicationMonitorScheduler.scheduleWithFixedDelay(this::checkReplicaStatus, interval, interval, TimeUnit.MILLISECONDS);
+            log.info("Scheduled replication monitor. The interval is {} ms.", interval);
+        } catch (Exception e) {
+            log.error("Error scheduling replication monitor.", e);
+        }
+    }
+
+    public void scheduleWalFetcher() {
+        try {
+            long interval = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_FETCH_INTERVAL_MS_KEY);
+            int numThreads = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_FETCH_THREAD_POOL_SIZE_KEY);
+            walFetcherScheduler = Executors.newScheduledThreadPool(numThreads);
+            walFetcherScheduler.scheduleWithFixedDelay(this::fetchWal, interval, interval, TimeUnit.MILLISECONDS);
+            log.info("Scheduled replica WAL fetcher. The interval is {} ms.", interval);
+        } catch (Exception e) {
+            log.error("Error scheduling replica WAL fetcher.", e);
+        }
+    }
+
     private void scheduleDataSnapshots() {
         try {
             long interval = (Long) MetadataCache.getInstance().getConfiguration(ConfigKeys.DATA_SNAPSHOT_INTERVAL_MS_KEY);
@@ -211,19 +179,6 @@ public class State implements ApplicationListener<ContextClosedEvent> {
         }
     }
 
-    private void scheduleWALFlushing() {
-        try {
-            // TODO - use a more explicit configurable value.
-            long interval = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_FETCH_INTERVAL_MS_KEY);
-            int numThreads = (Integer)MetadataCache.getInstance().getConfiguration(ConfigKeys.WAL_FLUSH_THREAD_POOL_SIZE_KEY);
-            walFlushingScheduler = Executors.newScheduledThreadPool(numThreads);
-            walFlushingScheduler.scheduleWithFixedDelay(this::flushWAL, interval, interval, TimeUnit.MILLISECONDS);
-            log.info("Scheduled WAL flushing. The interval is '%s' ms.".formatted(interval));
-        } catch (Exception e) {
-            log.error("Error scheduling WAL flushing.", e);
-        }
-    }
-
     private void scheduleDataExpirationMonitor() {
         try {
             long interval = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.EXPIRATION_MONITOR_INTERVAL_MS_KEY);
@@ -232,6 +187,34 @@ public class State implements ApplicationListener<ContextClosedEvent> {
             log.info("Scheduled item expiration monitor. The interval is {} ms.", interval);
         } catch (Exception e) {
             log.error("Error scheduling item expiration monitor.", e);
+        }
+    }
+
+    public void scheduleLogTimestampsTrimmer() {
+        try {
+            // TODO - should be configurable?
+            long interval = Duration.ofMinutes(15).toMillis();
+            logTimestampsTrimmerScheduler = Executors.newSingleThreadScheduledExecutor();
+            logTimestampsTrimmerScheduler.scheduleWithFixedDelay(this::trimLogTimestamps, interval, interval, TimeUnit.MILLISECONDS);
+            log.info("Scheduled log timestamps trimmer. The interval is {} ms.", interval);
+        } catch (Exception e) {
+            log.error("Error scheduling log timestamps trimmer.", e);
+        }
+    }
+
+    private void checkReplicaStatus() {
+        for (Map<Integer, PartitionState> tableState : partitionStates.values()) {
+            for (PartitionState partitionState : tableState.values()) {
+                partitionState.checkReplicaStatus();
+            }
+        }
+    }
+
+    private void fetchWal() {
+        for (Map<Integer, PartitionState> tableState : partitionStates.values()) {
+            for (PartitionState partitionState : tableState.values()) {
+                partitionState.fetchWal();
+            }
         }
     }
 
@@ -247,13 +230,6 @@ public class State implements ApplicationListener<ContextClosedEvent> {
         } finally {
             long end = System.nanoTime();
             log.debug("Finished taking snapshots of data. Took {} ms.", (end - start) / 1000000);
-        }
-    }
-
-    private void flushWAL() {
-        for (Map<Integer, PartitionState> tableState : partitionStates.values()) {
-            for (PartitionState partitionState : tableState.values())
-                partitionState.flushLeaderWAL();
         }
     }
 
@@ -275,6 +251,13 @@ public class State implements ApplicationListener<ContextClosedEvent> {
             }
         } catch (Exception e) {
             log.error("Error checking item expiration.", e);
+        }
+    }
+
+    private void trimLogTimestamps() {
+        for (Map<Integer, PartitionState> tableState : partitionStates.values()) {
+            for (PartitionState partitionState : tableState.values())
+                partitionState.getOffsetState().trimLogTimestamps();
         }
     }
 }

@@ -81,4 +81,8 @@ public record LogPosition(int leaderTerm, long index) implements Serializable, C
             return Long.compare(index1, index2);
         return Integer.compare(leaderTerm1, leaderTerm2);
     }
+
+    public LogPosition plusIndex(long index) {
+        return LogPosition.of(leaderTerm, this.index + index);
+    }
 }
