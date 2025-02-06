@@ -5,7 +5,6 @@ import com.bteshome.keyvaluestore.client.requests.ItemDeleteRequest;
 import com.bteshome.keyvaluestore.client.requests.ItemPutRequest;
 import com.bteshome.keyvaluestore.client.responses.*;
 import com.bteshome.keyvaluestore.common.*;
-import com.bteshome.keyvaluestore.common.entities.Item;
 import com.bteshome.keyvaluestore.common.requests.ISRListChangedRequest;
 import com.bteshome.keyvaluestore.common.requests.NewLeaderElectedRequest;
 import com.bteshome.keyvaluestore.storage.common.ChecksumUtil;
@@ -27,7 +26,6 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.RestClient;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -37,7 +35,6 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -60,6 +57,7 @@ public class PartitionState implements AutoCloseable {
     private final StorageSettings storageSettings;
     private final ISRSynchronizer isrSynchronizer;
     private final String dataSnapshotFile;
+    private final long writeTimeoutMs;
     private final long timeLagThresholdMs;
     private final long recordLagThreshold;
     private final int fetchMaxNumRecords;
@@ -79,6 +77,7 @@ public class PartitionState implements AutoCloseable {
         this.partition = partition;
         this.timeToLive = MetadataCache.getInstance().getTableTimeToLive(table, partition);
         this.nodeId = storageSettings.getNode().getId();
+        this.writeTimeoutMs = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.WRITE_TIMEOUT_MS_KEY);
         this.timeLagThresholdMs = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_LAG_THRESHOLD_TIME_MS_KEY);
         this.recordLagThreshold = (Long)MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_LAG_THRESHOLD_RECORDS_KEY);
         this.fetchMaxNumRecords = (Integer) MetadataCache.getInstance().getConfiguration(ConfigKeys.REPLICA_FETCH_MAX_NUM_RECORDS_KEY);
@@ -105,13 +104,6 @@ public class PartitionState implements AutoCloseable {
     /**
      * The code in the following section applies to the leader only.
      * */
-    public void flushWal() {
-        if (!isLeader)
-            return;
-
-        wal.flush();
-    }
-
     public void checkReplicaStatus() {
         if (!isLeader)
             return;
@@ -185,8 +177,6 @@ public class PartitionState implements AutoCloseable {
                 long index = wal.appendPutOperation(leaderTerm, now, request.getItems(), expiryTime);
                 LogPosition offset = LogPosition.of(leaderTerm, index);
                 offsetState.setEndOffset(offset);
-                // TODO - this has an issue. Only the last offset is being added to the timestamps cache.
-                offsetState.setLogTimestamp(offset, now);
                 return ResponseEntity.ok(ItemPutResponse.builder()
                         .httpStatusCode(HttpStatus.OK.value())
                         .endOffset(offset)
@@ -217,7 +207,7 @@ public class PartitionState implements AutoCloseable {
                     return ResponseEntity.ok(response);
 
                 final LogPosition offset = response.getEndOffset();
-                final long timeoutNanos = TimeUnit.MILLISECONDS.toNanos(timeLagThresholdMs);
+                final long timeoutNanos = TimeUnit.MILLISECONDS.toNanos(writeTimeoutMs);
                 final long start = System.nanoTime();
                 boolean committed = false;
 
@@ -307,8 +297,6 @@ public class PartitionState implements AutoCloseable {
                 long index = wal.appendDeleteOperation(leaderTerm, now, items);
                 LogPosition offset = LogPosition.of(leaderTerm, index);
                 offsetState.setEndOffset(offset);
-                // TODO - this has an issue. Only the last offset is being added to the timestamps cache.
-                offsetState.setLogTimestamp(offset, now);
                 return ResponseEntity.ok(ItemDeleteResponse.builder()
                         .httpStatusCode(HttpStatus.OK.value())
                         .endOffset(offset)
@@ -339,7 +327,7 @@ public class PartitionState implements AutoCloseable {
                     return ResponseEntity.ok(response);
 
                 final LogPosition offset = response.getEndOffset();
-                final long timeoutNanos = TimeUnit.MILLISECONDS.toNanos(timeLagThresholdMs);
+                final long timeoutNanos = TimeUnit.MILLISECONDS.toNanos(writeTimeoutMs);
                 final long start = System.nanoTime();
                 boolean committed = false;
 

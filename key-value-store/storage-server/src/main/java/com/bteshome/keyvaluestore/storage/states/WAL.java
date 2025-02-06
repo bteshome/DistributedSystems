@@ -342,15 +342,6 @@ public class WAL implements AutoCloseable {
         }
     }
 
-    public void flush() {
-        try (AutoCloseableLock l = writeLock();) {
-            writer.flush();
-        } catch (Exception e) {
-            String errorMessage = "Error flushing WAL file for table '%s' partition '%s'.".formatted(tableName, partition);
-            log.error(errorMessage, e);
-        }
-    }
-
     @Override
     public void close() {
         try {

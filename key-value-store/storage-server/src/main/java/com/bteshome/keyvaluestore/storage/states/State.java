@@ -37,7 +37,6 @@ public class State implements ApplicationListener<ContextClosedEvent> {
     private ScheduledExecutorService walFetcherScheduler;
     private ScheduledExecutorService snapshotsScheduler;
     private ScheduledExecutorService dataExpirationScheduler;
-    private ScheduledExecutorService logTimestampsTrimmerScheduler;
     @Autowired
     private StorageSettings storageSettings;
     @Autowired
@@ -58,7 +57,6 @@ public class State implements ApplicationListener<ContextClosedEvent> {
         scheduleWalFetcher();
         //scheduleDataSnapshots();
         scheduleDataExpirationMonitor();
-        scheduleLogTimestampsTrimmer();
     }
 
     @Override
@@ -78,8 +76,6 @@ public class State implements ApplicationListener<ContextClosedEvent> {
                     snapshotsScheduler.close();
                 if (dataExpirationScheduler != null)
                     dataExpirationScheduler.close();
-                if (logTimestampsTrimmerScheduler != null)
-                    logTimestampsTrimmerScheduler.close();
                 closed = true;
             } catch (Exception e) {
                 log.error("Error closing state.", e);
@@ -208,21 +204,6 @@ public class State implements ApplicationListener<ContextClosedEvent> {
         }
     }
 
-    public void scheduleLogTimestampsTrimmer() {
-        try {
-            // TODO - should be configurable?
-            long interval = Duration.ofMinutes(15).toMillis();
-
-            Flux.interval(Duration.ofMillis(interval))
-                    .doOnNext(this::trimLogTimestamps)
-                    .subscribe();
-
-            log.info("Scheduled log timestamps trimmer. The interval is {} ms.", interval);
-        } catch (Exception e) {
-            log.error("Error scheduling log timestamps trimmer.", e);
-        }
-    }
-
     private void checkReplicaStatus(long tick) {
         Flux.fromIterable(partitionStates.values())
                 .flatMap(tableState -> Flux.fromIterable(tableState.values()))
@@ -256,13 +237,6 @@ public class State implements ApplicationListener<ContextClosedEvent> {
         Flux.fromIterable(partitionStates.values())
                 .flatMap(tableState -> Flux.fromIterable(tableState.values()))
                 .doOnNext(PartitionState::deleteExpiredItems)
-                .subscribe();
-    }
-
-    private void trimLogTimestamps(long tick) {
-        Flux.fromIterable(partitionStates.values())
-                .flatMap(tableState -> Flux.fromIterable(tableState.values()))
-                .doOnNext(partitionState -> partitionState.getOffsetState().trimLogTimestamps())
                 .subscribe();
     }
 }

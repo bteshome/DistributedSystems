@@ -1,6 +1,7 @@
 package com.bteshome.keyvaluestore.storage.states;
 
 import com.bteshome.keyvaluestore.common.LogPosition;
+import com.bteshome.keyvaluestore.common.Tuple;
 import com.bteshome.keyvaluestore.common.Utils;
 import com.bteshome.keyvaluestore.storage.common.ChecksumUtil;
 import com.bteshome.keyvaluestore.storage.common.CompressionUtil;
@@ -23,9 +24,9 @@ public class OffsetState {
     private final String table;
     private final int partition;
     private final String nodeId;
-    private final Map<String, LogPosition> replicaEndOffsets;
-    private final ConcurrentHashMap<LogPosition, Long> logTimestamps;
+    private final Map<String, Tuple<LogPosition, Long>> replicaEndOffsets;
     private LogPosition committedOffset;
+    private LogPosition endOffset;
     private LogPosition previousLeaderEndOffset;
     private final String committedOffsetSnapshotFile;
     private final String endOffsetSnapshotFile;
@@ -37,9 +38,9 @@ public class OffsetState {
         this.partition = partition;
         this.nodeId = storageSettings.getNode().getId();
         committedOffset = LogPosition.ZERO;
-        replicaEndOffsets = new ConcurrentHashMap<>();
-        logTimestamps = new ConcurrentHashMap<>();
+        endOffset = LogPosition.ZERO;
         previousLeaderEndOffset = LogPosition.ZERO;
+        replicaEndOffsets = new ConcurrentHashMap<>();
         lock = new ReentrantReadWriteLock(true);
         committedOffsetSnapshotFile = "%s/%s-%s/committedOffset.ser".formatted(storageSettings.getNode().getStorageDir(), table, partition);
         endOffsetSnapshotFile = "%s/%s-%s/endOffset.ser".formatted(storageSettings.getNode().getStorageDir(), table, partition);
@@ -49,32 +50,19 @@ public class OffsetState {
         loadPreviousLeaderEndOffset();
     }
 
-    public void trimLogTimestamps() {
-        // TODO - should be configurable?
-        long timestampTTL = Duration.ofMinutes(15).toMillis();
-        for (LogPosition offset : logTimestamps.keySet())
-            logTimestamps.compute(offset, (key, value) -> value < System.currentTimeMillis() - timestampTTL ? null : value);
-    }
-
-    public void setLogTimestamp(LogPosition offset, long logTimestamp) {
-        logTimestamps.put(offset, logTimestamp);
-    }
-
-    public long getLogTimestamp(LogPosition offset) {
-        return logTimestamps.get(offset);
-    }
-
     public LogPosition getEndOffset() {
-        return replicaEndOffsets.getOrDefault(nodeId, LogPosition.ZERO);
+        try (AutoCloseableLock l = writeLock()) {
+            return endOffset;
+        }
     }
 
-    public Map<String, LogPosition> getReplicaEndOffsets() {
+    public Map<String, Tuple<LogPosition, Long>> getReplicaEndOffsets() {
         return new HashMap<>(replicaEndOffsets);
     }
 
     public void setEndOffset(LogPosition offset) {
         try (AutoCloseableLock l = writeLock()) {
-            replicaEndOffsets.put(nodeId, offset);
+            this.endOffset = offset;
             CompressionUtil.compressAndWrite(endOffsetSnapshotFile, offset);
             ChecksumUtil.generateAndWrite(endOffsetSnapshotFile);
             log.trace("Persisted end offset '{}' for table '{}' partition '{}'.", offset, table, partition);
@@ -86,7 +74,7 @@ public class OffsetState {
     }
 
     public void setReplicaEndOffset(String replicaId, LogPosition offset) {
-        replicaEndOffsets.put(replicaId, offset);
+        replicaEndOffsets.put(replicaId, Tuple.of(offset, System.currentTimeMillis()));
     }
 
     public LogPosition getCommittedOffset() {
@@ -172,8 +160,7 @@ public class OffsetState {
         try (reader) {
             String line = reader.readLine();
             if (line != null) {
-                LogPosition offset = CompressionUtil.readAndDecompress(endOffsetSnapshotFile, LogPosition.class);
-                replicaEndOffsets.put(nodeId, offset);
+                this.endOffset = CompressionUtil.readAndDecompress(endOffsetSnapshotFile, LogPosition.class);
                 log.debug("Loaded end offset from snapshot for table '{}' partition '{}'.", table, partition);
             }
         } catch (IOException e) {

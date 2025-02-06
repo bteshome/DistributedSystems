@@ -50,7 +50,7 @@ metadata:
   replica-monitor-interval-ms: 500
   replica-monitor-thread-pool-size: 3
   replica-lag-threshold-records: 1000
-  replica-lag-threshold-time-ms: 10000
+  replica-lag-threshold-time-ms: 30000
   replica-fetch-interval-ms: 500
   replica-fetch-max-num-records: 10000
   replica-fetch-thread-pool-size: 6
@@ -62,4 +62,5 @@ metadata:
   min-in-sync-replicas-default: 1
   ring-num-virtual-partitions: 3
   write-batch-size-max: 10000
+  write-timeout-ms: 30000
   expiration-monitor-interval-ms: 21600000

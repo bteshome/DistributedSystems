@@ -44,6 +44,7 @@ public class MetadataSettings {
     private int minInSyncReplicasDefault;
     private int ringNumVirtualPartitions;
     private int writeBatchSizeMax;
+    private long writeTimeoutMs;
     private long expirationMonitorIntervalMs;
     private UUID localClientId;
 }

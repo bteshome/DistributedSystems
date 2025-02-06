@@ -27,7 +27,7 @@ public class ConfigurationLoader {
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.REPLICA_LAG_THRESHOLD_RECORDS_KEY,
                 Validator.setDefault(metadataSettings.getReplicaLagThresholdRecords(), 4000L));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.REPLICA_LAG_THRESHOLD_TIME_MS_KEY,
-                Validator.setDefault(metadataSettings.getReplicaLagThresholdTimeMs(), 10000L));
+                Validator.setDefault(metadataSettings.getReplicaLagThresholdTimeMs(), 30000L));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.REPLICA_FETCH_INTERVAL_MS_KEY,
                 Validator.setDefault(metadataSettings.getReplicaFetchIntervalMs(), 500L));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.REPLICA_FETCH_THREAD_POOL_SIZE_KEY,
@@ -50,6 +50,8 @@ public class ConfigurationLoader {
                 Validator.setDefault(metadataSettings.getRingNumVirtualPartitions(), 3));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.WRITE_BATCH_SIZE_MAX_KEY,
                 Validator.setDefault(metadataSettings.getWriteBatchSizeMax(), 100));
+        state.get(EntityType.CONFIGURATION).put(ConfigKeys.WRITE_TIMEOUT_MS_KEY,
+                Validator.setDefault(metadataSettings.getWriteTimeoutMs(), 30000L));
         state.get(EntityType.CONFIGURATION).put(ConfigKeys.EXPIRATION_MONITOR_INTERVAL_MS_KEY,
                 Validator.setDefault(metadataSettings.getExpirationMonitorIntervalMs(), 10000L));
 

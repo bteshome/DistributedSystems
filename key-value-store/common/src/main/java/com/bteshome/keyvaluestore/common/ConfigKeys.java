@@ -20,5 +20,6 @@ public class ConfigKeys {
     public static final String END_OFFSET_SNAPSHOT_INTERVAL_MS_KEY = "end-offset-snapshot-interval-ms";
     public static final String RING_NUM_VIRTUAL_PARTITIONS_KEY = "ring-num-virtual-partitions";
     public static final String WRITE_BATCH_SIZE_MAX_KEY = "write-batch-size-max";
+    public static final String WRITE_TIMEOUT_MS_KEY = "write-timeout-ms";
     public static final String EXPIRATION_MONITOR_INTERVAL_MS_KEY = "expiration-monitor-interval-ms";
 }
