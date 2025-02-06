@@ -48,12 +48,10 @@ metadata:
   storage-node-heartbeat-monitor-interval-ms: 20000
   storage-node-metadata-refresh-interval-ms: 300000
   replica-monitor-interval-ms: 500
-  replica-monitor-thread-pool-size: 3
   replica-lag-threshold-records: 1000
   replica-lag-threshold-time-ms: 30000
   replica-fetch-interval-ms: 500
   replica-fetch-max-num-records: 10000
-  replica-fetch-thread-pool-size: 6
   data-snapshot-interval-ms: 6000000
   end-offset-snapshot-interval-ms: 60000
   num-partitions-default: 1
