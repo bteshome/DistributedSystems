@@ -53,7 +53,7 @@ public class LoadTestController {
                 int randomNumber = random.nextInt(1, Integer.MAX_VALUE);
                 String key = "key" + randomNumber;
                 String value = "value" + randomNumber;
-                ItemWrite<String> itemWrite = new ItemWrite<>(request.getTable(), key, value, AckType.NONE);
+                ItemWrite<String> itemWrite = new ItemWrite<>(request.getTable(), key, value, request.getAck());
                 itemWrites.add(itemWrite);
             }
 

@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -24,37 +25,37 @@ public class ItemController {
     State state;
 
     @PostMapping("/get/")
-    public ResponseEntity<ItemGetResponse> getItem(@RequestBody ItemGetRequest request) {
+    public Mono<ResponseEntity<ItemGetResponse>> getItem(@RequestBody ItemGetRequest request) {
         PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition());
 
         if (partitionState == null) {
-            return ResponseEntity.ok(ItemGetResponse.builder()
+            return Mono.just(ResponseEntity.ok(ItemGetResponse.builder()
                     .httpStatusCode(HttpStatus.NOT_FOUND.value())
-                    .build());
+                    .build()));
         }
 
         return partitionState.getItem(request.getKey());
     }
 
     @PostMapping("/list/")
-    public ResponseEntity<ItemListResponse> listItems(@RequestBody ItemListRequest request) {
+    public Mono<ResponseEntity<ItemListResponse>> listItems(@RequestBody ItemListRequest request) {
         PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition());
 
         if (partitionState == null) {
-            return ResponseEntity.ok(ItemListResponse.builder()
+            return Mono.just(ResponseEntity.ok(ItemListResponse.builder()
                     .httpStatusCode(HttpStatus.NOT_FOUND.value())
-                    .build());
+                    .build()));
         }
 
         return partitionState.listItems(request.getLimit());
     }
 
     @PostMapping("/put/")
-    public CompletableFuture<ResponseEntity<ItemPutResponse>> putItem(@RequestBody ItemPutRequest request) {
+    public Mono<ResponseEntity<ItemPutResponse>> putItem(@RequestBody ItemPutRequest request) {
         PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition());
 
         if (partitionState == null) {
-            return CompletableFuture.completedFuture(ResponseEntity.ok(ItemPutResponse.builder()
+            return Mono.just(ResponseEntity.ok(ItemPutResponse.builder()
                     .httpStatusCode(HttpStatus.NOT_FOUND.value())
                     .build()));
         }
@@ -63,11 +64,11 @@ public class ItemController {
     }
 
     @PostMapping("/delete/")
-    public CompletableFuture<ResponseEntity<ItemDeleteResponse>> deleteItem(@RequestBody ItemDeleteRequest request) {
+    public Mono<ResponseEntity<ItemDeleteResponse>> deleteItem(@RequestBody ItemDeleteRequest request) {
         PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition());
 
         if (partitionState == null) {
-            return CompletableFuture.completedFuture(ResponseEntity.ok(ItemDeleteResponse.builder()
+            return Mono.just(ResponseEntity.ok(ItemDeleteResponse.builder()
                     .httpStatusCode(HttpStatus.NOT_FOUND.value())
                     .build()));
         }
@@ -76,13 +77,13 @@ public class ItemController {
     }
 
     @PostMapping("/count-and-offsets/")
-    public ResponseEntity<ItemCountAndOffsetsResponse> countItems(@RequestBody ItemCountAndOffsetsRequest request) {
+    public Mono<ResponseEntity<ItemCountAndOffsetsResponse>> countItems(@RequestBody ItemCountAndOffsetsRequest request) {
         PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition());
 
         if (partitionState == null) {
-            return ResponseEntity.ok(ItemCountAndOffsetsResponse.builder()
+            return Mono.just(ResponseEntity.ok(ItemCountAndOffsetsResponse.builder()
                     .httpStatusCode(HttpStatus.NOT_FOUND.value())
-                    .build());
+                    .build()));
         }
 
         return partitionState.countItems();

@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Mono;
 
 @RestController
 @RequestMapping(value = "/api/wal", produces = {MediaType.APPLICATION_JSON_VALUE})
@@ -26,42 +27,42 @@ public class WALController {
     State state;
 
     @PostMapping("/fetch/")
-    public ResponseEntity<WALFetchResponse> fetch(@RequestBody WALFetchRequest request) {
+    public Mono<ResponseEntity<WALFetchResponse>> fetch(@RequestBody WALFetchRequest request) {
         try {
             PartitionState partitionState = state.getPartitionState(request.getTable(),
                                                                     request.getPartition());
 
              if (partitionState == null) {
-                return ResponseEntity.ok(WALFetchResponse.builder()
+                return Mono.just(ResponseEntity.ok(WALFetchResponse.builder()
                         .httpStatusCode(HttpStatus.NOT_FOUND.value())
-                        .build());
+                        .build()));
             }
 
             return partitionState.getLogEntries(request.getLastFetchOffset(),
                                                 request.getMaxNumRecords(),
                                                 request.getId());
         } catch (Exception e) {
-            return ResponseEntity.ok(WALFetchResponse.builder()
+            return Mono.just(ResponseEntity.ok(WALFetchResponse.builder()
                     .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
                     .errorMessage(e.getMessage())
-                    .build());
+                    .build()));
         }
     }
 
     @PostMapping("/get-end-offset/")
-    public ResponseEntity<WALGetReplicaEndOffsetResponse> fetch(@RequestBody WALGetReplicaEndOffsetRequest request) {
+    public Mono<ResponseEntity<WALGetReplicaEndOffsetResponse>> fetch(@RequestBody WALGetReplicaEndOffsetRequest request) {
         PartitionState partitionState = state.getPartitionState(request.getTable(),
                                                                 request.getPartition());
 
         if (partitionState == null) {
-            return ResponseEntity.ok(WALGetReplicaEndOffsetResponse.builder()
+            return Mono.just(ResponseEntity.ok(WALGetReplicaEndOffsetResponse.builder()
                     .httpStatusCode(HttpStatus.NOT_FOUND.value())
-                    .build());
+                    .build()));
         }
 
-        return ResponseEntity.ok(WALGetReplicaEndOffsetResponse.builder()
+        return Mono.just(ResponseEntity.ok(WALGetReplicaEndOffsetResponse.builder()
                 .httpStatusCode(HttpStatus.OK.value())
                 .endOffset(partitionState.getOffsetState().getEndOffset())
-                .build());
+                .build()));
     }
 }

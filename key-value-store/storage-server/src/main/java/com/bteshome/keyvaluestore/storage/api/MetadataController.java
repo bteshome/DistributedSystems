@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 @RestController
 @RequestMapping("/api/metadata")
@@ -31,42 +32,54 @@ public class MetadataController {
     State state;
 
     @PostMapping("/table-created/")
-    public ResponseEntity<?> tableCreated(@RequestBody Table table) {
-        log.info("Received a TableCreated notification from the metadata node for table '{}'.", table.getName());
+    public Mono<ResponseEntity<?>> tableCreated(@RequestBody Table table) {
+        log.info("Received a TABLE CREATED notification from the metadata node for table '{}'.", table.getName());
         metadataRefresher.fetch();
         state.tableCreated(table);
-        return ResponseEntity.ok().build();
+        return Mono.just(ResponseEntity.ok().build());
     }
 
     @PostMapping("/new-leader-elected/")
-    public ResponseEntity<?> newLeaderElected(@RequestBody NewLeaderElectedRequest request) {
+    public Mono<ResponseEntity<?>> newLeaderElected(@RequestBody NewLeaderElectedRequest request) {
         log.info("Received a NewLeaderElected notification from the metadata node for table '{}' partition '{}'. " +
                         "New leader node id is: '{}'",
                 request.getTableName(),
                 request.getPartitionId(),
                 request.getNewLeaderId());
         PartitionState partitionState = state.getPartitionState(request.getTableName(), request.getPartitionId());
-        partitionState.newLeaderElected(request);
-        metadataRefresher.fetch();
-        return ResponseEntity.ok().build();
+
+        if (partitionState == null) {
+            log.warn("Partition state not found for table '{}' partition '{}'.", request.getTableName(), request.getPartitionId());
+        } else {
+            partitionState.newLeaderElected(request);
+            metadataRefresher.fetch();
+        }
+
+        return Mono.just(ResponseEntity.ok().build());
     }
 
     @PostMapping("/isr-list-changed/")
-    public ResponseEntity<?> isrListChanged(@RequestBody ISRListChangedRequest request) {
+    public Mono<ResponseEntity<?>> isrListChanged(@RequestBody ISRListChangedRequest request) {
         log.info("Received an ISRListChanged notification from the metadata node for table '{}' partition '{}'.",
                 request.getTableName(),
                 request.getPartitionId());
         PartitionState partitionState = state.getPartitionState(request.getTableName(), request.getPartitionId());
-        partitionState.isrListChanged(request);
-        metadataRefresher.fetch();
-        return ResponseEntity.ok().build();
+
+        if (partitionState == null) {
+            log.warn("Partition state not found for table '{}' partition '{}'.", request.getTableName(), request.getPartitionId());
+        } else {
+            partitionState.isrListChanged(request);
+            metadataRefresher.fetch();
+        }
+
+        return Mono.just(ResponseEntity.ok().build());
     }
 
     @PostMapping("/get-metadata/")
-    public ResponseEntity<?> getMetadata() {
-        return ResponseEntity.ok(ClientMetadataFetchResponse.builder()
+    public Mono<ResponseEntity<?>> getMetadata() {
+        return Mono.just(ResponseEntity.ok(ClientMetadataFetchResponse.builder()
                 .httpStatusCode(HttpStatus.OK.value())
                 .serializedMetadata(MetadataCache.getInstance().getState())
-                .build());
+                .build()));
     }
 }

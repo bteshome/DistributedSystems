@@ -23,10 +23,14 @@ import com.bteshome.keyvaluestore.storage.responses.WALGetReplicaEndOffsetRespon
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.util.AutoCloseableLock;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -45,7 +49,6 @@ public class PartitionState implements AutoCloseable {
     private final Duration timeToLive;
     private final String nodeId;
     private final ConcurrentHashMap<ItemKey, String> data;
-    private final List<WALEntry> putBuffer;
     @Getter
     private final PriorityQueue<ItemKey> dataExpiryTimes;
     @Getter
@@ -71,6 +74,7 @@ public class PartitionState implements AutoCloseable {
                           int partition,
                           StorageSettings storageSettings,
                           ISRSynchronizer isrSynchronizer) {
+        log.info("Creating partition state for table '{}' partition '{}' on replica '{}'.", table, partition, storageSettings.getNode().getId());
         this.table = table;
         this.partition = partition;
         this.timeToLive = MetadataCache.getInstance().getTableTimeToLive(table, partition);
@@ -90,7 +94,6 @@ public class PartitionState implements AutoCloseable {
         this.leaderLock = new ReentrantReadWriteLock(true);
         this.replicaLock = new ReentrantReadWriteLock(true);
         this.data = new ConcurrentHashMap<>();
-        this.putBuffer = Collections.synchronizedList(new ArrayList<>());
         this.dataExpiryTimes = new PriorityQueue<>(Comparator.comparing(ItemKey::expiryTime));
         createPartitionDirectoryIfNotExists();
         wal = new WAL(storageSettings.getNode().getStorageDir(), table, partition);
@@ -160,10 +163,10 @@ public class PartitionState implements AutoCloseable {
         }
     }
 
-    public CompletableFuture<ResponseEntity<ItemPutResponse>> putItems(final ItemPutRequest request) {
+    public Mono<ResponseEntity<ItemPutResponse>> putItems(final ItemPutRequest request) {
         if (!isLeader) {
             String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
-            return CompletableFuture.completedFuture(ResponseEntity.ok(ItemPutResponse.builder()
+            return Mono.just(ResponseEntity.ok(ItemPutResponse.builder()
                     .httpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
                     .leaderEndpoint(leaderEndpoint)
                     .build()));
@@ -175,7 +178,7 @@ public class PartitionState implements AutoCloseable {
                 partition,
                 request.getAck());
 
-        CompletableFuture<ResponseEntity<ItemPutResponse>> future = CompletableFuture.supplyAsync(() -> {
+        Mono<ResponseEntity<ItemPutResponse>> mono = Mono.fromCallable(() -> {
             try (AutoCloseableLock l = writeLeaderLock()) {
                 Instant expiryTime = (timeToLive == null || timeToLive.equals(Duration.ZERO)) ? null : Instant.now().plus(timeToLive);
                 long now = System.currentTimeMillis();
@@ -194,18 +197,19 @@ public class PartitionState implements AutoCloseable {
                         .errorMessage(e.getMessage())
                         .build());
             }
-        });
+        }).subscribeOn(Schedulers.boundedElastic());
 
         if (request.getAck() == null || request.getAck().equals(AckType.NONE)) {
-            return CompletableFuture.completedFuture(ResponseEntity.ok(ItemPutResponse.builder()
+            mono.subscribe();
+            return Mono.just(ResponseEntity.ok(ItemPutResponse.builder()
                     .httpStatusCode(HttpStatus.OK.value())
                     .build()));
         }
 
         if (request.getAck().equals(AckType.LEADER))
-            return future;
+            return mono;
 
-        return future.thenCompose(walAppendResponseEntity -> CompletableFuture.supplyAsync(() -> {
+        return mono.map(walAppendResponseEntity -> {
             final ItemPutResponse response = walAppendResponseEntity.getBody();
 
             try {
@@ -248,10 +252,10 @@ public class PartitionState implements AutoCloseable {
                 response.setErrorMessage(e.getMessage());
                 return ResponseEntity.ok(response);
             }
-        }));
+        });
     }
 
-    public CompletableFuture<ResponseEntity<ItemDeleteResponse>> deleteItems(ItemDeleteRequest request) {
+    public Mono<ResponseEntity<ItemDeleteResponse>> deleteItems(ItemDeleteRequest request) {
         List<ItemKey> itemKeys = request.getKeys().stream()
                 .map(item -> ItemKey.of(item, null))
                 .toList();
@@ -259,6 +263,11 @@ public class PartitionState implements AutoCloseable {
     }
 
     public void deleteExpiredItems() {
+        if (!isLeader)
+            return;
+
+        log.debug("Item expiration monitor about to check if any items have expired.");
+
         List<ItemKey> itemsToRemove = new ArrayList<>();
         Instant now = Instant.now();
 
@@ -277,10 +286,10 @@ public class PartitionState implements AutoCloseable {
         }
     }
 
-    public CompletableFuture<ResponseEntity<ItemDeleteResponse>> deleteItemsByItemKey(final List<ItemKey> items, AckType ack) {
+    public Mono<ResponseEntity<ItemDeleteResponse>> deleteItemsByItemKey(final List<ItemKey> items, AckType ack) {
         if (!isLeader) {
             String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
-            return CompletableFuture.completedFuture(ResponseEntity.ok(ItemDeleteResponse.builder()
+            return Mono.just(ResponseEntity.ok(ItemDeleteResponse.builder()
                     .httpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
                     .leaderEndpoint(leaderEndpoint)
                     .build()));
@@ -292,7 +301,7 @@ public class PartitionState implements AutoCloseable {
                 partition,
                 ack);
 
-        CompletableFuture<ResponseEntity<ItemDeleteResponse>> future = CompletableFuture.supplyAsync(() -> {
+        Mono<ResponseEntity<ItemDeleteResponse>> mono = Mono.fromCallable(() -> {
             try (AutoCloseableLock l = writeLeaderLock()) {
                 long now = System.currentTimeMillis();
                 long index = wal.appendDeleteOperation(leaderTerm, now, items);
@@ -310,18 +319,19 @@ public class PartitionState implements AutoCloseable {
                         .errorMessage(e.getMessage())
                         .build());
             }
-        });
+        }).subscribeOn(Schedulers.boundedElastic());
 
         if (ack == null || ack.equals(AckType.NONE)) {
-            return CompletableFuture.completedFuture(ResponseEntity.ok(ItemDeleteResponse.builder()
+            mono.subscribe();
+            return Mono.just(ResponseEntity.ok(ItemDeleteResponse.builder()
                     .httpStatusCode(HttpStatus.OK.value())
                     .build()));
         }
 
         if (ack.equals(AckType.LEADER))
-            return future;
+            return mono;
 
-        return future.thenCompose(walAppendResponseEntity -> CompletableFuture.supplyAsync(() -> {
+        return mono.map(walAppendResponseEntity -> {
             final ItemDeleteResponse response = walAppendResponseEntity.getBody();
 
             try {
@@ -364,56 +374,57 @@ public class PartitionState implements AutoCloseable {
                 response.setErrorMessage(e.getMessage());
                 return ResponseEntity.ok(response);
             }
-        }));
+        });
     }
 
-    public ResponseEntity<ItemGetResponse> getItem(String key) {
+    // TODO - the item keys have changed - update it.
+    public Mono<ResponseEntity<ItemGetResponse>> getItem(String key) {
         if (!isLeader) {
             String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
-            return ResponseEntity.ok(ItemGetResponse.builder()
+            return Mono.just(ResponseEntity.ok(ItemGetResponse.builder()
                     .httpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
                     .leaderEndpoint(leaderEndpoint)
-                    .build());
+                    .build()));
         }
 
         if (!data.containsKey(key)) {
-            return ResponseEntity.ok(ItemGetResponse.builder()
+            return Mono.just(ResponseEntity.ok(ItemGetResponse.builder()
                     .httpStatusCode(HttpStatus.NOT_FOUND.value())
-                    .build());
+                    .build()));
         }
-        return ResponseEntity.ok(ItemGetResponse.builder()
+
+        return Mono.just(ResponseEntity.ok(ItemGetResponse.builder()
                 .httpStatusCode(HttpStatus.OK.value())
                 .value(data.get(key))
-                .build());
+                .build()));
     }
 
-    public ResponseEntity<ItemListResponse> listItems(int limit) {
+    public Mono<ResponseEntity<ItemListResponse>> listItems(int limit) {
         if (!isLeader) {
             String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
-            return ResponseEntity.ok(ItemListResponse.builder()
+            return Mono.just(ResponseEntity.ok(ItemListResponse.builder()
                     .httpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
                     .leaderEndpoint(leaderEndpoint)
-                    .build());
+                    .build()));
         }
 
-        // TODO - 100 shouldn't be hard coded
-        return ResponseEntity.ok(ItemListResponse.builder()
+        return Mono.just(ResponseEntity.ok(ItemListResponse.builder()
                 .httpStatusCode(HttpStatus.OK.value())
                 .items(data.entrySet()
                         .stream()
                         .map(e -> Map.entry(e.getKey().keyString(), e.getValue()))
-                        .limit(Math.min(limit, 100))
+                        .limit(limit)
                         .toList())
-                .build());
+                .build()));
     }
 
-    public ResponseEntity<WALFetchResponse> getLogEntries(LogPosition lastFetchOffset,
-                                                          int maxNumRecords,
-                                                          String replicaId) {
+    public Mono<ResponseEntity<WALFetchResponse>> getLogEntries(LogPosition lastFetchOffset,
+                                                                int maxNumRecords,
+                                                                String replicaId) {
         if (!isLeader) {
-            return ResponseEntity.ok(WALFetchResponse.builder()
+            return Mono.just(ResponseEntity.ok(WALFetchResponse.builder()
                     .httpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
-                    .build());
+                    .build()));
         }
 
         offsetState.setReplicaEndOffset(replicaId, lastFetchOffset);
@@ -435,21 +446,21 @@ public class PartitionState implements AutoCloseable {
                     commitedOffset);
 
             if (endOffset.equals(LogPosition.ZERO)) {
-                return ResponseEntity.ok(WALFetchResponse.builder()
+                return Mono.just(ResponseEntity.ok(WALFetchResponse.builder()
                         .httpStatusCode(HttpStatus.OK.value())
                         .entries(new ArrayList<>())
                         .commitedOffset(LogPosition.ZERO)
                         .payloadType(WALFetchPayloadType.LOG)
-                        .build());
+                        .build()));
             }
 
             if (lastFetchOffset.equals(endOffset)) {
-                return ResponseEntity.ok(WALFetchResponse.builder()
+                return Mono.just(ResponseEntity.ok(WALFetchResponse.builder()
                         .httpStatusCode(HttpStatus.OK.value())
                         .entries(new ArrayList<>())
                         .commitedOffset(commitedOffset)
                         .payloadType(WALFetchPayloadType.LOG)
-                        .build());
+                        .build()));
             }
 
             if (lastFetchOffset.equals(LogPosition.ZERO)) {
@@ -462,10 +473,10 @@ public class PartitionState implements AutoCloseable {
                 return getLogs(lastFetchOffset, maxNumRecords, commitedOffset);
             } else if (lastFetchOffset.leaderTerm() == leaderTerm - 1) {
                 if (lastFetchOffset.isGreaterThan(previousLeaderEndOffset)) {
-                    return ResponseEntity.ok(WALFetchResponse.builder()
+                    return Mono.just(ResponseEntity.ok(WALFetchResponse.builder()
                             .httpStatusCode(HttpStatus.CONFLICT.value())
                             .truncateToOffset(previousLeaderEndOffset)
-                            .build());
+                            .build()));
                 }
                 if (walStartOffset.equals(LogPosition.ZERO) || walStartOffset.leaderTerm() > lastFetchOffset.leaderTerm())
                     return getSnapshot(lastFetchOffset, walStartOffset, endOffset);
@@ -480,25 +491,25 @@ public class PartitionState implements AutoCloseable {
                 return getLogs(lastFetchOffset, maxNumRecords, commitedOffset);
             }
         } catch (Exception e) {
-            return ResponseEntity.ok(WALFetchResponse.builder()
+            return Mono.just(ResponseEntity.ok(WALFetchResponse.builder()
                     .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
                     .errorMessage(e.getMessage())
-                    .build());
+                    .build()));
         }
     }
 
-    private ResponseEntity<WALFetchResponse> getLogs(LogPosition lastFetchOffset, int maxNumRecords, LogPosition commitedOffset) {
+    private Mono<ResponseEntity<WALFetchResponse>> getLogs(LogPosition lastFetchOffset, int maxNumRecords, LogPosition commitedOffset) {
         List<WALEntry> entries = wal.readLogs(lastFetchOffset, maxNumRecords);
 
-        return ResponseEntity.ok(WALFetchResponse.builder()
+        return Mono.just(ResponseEntity.ok(WALFetchResponse.builder()
                 .httpStatusCode(HttpStatus.OK.value())
                 .entries(entries)
                 .commitedOffset(commitedOffset)
                 .payloadType(WALFetchPayloadType.LOG)
-                .build());
+                .build()));
     }
 
-    private ResponseEntity<WALFetchResponse> getSnapshot(LogPosition lastFetchOffset, LogPosition walStartOffset, LogPosition endOffset) {
+    private Mono<ResponseEntity<WALFetchResponse>> getSnapshot(LogPosition lastFetchOffset, LogPosition walStartOffset, LogPosition endOffset) {
         byte[] dataSnapshotBytes = readDataSnapshotBytes();
 
         if (dataSnapshotBytes == null) {
@@ -506,17 +517,17 @@ public class PartitionState implements AutoCloseable {
                     lastFetchOffset,
                     walStartOffset,
                     endOffset);
-            return ResponseEntity.ok(WALFetchResponse.builder()
+            return Mono.just(ResponseEntity.ok(WALFetchResponse.builder()
                     .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
                     .errorMessage(errorMessage)
-                    .build());
+                    .build()));
         }
 
-        return ResponseEntity.ok(WALFetchResponse.builder()
+        return Mono.just(ResponseEntity.ok(WALFetchResponse.builder()
                 .httpStatusCode(HttpStatus.OK.value())
                 .payloadType(WALFetchPayloadType.SNAPSHOT)
                 .dataSnapshotBytes(dataSnapshotBytes)
-                .build());
+                .build()));
     }
 
     public void isrListChanged(ISRListChangedRequest request) {
@@ -599,13 +610,13 @@ public class PartitionState implements AutoCloseable {
     /**
      * The code below this point applies to both leaders and replicas.
      * */
-    public ResponseEntity<ItemCountAndOffsetsResponse> countItems() {
-        return ResponseEntity.ok(ItemCountAndOffsetsResponse.builder()
+    public Mono<ResponseEntity<ItemCountAndOffsetsResponse>> countItems() {
+        return Mono.just(ResponseEntity.ok(ItemCountAndOffsetsResponse.builder()
                 .httpStatusCode(HttpStatus.OK.value())
                 .count(data.size())
                 .commitedOffset(offsetState.getCommittedOffset())
                 .endOffset(offsetState.getEndOffset())
-                .build());
+                .build()));
     }
 
     public void newLeaderElected(NewLeaderElectedRequest request) {
@@ -633,15 +644,16 @@ public class PartitionState implements AutoCloseable {
 
                 for (String isrEndpoint : isrEndpoints) {
                     try {
-                        WALGetReplicaEndOffsetResponse response = RestClient.builder()
-                                .build()
+                        Mono<ResponseEntity<WALGetReplicaEndOffsetResponse>> mono = WebClient
+                                .create("http://%s/api/wal/get-end-offset/".formatted(isrEndpoint))
                                 .post()
-                                .uri("http://%s/api/wal/get-end-offset/".formatted(isrEndpoint))
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .body(walGetReplicaEndOffsetRequest)
+                                .accept(MediaType.APPLICATION_JSON)
+                                .bodyValue(walGetReplicaEndOffsetRequest)
                                 .retrieve()
-                                .toEntity(WALGetReplicaEndOffsetResponse.class)
-                                .getBody();
+                                .toEntity(WALGetReplicaEndOffsetResponse.class);
+
+                        WALGetReplicaEndOffsetResponse response = mono.map(HttpEntity::getBody).block();
 
                         if (response.getEndOffset().isLessThan(earliestISREndOffset))
                             earliestISREndOffset = response.getEndOffset();
@@ -684,6 +696,9 @@ public class PartitionState implements AutoCloseable {
                 this.inSyncReplicas = null;
                 offsetState.clearPreviousLeaderEndOffset();
             }
+        } catch (Exception e) {
+            String errorMessage = "Error handling new leader notification for table '%s' partition '%s'.".formatted(table, partition);
+            log.error(errorMessage, e);
         }
     }
 
