@@ -82,11 +82,12 @@
                             <tr>
                                 <th>Key</th>
                                 <th>Value</th>
-                                <th>
+                                <th class="text-center">
                                     <form method="post" th:action="@{/items/delete-batch/}" th:object="${batchDeleteRequest}">
                                         <input type="hidden" th:field="*{table}">
                                         <input type="hidden" th:field="*{keys}">
-                                        <button type="submit" class="btn btn-secondary btn-sm">
+                                        <button type="submit" class="btn btn-danger btn-sm">
+                                            <span data-feather="x-circle"></span>
                                             Delete All
                                         </button>
                                     </form>
@@ -97,12 +98,12 @@
                             <tr th:each="_item: ${_items.value}">
                                 <td th:text="${_item.key}"></td>
                                 <td th:text="${_item.value}"></td>
-                                <td>
+                                <td class="text-center">
                                     <form method="post" th:action="@{/items/delete-item/}" th:object="${itemDeleteRequest}">
                                         <input type="hidden" th:field="*{table}">
                                         <input type="hidden" name="key" th:value="${_item.key}">
-                                        <button type="submit" class="btn btn-secondary btn-sm">
-                                            x
+                                        <button type="submit" class="btn btn-sm">
+                                            <span data-feather="x-circle"></span>
                                         </button>
                                     </form>
                                 </td>

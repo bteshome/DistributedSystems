@@ -366,7 +366,7 @@ public class PartitionState implements AutoCloseable {
     }
 
     // TODO - the item keys have changed - update it.
-    public Mono<ResponseEntity<ItemGetResponse>> getItem(String key) {
+    public Mono<ResponseEntity<ItemGetResponse>> getItem(String keyString) {
         if (!isLeader) {
             String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
             return Mono.just(ResponseEntity.ok(ItemGetResponse.builder()
@@ -374,6 +374,8 @@ public class PartitionState implements AutoCloseable {
                     .leaderEndpoint(leaderEndpoint)
                     .build()));
         }
+
+        ItemKey key = ItemKey.of(keyString, null);
 
         if (!data.containsKey(key)) {
             return Mono.just(ResponseEntity.ok(ItemGetResponse.builder()
