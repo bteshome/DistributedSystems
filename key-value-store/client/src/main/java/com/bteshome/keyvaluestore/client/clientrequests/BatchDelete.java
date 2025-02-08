@@ -16,5 +16,6 @@ import java.util.List;
 public class BatchDelete {
     private String table;
     private AckType ack;
+    private int maxRetries;
     private List<String> keys = new ArrayList<>();
 }

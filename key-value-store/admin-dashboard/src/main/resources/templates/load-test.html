@@ -34,19 +34,19 @@
             <div class="alert alert-info" role="alert" th:if="${info}" th:text="${info}"></div>
 
             <form class="row g-3" method="post" th:action="@{/items/load-test/}" th:object="${request}">
-                <div class="col-md-12">
+                <div class="col-md-6">
                     <label for="table" class="form-label">Table name</label>
                     <input type="text" class="form-control" id="table" th:field="*{table}">
                 </div>
-                <div class="col-md-12">
+                <div class="col-md-6">
                     <label for="requestsPerSecond" class="form-label">Number Requests Per Second</label>
                     <input type="text" class="form-control" id="requestsPerSecond" th:field="*{requestsPerSecond}">
                 </div>
-                <div class="col-md-12">
+                <div class="col-md-6">
                     <label for="duration" class="form-label">Duration</label>
                     <input type="text" class="form-control" id="duration" th:field="*{duration}">
                 </div>
-                <div class="col-md-12">
+                <div class="col-md-6">
                     <label for="ack" class="form-label">Ack Type</label>
                     <select class="form-select" id="ack" th:field="*{ack}">
                         <option selected value="NONE">None</option>
@@ -54,7 +54,11 @@
                         <option value="MIN_ISR_COUNT">Min ISR Count</option>
                     </select>
                 </div>
-                <div class="col-auto">
+                <div class="col-md-6">
+                    <label for="maxRetries" class="form-label">Max Retries</label>
+                    <input type="text" class="form-control" id="maxRetries" th:field="*{maxRetries}">
+                </div>
+                <div class="col-md-12">
                     <button type="submit" class="btn btn-primary mb-3">Test</button>
                 </div>
             </form>

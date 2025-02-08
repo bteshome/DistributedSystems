@@ -14,4 +14,5 @@ public class ItemDelete {
     private String table;
     private String key;
     private AckType ack;
+    private int retries;
 }

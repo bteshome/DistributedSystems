@@ -1,7 +1,8 @@
 package com.bteshome.keyvaluestore.admindashboard.controller;
 
+import com.bteshome.keyvaluestore.admindashboard.common.AdminDashboardException;
 import com.bteshome.keyvaluestore.admindashboard.dto.LoadTestDto;
-import com.bteshome.keyvaluestore.client.ItemWriter;
+import com.bteshome.keyvaluestore.client.writers.ItemWriter;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemWrite;
 import com.bteshome.keyvaluestore.client.requests.AckType;
 import lombok.RequiredArgsConstructor;
@@ -10,15 +11,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
+import reactor.util.function.Tuple2;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Controller
 @RequestMapping("/items/load-test/")
@@ -35,6 +37,7 @@ public class LoadTestController {
         request.setRequestsPerSecond(10);
         request.setDuration(Duration.ofSeconds(1));
         request.setAck(AckType.NONE);
+        request.setMaxRetries(0);
         model.addAttribute("request", request);
         model.addAttribute("page", "load-test");
         return "load-test.html";
@@ -42,55 +45,62 @@ public class LoadTestController {
 
     @PostMapping("/")
     public String test(@ModelAttribute("request") @RequestBody LoadTestDto request, Model model) {
-        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            Random random = new Random();
-            int requestIntervalMs = 1000 / request.getRequestsPerSecond();
-            long totalNumRequests = request.getRequestsPerSecond() * request.getDuration().toSeconds();
-            List<CompletableFuture<Void>> futures = new ArrayList<>();
-            List<ItemWrite<String>> itemWrites = new ArrayList<>();
+        Random random = new Random();
+        int requestIntervalMs = 1000 / request.getRequestsPerSecond();
+        long totalNumRequests = request.getRequestsPerSecond() * request.getDuration().toSeconds();
+        List<ItemWrite<String>> itemWrites = new ArrayList<>();
 
-            for (int i = 0; i < totalNumRequests; i++) {
-                int randomNumber = random.nextInt(1, Integer.MAX_VALUE);
-                String key = "key" + randomNumber;
-                String value = "value" + randomNumber;
-                ItemWrite<String> itemWrite = new ItemWrite<>(request.getTable(), key, value, request.getAck());
-                itemWrites.add(itemWrite);
-            }
+        for (int i = 0; i < totalNumRequests; i++) {
+            int randomNumber = random.nextInt(1, Integer.MAX_VALUE);
+            String key = "key" + randomNumber;
+            String value = "value" + randomNumber;
+            ItemWrite<String> itemWrite = new ItemWrite<>(
+                    request.getTable(),
+                    key,
+                    value,
+                    request.getAck(),
+                    request.getMaxRetries());
+            itemWrites.add(itemWrite);
+        }
 
-            Instant startTime = Instant.now();
+        Instant startTime = Instant.now();
+        AtomicInteger succeededRequestsCount = new AtomicInteger(0);
 
-            for (ItemWrite<String> itemWrite : itemWrites) {
-                CompletableFuture<Void> future = CompletableFuture.runAsync(() -> itemWriter.putString(itemWrite), executor);
-                futures.add(future);
-                try {
-                    Thread.sleep(requestIntervalMs);
-                } catch (InterruptedException ignored) {}
-            }
-
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-
-            Instant endTime = Instant.now();
-            Duration timeSpent = Duration.between(startTime, endTime);
-            long minutesSpent = timeSpent.toMinutes();
-            long secondsSpent = timeSpent.minusMinutes(minutesSpent).toSeconds();
-            long millisSpent = timeSpent.minusMinutes(minutesSpent).minusSeconds(secondsSpent).toMillis();
-
-            String info = "%d requests sent. Actual time spent is %d minutes, %d seconds, %d milli seconds.".formatted(
-                    totalNumRequests,
-                    minutesSpent,
-                    secondsSpent,
-                    millisSpent
-            );
-
-            model.addAttribute("info", info);
-            model.addAttribute("request", request);
-            model.addAttribute("page", "load-test");
-            return "load-test.html";
+        try {
+            Flux.fromIterable(itemWrites)
+                    .zipWith(Flux.interval(Duration.ofMillis(requestIntervalMs)))
+                    .map(Tuple2::getT1)
+                    .onBackpressureDrop()
+                    .flatMap(itemWrite -> itemWriter.putString(itemWrite)
+                            .doOnSuccess(response -> {
+                                if (response.getHttpStatusCode() == 200)
+                                    succeededRequestsCount.incrementAndGet();
+                            })
+                            .subscribeOn(Schedulers.boundedElastic())
+                    )
+                    .onErrorMap(e -> new AdminDashboardException(e.getClass().getName() + " - " + e.getMessage(), e))
+                    .blockLast();
         } catch (Exception e) {
             model.addAttribute("error", e.getMessage());
-            model.addAttribute("request", request);
-            model.addAttribute("page", "load-test");
-            return "load-test.html";
         }
+
+        Instant endTime = Instant.now();
+        Duration timeSpent = Duration.between(startTime, endTime);
+        long minutesSpent = timeSpent.toMinutes();
+        long secondsSpent = timeSpent.minusMinutes(minutesSpent).toSeconds();
+        long millisSpent = timeSpent.minusMinutes(minutesSpent).minusSeconds(secondsSpent).toMillis();
+
+        String info = "Successfully sent %d/%d requests. Actual time spent is %d minutes, %d seconds, %d milli seconds.".formatted(
+                succeededRequestsCount.get(),
+                totalNumRequests,
+                minutesSpent,
+                secondsSpent,
+                millisSpent
+        );
+
+        model.addAttribute("request", request);
+        model.addAttribute("page", "load-test");
+        model.addAttribute("info", info);
+        return "load-test.html";
     }
 }

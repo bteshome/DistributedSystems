@@ -56,6 +56,7 @@ public class PartitionState implements AutoCloseable {
     private final ReentrantReadWriteLock replicaLock;
     private final StorageSettings storageSettings;
     private final ISRSynchronizer isrSynchronizer;
+    private final WebClient webClient;
     private final String dataSnapshotFile;
     private final long writeTimeoutMs;
     private final long timeLagThresholdMs;
@@ -71,7 +72,8 @@ public class PartitionState implements AutoCloseable {
     public PartitionState(String table,
                           int partition,
                           StorageSettings storageSettings,
-                          ISRSynchronizer isrSynchronizer) {
+                          ISRSynchronizer isrSynchronizer,
+                          WebClient webClient) {
         log.info("Creating partition state for table '{}' partition '{}' on replica '{}'.", table, partition, storageSettings.getNode().getId());
         this.table = table;
         this.partition = partition;
@@ -90,6 +92,7 @@ public class PartitionState implements AutoCloseable {
             this.inSyncReplicas = MetadataCache.getInstance().getInSyncReplicas(table, partition);
         this.storageSettings = storageSettings;
         this.isrSynchronizer = isrSynchronizer;
+        this.webClient = webClient;
         this.leaderLock = new ReentrantReadWriteLock(true);
         this.replicaLock = new ReentrantReadWriteLock(true);
         this.data = new ConcurrentHashMap<>();
@@ -221,7 +224,7 @@ public class PartitionState implements AutoCloseable {
                     }
 
                     // TODO - this shouldn't be hard coded
-                    TimeUnit.MILLISECONDS.sleep(500);
+                    TimeUnit.MILLISECONDS.sleep(1000);
                 }
 
                 if (!committed) {
@@ -552,7 +555,8 @@ public class PartitionState implements AutoCloseable {
                     table,
                     partition,
                     leaderEndpoint,
-                    fetchMaxNumRecords);
+                    fetchMaxNumRecords,
+                    webClient);
         }
     }
 

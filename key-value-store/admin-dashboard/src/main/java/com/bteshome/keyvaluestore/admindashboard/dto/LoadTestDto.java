@@ -17,4 +17,5 @@ public class LoadTestDto {
     private int requestsPerSecond;
     private Duration duration;
     private AckType ack;
+    private int maxRetries;
 }

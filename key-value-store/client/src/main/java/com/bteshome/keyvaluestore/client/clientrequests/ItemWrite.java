@@ -16,4 +16,5 @@ public class ItemWrite<T> {
     private String key;
     private T value;
     private AckType ack;
+    private int maxRetries;
 }

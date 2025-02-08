@@ -14,4 +14,5 @@ public class ItemPutBatchDto {
     private String table;
     private int numItems;
     private AckType ack;
+    private int maxRetries;
 }

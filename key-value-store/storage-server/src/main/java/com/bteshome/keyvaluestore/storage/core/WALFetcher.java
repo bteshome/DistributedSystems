@@ -21,7 +21,8 @@ public class WALFetcher {
                              String table,
                              int partition,
                              String leaderEndpoint,
-                             int maxNumRecords) {
+                             int maxNumRecords,
+                             WebClient webClient) {
         try {
             log.trace("WAL fetcher triggered for table '{}' partition '{}'.", table, partition);
 
@@ -40,9 +41,9 @@ public class WALFetcher {
                     maxNumRecords
             );
 
-            Mono<ResponseEntity<WALFetchResponse>> mono = WebClient
-                    .create("http://%s/api/wal/fetch/".formatted(leaderEndpoint))
+            Mono<ResponseEntity<WALFetchResponse>> mono = webClient
                     .post()
+                    .uri("http://%s/api/wal/fetch/".formatted(leaderEndpoint))
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.APPLICATION_JSON)
                     .bodyValue(request)

@@ -20,7 +20,7 @@
 
         <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
             <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                <h1 class="h2">Items - Put Bulk</h1>
+                <h1 class="h2">Items - Put in Batch</h1>
                 <div class="btn-toolbar mb-2 mb-md-0">
                     <div class="btn-group me-2">
                         <button type="button" class="btn btn-sm btn-outline-secondary">Share</button>
@@ -31,22 +31,28 @@
 
             <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}"></div>
 
-            <form class="row g-3" method="post" th:action="@{/items/put-bulk/}" th:object="${request}">
-                <div class="col-md-12">
+            <div class="alert alert-info" role="alert" th:if="${info}" th:text="${info}"></div>
+
+            <form class="row g-3" method="post" th:action="@{/items/put-batch/}" th:object="${request}">
+                <div class="col-md-6">
                     <label for="table" class="form-label">Table name</label>
                     <input type="text" class="form-control" id="table" th:field="*{table}">
                 </div>
-                <div class="col-md-12">
+                <div class="col-md-6">
                     <label for="numItems" class="form-label">Number Items</label>
                     <input type="text" class="form-control" id="numItems" th:field="*{numItems}">
                 </div>
-                <div class="col-md-12">
+                <div class="col-md-6">
                     <label for="ack" class="form-label">Ack Type</label>
                     <select class="form-select" id="ack" th:field="*{ack}">
                         <option selected value="NONE">None</option>
                         <option value="LEADER">Leader</option>
                         <option value="MIN_ISR_COUNT">Min ISR Count</option>
                     </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="maxRetries" class="form-label">Max Retries</label>
+                    <input type="text" class="form-control" id="maxRetries" th:field="*{maxRetries}">
                 </div>
                 <div class="col-auto">
                     <button type="submit" class="btn btn-primary mb-3">Put in Bulk</button>

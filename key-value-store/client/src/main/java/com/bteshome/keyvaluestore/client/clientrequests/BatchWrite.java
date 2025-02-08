@@ -19,4 +19,5 @@ public class BatchWrite<T> {
     private String table;
     private List<Map.Entry<String, T>> items = new ArrayList<>();
     private AckType ack;
+    private int maxRetries;
 }

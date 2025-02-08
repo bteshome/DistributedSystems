@@ -5,21 +5,22 @@ import com.bteshome.keyvaluestore.common.Tuple;
 import com.bteshome.keyvaluestore.common.entities.Replica;
 import com.bteshome.keyvaluestore.storage.states.PartitionState;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.*;
 
 @Slf4j
 public class ReplicationMonitor {
     public static LogPosition check(PartitionState leaderPartitionState,
-                             String nodeId,
-                             String table,
-                             int partition,
-                             int minISRCount,
-                             Set<String> allReplicaIds,
-                             Set<String> inSyncReplicaIds,
-                             long timeLagThresholdMs,
-                             long recordLagThreshold,
-                             ISRSynchronizer isrSynchronizer) {
+                                    String nodeId,
+                                    String table,
+                                    int partition,
+                                    int minISRCount,
+                                    Set<String> allReplicaIds,
+                                    Set<String> inSyncReplicaIds,
+                                    long timeLagThresholdMs,
+                                    long recordLagThreshold,
+                                    ISRSynchronizer isrSynchronizer) {
         log.trace("Checking replication status for table {} partition {}.", table, partition);
 
         Set<Replica> caughtUpReplicas = new HashSet<>();

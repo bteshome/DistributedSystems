@@ -4,14 +4,17 @@ import com.bteshome.keyvaluestore.common.*;
 import com.bteshome.keyvaluestore.common.requests.StorageNodeHeartbeatRequest;
 import com.bteshome.keyvaluestore.common.responses.StorageNodeHeartbeatResponse;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
+import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
 import com.bteshome.keyvaluestore.storage.states.State;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -29,6 +32,8 @@ public class HeartbeatSender {
     StorageNodeMetadataRefresher metadataRefresher;
     @Autowired
     State state;
+    @Autowired
+    WebClient webClient;
 
     @PreDestroy
     public void close() {
@@ -54,28 +59,37 @@ public class HeartbeatSender {
                     storageSettings.getNode().getId(),
                     MetadataCache.getInstance().getLastFetchedVersion());
 
-            StorageNodeHeartbeatResponse response = RestClient.builder()
-                    .build()
+            Mono<ResponseEntity<StorageNodeHeartbeatResponse>> mono = webClient
                     .post()
                     .uri("http://%s".formatted(MetadataCache.getInstance().getHeartbeatEndpoint()))
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(request)
+                    .accept(MediaType.APPLICATION_JSON)
+                    .bodyValue(request)
                     .retrieve()
-                    .body(StorageNodeHeartbeatResponse.class);
+                    .toEntity(StorageNodeHeartbeatResponse.class);
 
-            switch (HttpStatus.valueOf(response.getHttpStatusCode())) {
-                case OK -> {
-                    log.trace("Sent heartbeat successfully");
-                    if (response.isLaggingOnMetadata()) {
-                        log.debug("The node is lagging on metadata. Now issuing a fetch request.");
-                        metadataRefresher.fetch();
-                    }
+            mono.subscribe(responseEntity -> {
+                StorageNodeHeartbeatResponse response = responseEntity.getBody();
+
+                if (response == null) {
+                    log.error("Heartbeat request failed. The response is null.");
+                    return;
                 }
-                case MOVED_PERMANENTLY -> metadataRefresher.fetch();
-                default -> log.error("Heartbeat request failed. The response status is '{}', error message is '{}'.",
-                        response.getHttpStatusCode(),
-                        response.getErrorMessage());
-            }
+
+                switch (HttpStatus.valueOf(response.getHttpStatusCode())) {
+                    case OK -> {
+                        log.trace("Sent heartbeat successfully");
+                        if (response.isLaggingOnMetadata()) {
+                            log.debug("The node is lagging on metadata. Now issuing a fetch request.");
+                            metadataRefresher.fetch();
+                        }
+                    }
+                    case MOVED_PERMANENTLY -> metadataRefresher.fetch();
+                    default -> log.error("Heartbeat request failed. The response status is '{}', error message is '{}'.",
+                            response.getHttpStatusCode(),
+                            response.getErrorMessage());
+                }
+            });
         } catch (Exception e) {
             log.error("Error sending heartbeat: ", e);
         }

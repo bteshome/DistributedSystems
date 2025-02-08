@@ -1,4 +1,4 @@
-package com.bteshome.keyvaluestore.client;
+package com.bteshome.keyvaluestore.client.readers;
 
 import com.bteshome.keyvaluestore.client.requests.ItemCountAndOffsetsRequest;
 import com.bteshome.keyvaluestore.client.responses.ItemCountAndOffsetsResponse;
@@ -6,22 +6,18 @@ import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.Validator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.concurrent.TimeUnit;
 
 @Component
 @Slf4j
 public class CountAndOffsetReader {
-    @Value("${client.storage-node-endpoints}")
-    private String endpoints;
-
     @Autowired
-    KeyToPartitionMapper keyToPartitionMapper;
+    WebClient webClient;
 
     public ItemCountAndOffsetsResponse getCountAndOffsets(ItemCountAndOffsetsRequest request) {
         String endpoint = MetadataCache.getInstance().getLeaderEndpoint(request.getTable(), request.getPartition());
@@ -56,15 +52,15 @@ public class CountAndOffsetReader {
     }
 
     private ItemCountAndOffsetsResponse getCountAndOffsets(String endpoint, ItemCountAndOffsetsRequest request) {
-        return RestClient.builder()
-                .build()
+        return webClient
                 .post()
                 .uri("http://%s/api/items/count-and-offsets/".formatted(endpoint))
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(request)
+                .accept(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
                 .retrieve()
                 .toEntity(ItemCountAndOffsetsResponse.class)
+                .block()
                 .getBody();
-
      }
 }

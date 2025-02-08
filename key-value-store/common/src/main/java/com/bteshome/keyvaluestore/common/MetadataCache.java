@@ -78,11 +78,12 @@ public class MetadataCache {
     }
 
     public String getLeaderEndpoint(String tableName, int partition) {
-        Table table = (Table)state.get(EntityType.TABLE).get(tableName);
-        String leaderNodeId = table.getPartitions().get(partition).getLeader();
-        if (leaderNodeId == null) {
+        Table table = (Table)state.get(EntityType.TABLE).getOrDefault(tableName, null);
+        if (table == null)
             return null;
-        }
+        String leaderNodeId = table.getPartitions().get(partition).getLeader();
+        if (leaderNodeId == null)
+            return null;
         StorageNode leaderNode = (StorageNode)state.get(EntityType.STORAGE_NODE).get(leaderNodeId);
         return "%s:%s".formatted(leaderNode.getHost(), leaderNode.getPort());
     }
@@ -151,7 +152,10 @@ public class MetadataCache {
 
     public int getNumPartitions(String tableName) {
         try (AutoCloseableLock l = readLock()) {
-            return ((Table)state.get(EntityType.TABLE).get(tableName)).getPartitions().size();
+            Table table = (Table)state.get(EntityType.TABLE).getOrDefault(tableName, null);
+            if (table == null)
+                throw new NotFoundException("Table '%s' not found.".formatted(tableName));
+            return table.getPartitions().size();
         }
     }
 

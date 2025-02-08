@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -22,8 +23,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.*;
 import java.util.stream.Stream;
 
@@ -33,14 +32,12 @@ public class State implements ApplicationListener<ContextClosedEvent> {
     @Getter
     private String nodeId;
     private final ConcurrentHashMap<String, ConcurrentHashMap<Integer, PartitionState>> partitionStates = new ConcurrentHashMap<>();
-    private ScheduledExecutorService replicationMonitorScheduler;
-    private ScheduledExecutorService walFetcherScheduler;
-    private ScheduledExecutorService snapshotsScheduler;
-    private ScheduledExecutorService dataExpirationScheduler;
     @Autowired
     private StorageSettings storageSettings;
     @Autowired
     private ISRSynchronizer isrSynchronizer;
+    @Autowired
+    WebClient webClient;
     @Autowired
     private StorageNodeMetadataRefresher storageNodeMetadataRefresher;
     private boolean closed = false;
@@ -68,14 +65,6 @@ public class State implements ApplicationListener<ContextClosedEvent> {
                     for (PartitionState partitionState : tableState.values())
                         partitionState.close();
                 }
-                if (replicationMonitorScheduler != null)
-                    replicationMonitorScheduler.close();
-                if (walFetcherScheduler != null)
-                    walFetcherScheduler.close();
-                if (snapshotsScheduler != null)
-                    snapshotsScheduler.close();
-                if (dataExpirationScheduler != null)
-                    dataExpirationScheduler.close();
                 closed = true;
             } catch (Exception e) {
                 log.error("Error closing state.", e);
@@ -98,7 +87,8 @@ public class State implements ApplicationListener<ContextClosedEvent> {
                         partition.getTableName(),
                         partition.getId(),
                         storageSettings,
-                        isrSynchronizer));
+                        isrSynchronizer,
+                        webClient));
             }
         } catch (Exception e) {
             String errorMessage = "Error handling TABLE CREATED notification for table '%s'.".formatted(table.getName());
@@ -136,7 +126,8 @@ public class State implements ApplicationListener<ContextClosedEvent> {
                             partitionStates.get(table).put(partition, new PartitionState(table,
                                     partition,
                                     storageSettings,
-                                    isrSynchronizer));
+                                    isrSynchronizer,
+                                    webClient));
                         }
                     }
                 }

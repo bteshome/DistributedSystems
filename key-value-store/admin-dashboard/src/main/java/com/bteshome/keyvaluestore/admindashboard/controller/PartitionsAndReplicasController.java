@@ -3,7 +3,7 @@ package com.bteshome.keyvaluestore.admindashboard.controller;
 import com.bteshome.keyvaluestore.admindashboard.dto.PartitionListRequest;
 import com.bteshome.keyvaluestore.admindashboard.dto.TableCountDto;
 import com.bteshome.keyvaluestore.admindashboard.service.TableService;
-import com.bteshome.keyvaluestore.client.CountAndOffsetReader;
+import com.bteshome.keyvaluestore.client.readers.CountAndOffsetReader;
 import com.bteshome.keyvaluestore.client.requests.ItemCountAndOffsetsRequest;
 import com.bteshome.keyvaluestore.client.responses.ItemCountAndOffsetsResponse;
 import com.bteshome.keyvaluestore.common.LogPosition;

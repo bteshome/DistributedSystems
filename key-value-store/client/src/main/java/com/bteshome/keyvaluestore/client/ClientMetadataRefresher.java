@@ -5,18 +5,14 @@ import com.bteshome.keyvaluestore.common.JavaSerDe;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.MetadataClientSettings;
 import com.bteshome.keyvaluestore.common.entities.EntityType;
-import com.bteshome.keyvaluestore.common.entities.StorageNode;
-import com.bteshome.keyvaluestore.common.entities.Table;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
+import org.springframework.web.reactive.function.client.WebClient;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -30,6 +26,8 @@ public class ClientMetadataRefresher implements CommandLineRunner {
     private String endpoints;
     @Autowired
     MetadataClientSettings metadataClientSettings;
+    @Autowired
+    WebClient webClient;
 
     @Override
     public void run(String... args) throws Exception {
@@ -60,28 +58,30 @@ public class ClientMetadataRefresher implements CommandLineRunner {
             try {
                 fetch(endpoint);
                 return;
-            } catch (Exception e) { }
+            } catch (Exception ignored) {
+                log.debug("Unable to fetch metadata from endpoint '{}'.", endpoint);
+            }
         }
 
         log.error("Unable to fetch metadata from any endpoint.");
     }
 
     private void fetch(String endpoint) {
-        ClientMetadataFetchResponse response = RestClient.builder()
-                .build()
-                .post()
-                .uri("http://%s/api/metadata/get-metadata/".formatted(endpoint))
-                .retrieve()
-                .toEntity(ClientMetadataFetchResponse.class)
-                .getBody();
+        ClientMetadataFetchResponse response = webClient
+            .post()
+            .uri("http://%s/api/metadata/get-metadata/".formatted(endpoint))
+            //.accept(MediaType.APPLICATION_JSON)
+            .retrieve()
+            .toEntity(ClientMetadataFetchResponse.class)
+            .block()
+            .getBody();
 
-        if (response.getHttpStatusCode() == HttpStatus.OK.value()) {
-            Map<EntityType, Map<String, Object>> state = JavaSerDe.deserialize(response.getSerializedMetadata());
-            MetadataCache.getInstance().setState(state);
-            log.debug("Refreshed metadata successfully.");
-            return;
-        }
-
-        throw new RuntimeException("Unable to read from endpoint '%s'. Http status: %s, error: %s.".formatted(endpoint, response.getHttpStatusCode(), response.getErrorMessage()));
+            if (response.getHttpStatusCode() == HttpStatus.OK.value()) {
+                Map<EntityType, Map<String, Object>> state = JavaSerDe.deserialize(response.getSerializedMetadata());
+                MetadataCache.getInstance().setState(state);
+                log.debug("Refreshed metadata successfully.");
+            } else {
+                log.error("Unable to read from endpoint '%s'. Http status: %s, error: %s.".formatted(endpoint, response.getHttpStatusCode(), response.getErrorMessage()));
+            }
     }
 }
