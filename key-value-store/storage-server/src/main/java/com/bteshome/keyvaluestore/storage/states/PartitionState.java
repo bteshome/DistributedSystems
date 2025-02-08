@@ -5,6 +5,7 @@ import com.bteshome.keyvaluestore.client.requests.ItemDeleteRequest;
 import com.bteshome.keyvaluestore.client.requests.ItemPutRequest;
 import com.bteshome.keyvaluestore.client.responses.*;
 import com.bteshome.keyvaluestore.common.*;
+import com.bteshome.keyvaluestore.common.entities.Item;
 import com.bteshome.keyvaluestore.common.requests.ISRListChangedRequest;
 import com.bteshome.keyvaluestore.common.requests.NewLeaderElectedRequest;
 import com.bteshome.keyvaluestore.storage.common.ChecksumUtil;
@@ -28,7 +29,9 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Schedulers;
+import reactor.util.concurrent.Queues;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -48,6 +51,7 @@ public class PartitionState implements AutoCloseable {
     private final ConcurrentHashMap<ItemKey, String> data;
     @Getter
     private final PriorityQueue<ItemKey> dataExpiryTimes;
+    private final Sinks.Many<LogPosition> replicationMonitorSink;
     @Getter
     private final WAL wal;
     @Getter
@@ -97,6 +101,7 @@ public class PartitionState implements AutoCloseable {
         this.replicaLock = new ReentrantReadWriteLock(true);
         this.data = new ConcurrentHashMap<>();
         this.dataExpiryTimes = new PriorityQueue<>(Comparator.comparing(ItemKey::expiryTime));
+        this.replicationMonitorSink = Sinks.many().multicast().onBackpressureBuffer(Queues.SMALL_BUFFER_SIZE, false);
         createPartitionDirectoryIfNotExists();
         wal = new WAL(storageSettings.getNode().getStorageDir(), table, partition);
         dataSnapshotFile = "%s/%s-%s/data.ser.snappy".formatted(storageSettings.getNode().getStorageDir(), table, partition);
@@ -127,7 +132,7 @@ public class PartitionState implements AutoCloseable {
             if (newCommittedOffset.isGreaterThan(committedOffset)) {
                 List<WALEntry> walEntriesNotCommittedYet = wal.readLogs(committedOffset, newCommittedOffset);
 
-                log.info("Replication monitor for table '{}' partition '{}' found a new offset eligible for commit. " +
+                log.debug("Replication monitor for table '{}' partition '{}' found a new offset eligible for commit. " +
                         "Current committed offset is '{}', new offset is '{}'. # of items is: '{}'.",
                         table,
                         partition,
@@ -152,6 +157,7 @@ public class PartitionState implements AutoCloseable {
                 }
 
                 offsetState.setCommittedOffset(newCommittedOffset);
+                replicationMonitorSink.tryEmitNext(newCommittedOffset);
             }
         } catch (Exception e) {
             log.error("Error checking replica status for table '{}' partition '{}'.", table, partition, e);
@@ -180,6 +186,7 @@ public class PartitionState implements AutoCloseable {
                 long index = wal.appendPutOperation(leaderTerm, now, request.getItems(), expiryTime);
                 LogPosition offset = LogPosition.of(leaderTerm, index);
                 offsetState.setEndOffset(offset);
+
                 return ResponseEntity.ok(ItemPutResponse.builder()
                         .httpStatusCode(HttpStatus.OK.value())
                         .endOffset(offset)
@@ -199,52 +206,32 @@ public class PartitionState implements AutoCloseable {
                     .build()));
         }
 
-        if (request.getAck().equals(AckType.LEADER))
+        if (request.getAck().equals(AckType.LEADER) || minISRCount == 1)
             return mono;
 
-        return mono.map(walAppendResponseEntity -> {
+        return mono.flatMap(walAppendResponseEntity -> {
             final ItemPutResponse response = walAppendResponseEntity.getBody();
+            final LogPosition offset = response.getEndOffset();
+            final List<Item> items = request.getItems();
 
-            try {
-                if (response.getHttpStatusCode() != HttpStatus.OK.value())
-                    return ResponseEntity.ok(response);
+            log.debug("Waiting for sufficient replicas to acknowledge the log entry at offset {}.", offset);
 
-                final LogPosition offset = response.getEndOffset();
-                final long timeoutNanos = TimeUnit.MILLISECONDS.toNanos(writeTimeoutMs);
-                final long start = System.nanoTime();
-                boolean committed = false;
-
-                log.debug("Waiting for sufficient replicas to acknowledge the log entry at offset {}.", offset);
-
-                while (System.nanoTime() - start < timeoutNanos) {
-                    if (offsetState.getCommittedOffset().isGreaterThanOrEquals(offset)) {
-                        log.debug("Successfully committed PUT operation for '{}' items to table '{}' partition '{}'.", request.getItems().size(), table, partition);
-                        committed = true;
-                        break;
-                    }
-
-                    // TODO - this shouldn't be hard coded
-                    TimeUnit.MILLISECONDS.sleep(1000);
-                }
-
-                if (!committed) {
-                    String errorMessage = "PUT operation for '%s' items to table '%s' partition '%s' was not committed in the expected time.".formatted(
-                            request.getItems().size(),
-                            table,
-                            partition);
-                    log.error(errorMessage);
-                    response.setHttpStatusCode(HttpStatus.REQUEST_TIMEOUT.value());
-                } else {
-                    response.setHttpStatusCode(HttpStatus.OK.value());
-                }
-
-                return ResponseEntity.ok().body(response);
-            } catch (Exception e) {
-                log.error("Error processing PUT request for table '{}' partition '{}'.", table, partition, e);
-                response.setHttpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value());
-                response.setErrorMessage(e.getMessage());
-                return ResponseEntity.ok(response);
-            }
+            return Mono.defer(() -> replicationMonitorSink.asFlux()
+                    .takeUntil(c -> c.isGreaterThanOrEquals(offset))
+                    .takeUntilOther(Mono.delay(Duration.ofMillis(writeTimeoutMs)))
+                    .last(LogPosition.ZERO)
+                    .doOnNext(c -> {
+                        if (c.isGreaterThanOrEquals(offset)) {
+                            log.debug("Successfully committed PUT operation for '{}' items to table '{}' partition '{}'.", items.size(), table, partition);
+                            response.setHttpStatusCode(HttpStatus.OK.value());
+                        }
+                        else {
+                            String errorMessage = "PUT operation for '%s' items to table '%s' partition '%s' timed out.".formatted(items.size(), table, partition);
+                            log.debug(errorMessage);
+                            response.setHttpStatusCode(HttpStatus.REQUEST_TIMEOUT.value());
+                        }
+                    })
+                    .map(c -> ResponseEntity.ok(response)));
         });
     }
 
@@ -344,7 +331,7 @@ public class PartitionState implements AutoCloseable {
                     }
 
                     // TODO - this shouldn't be hard coded
-                    TimeUnit.MILLISECONDS.sleep(500);
+                    TimeUnit.MILLISECONDS.sleep(400);
                 }
 
                 if (!committed) {
@@ -368,7 +355,6 @@ public class PartitionState implements AutoCloseable {
         });
     }
 
-    // TODO - the item keys have changed - update it.
     public Mono<ResponseEntity<ItemGetResponse>> getItem(String keyString) {
         if (!isLeader) {
             String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
