@@ -762,6 +762,9 @@ public class PartitionState implements AutoCloseable {
 
             List<WALEntry> logEntriesFromFile = wal.loadFromFile();
             for (WALEntry walEntry : logEntriesFromFile) {
+                if (walEntry.isGreaterThan(offsetState.getCommittedOffset()))
+                    break;
+
                 ItemKey itemKey = ItemKey.of(walEntry.key(), walEntry.expiryTime());
                 switch (walEntry.operation()) {
                     case OperationType.PUT -> {
