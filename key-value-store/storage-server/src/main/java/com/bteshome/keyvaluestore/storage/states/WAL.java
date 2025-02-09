@@ -222,6 +222,8 @@ public class WAL implements AutoCloseable {
                 writer.newLine();
             }
             writer.flush();
+            if (startLeaderTerm == 0 && startIndex == 0)
+                setStartOffset(logEntries.getFirst().leaderTerm(), logEntries.getFirst().index());
             setEndOffset(logEntries.getLast().leaderTerm(), logEntries.getLast().index());
             log.trace("'{}' log entries appended for table '{}' partition '{}'.", logEntries.size(), tableName, partition);
         } catch (IOException e) {
