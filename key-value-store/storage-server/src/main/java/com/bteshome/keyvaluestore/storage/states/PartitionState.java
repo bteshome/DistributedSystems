@@ -213,6 +213,9 @@ public class PartitionState implements AutoCloseable {
             final LogPosition offset = response.getEndOffset();
             final List<Item> items = request.getItems();
 
+            if (response.getHttpStatusCode() != HttpStatus.OK.value())
+                return Mono.just(walAppendResponseEntity);
+
             log.debug("Waiting for sufficient replicas to acknowledge the log entry at offset {}.", offset);
 
             return Mono.defer(() -> replicationMonitorSink.asFlux()
@@ -312,6 +315,9 @@ public class PartitionState implements AutoCloseable {
         return mono.flatMap(walAppendResponseEntity -> {
             final ItemDeleteResponse response = walAppendResponseEntity.getBody();
             final LogPosition offset = response.getEndOffset();
+
+            if (response.getHttpStatusCode() != HttpStatus.OK.value())
+                return Mono.just(walAppendResponseEntity);
 
             log.debug("Waiting for sufficient replicas to acknowledge the log entry at offset {}.", offset);
 
