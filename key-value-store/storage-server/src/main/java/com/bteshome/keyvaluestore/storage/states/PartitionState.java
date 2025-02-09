@@ -186,7 +186,6 @@ public class PartitionState implements AutoCloseable {
                 long index = wal.appendPutOperation(leaderTerm, now, request.getItems(), expiryTime);
                 LogPosition offset = LogPosition.of(leaderTerm, index);
                 offsetState.setEndOffset(offset);
-
                 return ResponseEntity.ok(ItemPutResponse.builder()
                         .httpStatusCode(HttpStatus.OK.value())
                         .endOffset(offset)
@@ -236,9 +235,24 @@ public class PartitionState implements AutoCloseable {
     }
 
     public Mono<ResponseEntity<ItemDeleteResponse>> deleteItems(ItemDeleteRequest request) {
+        if (!isLeader) {
+            String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
+            return Mono.just(ResponseEntity.ok(ItemDeleteResponse.builder()
+                    .httpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
+                    .leaderEndpoint(leaderEndpoint)
+                    .build()));
+        }
+
+        log.debug("Received DELETE request for '{}' items to table '{}' partition '{}' with ack type '{}'.",
+                request.getKeys().size(),
+                table,
+                partition,
+                request.getAck());
+
         List<ItemKey> itemKeys = request.getKeys().stream()
                 .map(item -> ItemKey.of(item, null))
                 .toList();
+
         return deleteItemsByItemKey(itemKeys, request.getAck());
     }
 
@@ -266,21 +280,7 @@ public class PartitionState implements AutoCloseable {
         }
     }
 
-    public Mono<ResponseEntity<ItemDeleteResponse>> deleteItemsByItemKey(final List<ItemKey> items, AckType ack) {
-        if (!isLeader) {
-            String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
-            return Mono.just(ResponseEntity.ok(ItemDeleteResponse.builder()
-                    .httpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
-                    .leaderEndpoint(leaderEndpoint)
-                    .build()));
-        }
-
-        log.debug("Received DELETE request for '{}' items to table '{}' partition '{}' with ack type '{}'.",
-                items.size(),
-                table,
-                partition,
-                ack);
-
+    private Mono<ResponseEntity<ItemDeleteResponse>> deleteItemsByItemKey(final List<ItemKey> items, AckType ack) {
         Mono<ResponseEntity<ItemDeleteResponse>> mono = Mono.fromCallable(() -> {
             try (AutoCloseableLock l = writeLeaderLock()) {
                 long now = System.currentTimeMillis();
@@ -306,52 +306,31 @@ public class PartitionState implements AutoCloseable {
                     .build()));
         }
 
-        if (ack.equals(AckType.LEADER))
+        if (ack.equals(AckType.LEADER) || minISRCount == 1)
             return mono;
 
-        return mono.map(walAppendResponseEntity -> {
+        return mono.flatMap(walAppendResponseEntity -> {
             final ItemDeleteResponse response = walAppendResponseEntity.getBody();
+            final LogPosition offset = response.getEndOffset();
 
-            try {
-                if (response.getHttpStatusCode() != HttpStatus.OK.value())
-                    return ResponseEntity.ok(response);
+            log.debug("Waiting for sufficient replicas to acknowledge the log entry at offset {}.", offset);
 
-                final LogPosition offset = response.getEndOffset();
-                final long timeoutNanos = TimeUnit.MILLISECONDS.toNanos(writeTimeoutMs);
-                final long start = System.nanoTime();
-                boolean committed = false;
-
-                log.debug("Waiting for sufficient replicas to acknowledge the log entry at offset {}.", offset);
-
-                while (System.nanoTime() - start < timeoutNanos) {
-                    if (offsetState.getCommittedOffset().isGreaterThanOrEquals(offset)) {
-                        log.debug("Successfully committed DELETE operation for '{}' items to table '{}' partition '{}'.", items.size(), table, partition);
-                        committed = true;
-                        break;
-                    }
-
-                    // TODO - this shouldn't be hard coded
-                    TimeUnit.MILLISECONDS.sleep(400);
-                }
-
-                if (!committed) {
-                    String errorMessage = "DELETE operation for '%s' items to table '%s' partition '%s' was not committed in the expected time.".formatted(
-                            items.size(),
-                            table,
-                            partition);
-                    log.error(errorMessage);
-                    response.setHttpStatusCode(HttpStatus.REQUEST_TIMEOUT.value());
-                } else {
-                    response.setHttpStatusCode(HttpStatus.OK.value());
-                }
-
-                return ResponseEntity.ok().body(response);
-            } catch (Exception e) {
-                log.error("Error processing DELETE request for table '{}' partition '{}'.", table, partition, e);
-                response.setHttpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value());
-                response.setErrorMessage(e.getMessage());
-                return ResponseEntity.ok(response);
-            }
+            return Mono.defer(() -> replicationMonitorSink.asFlux()
+                    .takeUntil(c -> c.isGreaterThanOrEquals(offset))
+                    .takeUntilOther(Mono.delay(Duration.ofMillis(writeTimeoutMs)))
+                    .last(LogPosition.ZERO)
+                    .doOnNext(c -> {
+                        if (c.isGreaterThanOrEquals(offset)) {
+                            log.debug("Successfully committed DELETE operation for '{}' items to table '{}' partition '{}'.", items.size(), table, partition);
+                            response.setHttpStatusCode(HttpStatus.OK.value());
+                        }
+                        else {
+                            String errorMessage = "DELETE operation for '%s' items to table '%s' partition '%s' timed out.".formatted(items.size(), table, partition);
+                            log.debug(errorMessage);
+                            response.setHttpStatusCode(HttpStatus.REQUEST_TIMEOUT.value());
+                        }
+                    })
+                    .map(c -> ResponseEntity.ok(response)));
         });
     }
 
