@@ -39,7 +39,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @Slf4j
@@ -48,7 +47,7 @@ public class PartitionState implements AutoCloseable {
     private final int partition;
     private final Duration timeToLive;
     private final String nodeId;
-    private final ConcurrentHashMap<ItemKey, String> data;
+    private final ConcurrentHashMap<ItemKey, byte[]> data;
     @Getter
     private final PriorityQueue<ItemKey> dataExpiryTimes;
     private final Sinks.Many<LogPosition> replicationMonitorSink;
@@ -130,10 +129,11 @@ public class PartitionState implements AutoCloseable {
                     isrSynchronizer);
 
             if (newCommittedOffset.isGreaterThan(committedOffset)) {
+                // TODO - this needs to be looked at.
                 List<WALEntry> walEntriesNotCommittedYet = wal.readLogs(committedOffset, newCommittedOffset);
 
                 log.debug("Replication monitor for table '{}' partition '{}' found a new offset eligible for commit. " +
-                        "Current committed offset is '{}', new offset is '{}'. # of items is: '{}'.",
+                                "Current committed offset is '{}', new offset is '{}'. # of items is: '{}'.",
                         table,
                         partition,
                         committedOffset,
@@ -141,16 +141,16 @@ public class PartitionState implements AutoCloseable {
                         walEntriesNotCommittedYet.size());
 
                 for (WALEntry walEntry : walEntriesNotCommittedYet) {
-                    ItemKey itemKey = ItemKey.of(walEntry.key(), walEntry.expiryTime());
+                    ItemKey itemKey = ItemKey.of(new String(walEntry.key()), walEntry.expiryTime());
                     switch (walEntry.operation()) {
                         case OperationType.PUT -> {
                             data.put(itemKey, walEntry.value());
-                            if (walEntry.expiryTime() != null)
+                            if (walEntry.expiryTime() != 0)
                                 dataExpiryTimes.offer(itemKey);
                         }
                         case OperationType.DELETE -> {
                             data.remove(itemKey);
-                            if (walEntry.expiryTime() != null)
+                            if (walEntry.expiryTime() != 0)
                                 dataExpiryTimes.remove(itemKey);
                         }
                     }
@@ -181,7 +181,7 @@ public class PartitionState implements AutoCloseable {
 
         Mono<ResponseEntity<ItemPutResponse>> mono = Mono.fromCallable(() -> {
             try (AutoCloseableLock l = writeLeaderLock()) {
-                Instant expiryTime = (timeToLive == null || timeToLive.equals(Duration.ZERO)) ? null : Instant.now().plus(timeToLive);
+                long expiryTime = (timeToLive == null || timeToLive.equals(Duration.ZERO)) ? 0 : Instant.now().plus(timeToLive).toEpochMilli();
                 long now = System.currentTimeMillis();
                 long index = wal.appendPutOperation(leaderTerm, now, request.getItems(), expiryTime);
                 LogPosition offset = LogPosition.of(leaderTerm, index);
@@ -253,7 +253,7 @@ public class PartitionState implements AutoCloseable {
                 request.getAck());
 
         List<ItemKey> itemKeys = request.getKeys().stream()
-                .map(item -> ItemKey.of(item, null))
+                .map(item -> ItemKey.of(item, 0L))
                 .toList();
 
         return deleteItemsByItemKey(itemKeys, request.getAck());
@@ -266,12 +266,10 @@ public class PartitionState implements AutoCloseable {
         log.debug("Item expiration monitor about to check if any items have expired.");
 
         List<ItemKey> itemsToRemove = new ArrayList<>();
-        Instant now = Instant.now();
+        long now = Instant.now().toEpochMilli();
 
         try (AutoCloseableLock l = writeLeaderLock()) {
-            while (!dataExpiryTimes.isEmpty() &&
-                    (dataExpiryTimes.peek().expiryTime().isBefore(now) ||
-                            dataExpiryTimes.peek().expiryTime().equals(now))) {
+            while (!dataExpiryTimes.isEmpty() && dataExpiryTimes.peek().expiryTime() <= now) {
                 ItemKey itemKey = dataExpiryTimes.poll();
                 itemsToRemove.add(itemKey);
             }
@@ -349,7 +347,7 @@ public class PartitionState implements AutoCloseable {
                     .build()));
         }
 
-        ItemKey key = ItemKey.of(keyString, null);
+        ItemKey key = ItemKey.of(keyString, 0L);
 
         if (!data.containsKey(key)) {
             return Mono.just(ResponseEntity.ok(ItemGetResponse.builder()
@@ -544,16 +542,16 @@ public class PartitionState implements AutoCloseable {
 
         List<WALEntry> logEntriesNotAppliedYet = wal.readLogs(currentCommitedOffset, commitedOffset);
         for (WALEntry walEntry : logEntriesNotAppliedYet) {
-            ItemKey itemKey = ItemKey.of(walEntry.key(), walEntry.expiryTime());
+            ItemKey itemKey = ItemKey.of(new String(walEntry.key()), walEntry.expiryTime());
             switch (walEntry.operation()) {
                 case OperationType.PUT -> {
                     data.put(itemKey, walEntry.value());
-                    if (walEntry.expiryTime() != null)
+                    if (walEntry.expiryTime() != 0L)
                         dataExpiryTimes.offer(itemKey);
                 }
                 case OperationType.DELETE -> {
                     data.remove(itemKey);
-                    if (walEntry.expiryTime() != null)
+                    if (walEntry.expiryTime() != 0L)
                         dataExpiryTimes.remove(itemKey);
                 }
             }
@@ -565,9 +563,9 @@ public class PartitionState implements AutoCloseable {
         offsetState.setEndOffset(dataSnapshot.getLastCommittedOffset());
         offsetState.setCommittedOffset(dataSnapshot.getLastCommittedOffset());
 
-        for (Map.Entry<ItemKey, String> entry : dataSnapshot.getData().entrySet()) {
+        for (Map.Entry<ItemKey, byte[]> entry : dataSnapshot.getData().entrySet()) {
             data.put(entry.getKey(), entry.getValue());
-            if (entry.getKey().expiryTime() != null)
+            if (entry.getKey().expiryTime() != 0L)
                 dataExpiryTimes.offer(entry.getKey());
         }
     }
@@ -636,17 +634,17 @@ public class PartitionState implements AutoCloseable {
                     offsetState.setCommittedOffset(earliestISREndOffset);
                     List<WALEntry> walEntries = wal.readLogs(thisReplicaCommittedOffset, earliestISREndOffset);
                     for (WALEntry walEntry : walEntries) {
-                        ItemKey itemKey = ItemKey.of(walEntry.key(), walEntry.expiryTime());
+                        ItemKey itemKey = ItemKey.of(new String(walEntry.key()), walEntry.expiryTime());
 
                         switch (walEntry.operation()) {
                             case OperationType.PUT -> {
                                 data.put(itemKey, walEntry.value());
-                                if (walEntry.expiryTime() != null)
+                                if (walEntry.expiryTime() != 0L)
                                     dataExpiryTimes.offer(itemKey);
                             }
                             case OperationType.DELETE -> {
                                 data.remove(itemKey);
-                                if (walEntry.expiryTime() != null)
+                                if (walEntry.expiryTime() != 0L)
                                     dataExpiryTimes.remove(itemKey);
                             }
                         }
@@ -693,7 +691,7 @@ public class PartitionState implements AutoCloseable {
                 return;
             }
 
-            HashMap<ItemKey, String> dataCopy = new HashMap<>(data);
+            HashMap<ItemKey, byte[]> dataCopy = new HashMap<>(data);
             DataSnapshot snapshot = new DataSnapshot(committedOffset, dataCopy);
 
             CompressionUtil.compressAndWrite(dataSnapshotFile, snapshot);
@@ -744,10 +742,10 @@ public class PartitionState implements AutoCloseable {
             if (Files.exists(Path.of(dataSnapshotFile))) {
                 DataSnapshot dataSnapshot = readDataSnapshot();
                 if (dataSnapshot != null) {
-                    for (Map.Entry<ItemKey, String> entry : dataSnapshot.getData().entrySet()) {
+                    for (Map.Entry<ItemKey, byte[]> entry : dataSnapshot.getData().entrySet()) {
                         // TODO - do we need to recover log timestamps from snapshot?
                         data.put(entry.getKey(), entry.getValue());
-                        if (entry.getKey().expiryTime() != null)
+                        if (entry.getKey().expiryTime() != 0L)
                             dataExpiryTimes.offer(entry.getKey());
                     }
                     wal.setEndOffset(dataSnapshot.getLastCommittedOffset());
@@ -765,16 +763,16 @@ public class PartitionState implements AutoCloseable {
                 if (walEntry.isGreaterThan(offsetState.getCommittedOffset()))
                     break;
 
-                ItemKey itemKey = ItemKey.of(walEntry.key(), walEntry.expiryTime());
+                ItemKey itemKey = ItemKey.of(new String(walEntry.key()), walEntry.expiryTime());
                 switch (walEntry.operation()) {
                     case OperationType.PUT -> {
                         data.put(itemKey, walEntry.value());
-                        if (walEntry.expiryTime() != null)
+                        if (walEntry.expiryTime() != 0L)
                             dataExpiryTimes.offer(itemKey);
                     }
                     case OperationType.DELETE -> {
                         data.remove(itemKey);
-                        if (walEntry.expiryTime() != null)
+                        if (walEntry.expiryTime() != 0L)
                             dataExpiryTimes.remove(itemKey);
                     }
                 }

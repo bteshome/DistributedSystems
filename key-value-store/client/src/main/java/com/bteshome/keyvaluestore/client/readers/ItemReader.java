@@ -33,10 +33,7 @@ public class ItemReader {
     WebClient webClient;
 
     public Mono<String> getString(ItemGet request) {
-        return get(request).flatMap(response -> {
-            byte[] bytes = Base64.getDecoder().decode(response);
-            return Mono.just(new String(bytes));
-        });
+        return get(request).flatMap(response -> Mono.just(new String(response)));
     }
 
     public <T extends Serializable> Mono<T> getObject(ItemGet request) {
@@ -47,12 +44,10 @@ public class ItemReader {
     }
 
     public Mono<byte[]> getBytes(ItemGet request) {
-        return get(request).flatMap(response -> {
-            return Mono.just(Base64.getDecoder().decode(response));
-        });
+        return get(request);
     }
 
-    private Mono<String> get(ItemGet request) {
+    private Mono<byte[]> get(ItemGet request) {
         ItemGetRequest itemGetRequest = new ItemGetRequest();
         itemGetRequest.setTable(Validator.notEmpty(request.getTable(), "Table name"));
         itemGetRequest.setKey(Validator.notEmpty(request.getKey(), "Key"));

@@ -15,12 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
-import reactor.core.scheduler.Schedulers;
-import reactor.util.function.Tuple2;
 
-import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 
 @Component
 @Slf4j
@@ -36,8 +32,8 @@ public class BatchWriter {
         for (Map.Entry<String, String> item : request.getItems()) {
             String key = Validator.notEmpty(item.getKey(), "Key");
             String value = Validator.notEmpty(item.getValue(), "Value");
-            byte[] bytes = value.getBytes();
-            items.add(new AbstractMap.SimpleEntry<>(key, bytes));
+            byte[] valueBytes = value.getBytes();
+            items.add(new AbstractMap.SimpleEntry<>(key, valueBytes));
         }
 
         return putBytes(request.getTable(), request.getAck(), items, request.getMaxRetries());
@@ -49,8 +45,8 @@ public class BatchWriter {
         for (Map.Entry<String, T> item : request.getItems()) {
             String key = Validator.notEmpty(item.getKey(), "Key");
             T value = item.getValue();
-            byte[] bytes = JavaSerDe.serializeToBytes(value);
-            items.add(new AbstractMap.SimpleEntry<>(key, bytes));
+            byte[] valueBytes = JavaSerDe.serializeToBytes(value);
+            items.add(new AbstractMap.SimpleEntry<>(key, valueBytes));
         }
 
         return putBytes(request.getTable(), request.getAck(), items, request.getMaxRetries());
@@ -62,8 +58,6 @@ public class BatchWriter {
         HashMap<Integer, ItemPutRequest> partitionRequests = new HashMap<>();
 
         for (Map.Entry<String, byte[]> item : items) {
-            String base64EncodedString = Base64.getEncoder().encodeToString(item.getValue());
-
             int partition = keyToPartitionMapper.map(table, item.getKey());
 
             if (!partitionRequests.containsKey(partition)) {
@@ -73,7 +67,7 @@ public class BatchWriter {
                 partitionRequests.get(partition).setAck(ack);
             }
 
-            partitionRequests.get(partition).getItems().add(new Item(item.getKey(), base64EncodedString));
+            partitionRequests.get(partition).getItems().add(new Item(item.getKey(), item.getValue()));
         }
 
         int maxBatchSize = (Integer) MetadataCache.getInstance().getConfiguration(ConfigKeys.WRITE_BATCH_SIZE_MAX_KEY);

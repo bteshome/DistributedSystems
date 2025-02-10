@@ -2,16 +2,19 @@ package com.bteshome.keyvaluestore.storage.entities;
 
 import com.bteshome.keyvaluestore.common.LogPosition;
 
+import java.nio.ByteBuffer;
 import java.time.Instant;
 
 public record WALEntry(int leaderTerm,
                        long index,
                        long timestamp,
-                       String operation,
-                       String key,
-                       String value,
-                       Instant expiryTime) {
-    public static WALEntry fromString(String logEntry) {
+                       byte operation,
+                       long expiryTime,
+                       byte keyLength,
+                       short valueLength,
+                       byte[] key,
+                       byte[] value) {
+    /*public static WALEntry fromString(String logEntry) {
         String[] parts = logEntry.split(" ");
         return new WALEntry(Integer.parseInt(parts[0]),
                             Long.parseLong(parts[1]),
@@ -20,9 +23,34 @@ public record WALEntry(int leaderTerm,
                             parts[4],
                             parts.length > 5 ? parts[5] : null,
                             parts.length > 6 ? Instant.parse(parts[6]) : null);
+    }*/
+
+    public static WALEntry fromByteBuffer(ByteBuffer buffer) {
+        int term = buffer.getInt();
+        long index = buffer.getLong();
+        long timestamp = buffer.getLong();
+        byte operationType = buffer.get();
+        long expiryTime = buffer.getLong();
+        byte keyLength = buffer.get();
+        short valueLength = buffer.getShort();
+
+        byte[] key = new byte[keyLength];
+        byte[] value = new byte[valueLength];
+        buffer.get(key);
+        buffer.get(value);
+
+        return new WALEntry(term,
+                            index,
+                            timestamp,
+                            operationType,
+                            expiryTime,
+                            keyLength,
+                            valueLength,
+                            key,
+                            value);
     }
 
-    @Override
+    /*@Override
     public String toString() {
         return "%s %s %s %s %s %s %s".formatted(leaderTerm,
                                              index,
@@ -31,7 +59,7 @@ public record WALEntry(int leaderTerm,
                                              key,
                                              value != null ? value : "",
                                              expiryTime != null ? expiryTime.toString() : "");
-    }
+    }*/
 
     public boolean equals(WALEntry other) {
         return compare(this, other) == 0;

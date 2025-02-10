@@ -52,7 +52,7 @@ public class State implements ApplicationListener<ContextClosedEvent> {
         loadFromSnapshotsAndWALFiles();
         scheduleReplicationMonitor();
         scheduleWalFetcher();
-        //scheduleDataSnapshots();
+        scheduleDataSnapshots();
         scheduleDataExpirationMonitor();
     }
 

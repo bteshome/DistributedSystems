@@ -27,27 +27,20 @@ public class BatchReader {
     WebClient webClient;
 
     public Flux<Map.Entry<String, String>> listStrings(ItemList request) {
-        return list(request).doOnNext(item -> {
-            byte[] bytes = Base64.getDecoder().decode(item.getValue());
-            item.setValue(new String(bytes));
+        return listBytes(request).map(item -> {
+            String stringValue = new String(item.getValue());
+            return Map.entry(item.getKey(), stringValue);
         });
     }
 
     public <T> Flux<Map.Entry<String, T>> listObjects(ItemList request) {
-        return list(request).map(item -> {
+        return listBytes(request).map(item -> {
             T valueTyped = JavaSerDe.deserialize(item.getValue());
             return Map.entry(item.getKey(), valueTyped);
         });
     }
 
     public Flux<Map.Entry<String, byte[]>> listBytes(ItemList request) {
-        return list(request).map(item -> {
-            byte[] bytes = Base64.getDecoder().decode(item.getValue());
-            return Map.entry(item.getKey(), bytes);
-        });
-    }
-
-    private Flux<Map.Entry<String, String>> list(ItemList request) {
         int numPartitions = MetadataCache.getInstance().getNumPartitions(request.getTable());
         final Map<Integer, List<Map.Entry<String, String>>> result = new ConcurrentHashMap<>();
 

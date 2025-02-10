@@ -15,5 +15,5 @@ import java.util.HashMap;
 @AllArgsConstructor
 public class DataSnapshot implements Serializable {
     private LogPosition lastCommittedOffset;
-    private HashMap<ItemKey, String> data;
+    private HashMap<ItemKey, byte[]> data;
 }

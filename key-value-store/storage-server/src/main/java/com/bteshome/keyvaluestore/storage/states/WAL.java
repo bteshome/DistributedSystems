@@ -11,36 +11,38 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.util.AutoCloseableLock;
 
 import java.io.*;
+import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Instant;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @Slf4j
 public class WAL implements AutoCloseable {
-    // TODO - work on this - for now, the goal is to flush on a fixed schedule only
-    private final static int WRITER_BUFFER_SIZE = 1024 * 1024;
     private final String logFile;
     private final String tableName;
     private final int partition;
-    private BufferedWriter writer;
+    private final FileChannel writerChannel;
     private final ReentrantReadWriteLock lock;
     private int startLeaderTerm = 0;
     private long startIndex = 0L;
     private int endLeaderTerm = 0;
     private long endIndex = 0L;
+    private static final int HEADER_SIZE = 32;
+    private static final int BUFFER_SIZE = HEADER_SIZE + 1 + 63;
+    private static final ThreadLocal<ByteBuffer> BUFFER_CACHE = ThreadLocal.withInitial(() -> ByteBuffer.allocate(BUFFER_SIZE));
 
     public WAL(String storageDirectory, String tableName, int partition) {
         try {
             this.tableName = tableName;
             this.partition = partition;
-            this.logFile = "%s/%s-%s/wal.log".formatted(storageDirectory, tableName, partition);
+            this.logFile = "%s/%s-%s/wal.bin".formatted(storageDirectory, tableName, partition);
             if (Files.exists(Path.of(logFile)))
                 ChecksumUtil.readAndVerify(logFile);
-            writer = createWriter();
+            this.writerChannel = createWriter();
             lock = new ReentrantReadWriteLock(true);
         } catch (IOException e) {
             String errorMessage = "Error initializing WAL for table '%s' partition '%s'.".formatted(tableName, partition);
@@ -51,9 +53,7 @@ public class WAL implements AutoCloseable {
 
     // TODO - this needs to be tested
     public void truncateToBeforeInclusive(LogPosition toOffset) {
-        try (AutoCloseableLock l = writeLock();
-             RandomAccessFile raf = new RandomAccessFile(logFile, "rw");
-             FileChannel channel = raf.getChannel()) {
+        try (AutoCloseableLock l = writeLock()) {
             if (toOffset.equals(this.endLeaderTerm, this.endIndex))
                 return;
 
@@ -64,44 +64,40 @@ public class WAL implements AutoCloseable {
                         this.endIndex));
             }
 
-            try {
-                writer.close();
+            ByteBuffer buffer = getByteBuffer();
+            long position = 0;
 
-                String line;
-                long position = 0;
+            while (true) {
+                buffer.clear();
+                buffer.position(0);
 
-                while ((line = raf.readLine()) != null) {
-                    String[] parts = line.split(" ");
-                    int term = Integer.parseInt(parts[0]);
-                    long index = Long.parseLong(parts[1]);
-
-                    if (toOffset.isGreaterThanOrEquals(term, index)) {
-                        position = channel.position();
-                        continue;
-                    }
-
-                    channel.truncate(position);
+                int headerBytesRead = writerChannel.read(buffer);
+                if (headerBytesRead <= 0)
                     break;
+
+                buffer.flip();
+                buffer.limit(headerBytesRead);
+
+                WALEntry walEntry = WALEntry.fromByteBuffer(buffer);
+                writerChannel.position(writerChannel.position() - headerBytesRead + HEADER_SIZE + walEntry.keyLength() + walEntry.valueLength());
+
+                if (walEntry.isLessThanOrEquals(toOffset)) {
+                    position = writerChannel.position();
+                    continue;
                 }
 
-                setEndOffset(toOffset.leaderTerm(), toOffset.index());
-
-                String errorMessage = "Truncated WAL for table '%s' partition '%s' to before offset '%s'.".formatted(
-                        tableName,
-                        partition,
-                        toOffset);
-                log.info(errorMessage);
-            } finally {
-                try {
-                    writer = createWriter();
-                } catch (IOException e) {
-                    String errorMessage = "Error recreating WAL writer for table '%s' partition '%s' after truncating to before offset '%s'.".formatted(
-                            tableName,
-                            partition,
-                            toOffset);
-                    log.error(errorMessage, e);
-                }
+                writerChannel.truncate(position);
+                writerChannel.force(true);
+                break;
             }
+
+            setEndOffset(toOffset.leaderTerm(), toOffset.index());
+
+            String errorMessage = "Truncated WAL for table '%s' partition '%s' to before offset '%s'.".formatted(
+                    tableName,
+                    partition,
+                    toOffset);
+            log.info(errorMessage);
         } catch (IOException e) {
             String errorMessage = "Error truncating WAL for table '%s' partition '%s' to before offset '%s'.".formatted(
                     tableName,
@@ -130,33 +126,47 @@ public class WAL implements AutoCloseable {
                         this.endIndex));
             }
 
-            writer.close();
+            ByteBuffer buffer = getByteBuffer();
 
             if (toOffset.equals(this.endLeaderTerm, this.endIndex)) {
-                Files.deleteIfExists(Path.of(logFile));
-                writer = createWriter();
+                writerChannel.truncate(0);
+                writerChannel.force(true);
                 setStartOffset(0, 0L);
                 return;
             }
 
-            List<WALEntry> entries = new ArrayList<>();
-            try (BufferedReader reader = createReader()) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    WALEntry walEntry = WALEntry.fromString(line);
-                    if (walEntry.isLessThanOrEquals(toOffset))
-                        continue;
-                    entries.add(walEntry);
-                }
+            while (true) {
+                buffer.clear();
+                buffer.position(0);
+
+                int headerBytesRead = writerChannel.read(buffer);
+                if (headerBytesRead <= 0)
+                    break;
+
+                buffer.flip();
+                buffer.limit(headerBytesRead);
+
+                WALEntry walEntry = WALEntry.fromByteBuffer(buffer);
+                writerChannel.position(writerChannel.position() - headerBytesRead + HEADER_SIZE + walEntry.keyLength() + walEntry.valueLength());
+
+                if (walEntry.isLessThanOrEquals(toOffset))
+                    continue;
+
+                long truncatePosition = writerChannel.position();
+                ByteBuffer buffer2 = ByteBuffer.allocateDirect((int)(writerChannel.size() - truncatePosition));
+                writerChannel.read(buffer2);
+                buffer2.flip();
+
+                writerChannel.truncate(writerChannel.size() - truncatePosition);
+
+                writerChannel.position(0);
+                writerChannel.write(buffer2);
+                writerChannel.force(true);
+
+                setStartOffset(walEntry.leaderTerm(), walEntry.index());
+
+                break;
             }
-            Files.delete(Path.of(logFile));
-            writer = createWriter();
-            for (WALEntry logEntry : entries) {
-                writer.write(logEntry.toString());
-                writer.newLine();
-            }
-            writer.flush();
-            setStartOffset(entries.getFirst().leaderTerm(), entries.getFirst().index());
 
             String errorMessage = "Truncated WAL for table '%s' partition '%s' to after offset '%s'.".formatted(
                     tableName,
@@ -173,19 +183,41 @@ public class WAL implements AutoCloseable {
         }
     }
 
-    public long appendPutOperation(int leaderTerm, long timestamp, List<Item> items, Instant expiryTime) {
+    public long appendPutOperation(int leaderTerm, long timestamp, List<Item> items, long expiryTime) {
         if (items.isEmpty())
             return endIndex;
 
         try (AutoCloseableLock l = writeLock()) {
+            ByteBuffer buffer = getByteBuffer();
+
             for (Item item : items) {
                 incrementEndOffset(leaderTerm);
-                String logEntry = new WALEntry(leaderTerm, endIndex, timestamp, OperationType.PUT, item.getKey(), item.getValue(), expiryTime).toString();
-                writer.write(logEntry);
-                writer.newLine();
+
+                byte[] keyBytes = item.getKey().getBytes();
+                byte[] valueBytes = item.getValue();
+                int entrySize = HEADER_SIZE + keyBytes.length + valueBytes.length;
+
+                buffer.clear();
+                buffer.position(0);
+                buffer.limit(entrySize);
+
+                buffer.putInt(leaderTerm);
+                buffer.putLong(endIndex);
+                buffer.putLong(timestamp);
+                buffer.put(OperationType.PUT);
+                buffer.putLong(expiryTime);
+                buffer.put((byte)keyBytes.length);
+                buffer.putShort((short)valueBytes.length);
+
+                buffer.put(keyBytes);
+                buffer.put(valueBytes);
+
+                buffer.flip();
+                writerChannel.write(buffer);
             }
-            writer.flush();
-            log.trace("Appended PUT operation for '{}' items to the WAL buffer for table '{}' partition '{}'.", items.size(), tableName, partition);
+
+            writerChannel.force(true);
+            log.trace("Appended PUT operation for '{}' items to WAL for table '{}' partition '{}'.", items.size(), tableName, partition);
             return endIndex;
         } catch (IOException e) {
             String errorMessage = "Error appending PUT operation to the WAL buffer for table '%s' partition '%s'.".formatted(tableName, partition);
@@ -199,13 +231,33 @@ public class WAL implements AutoCloseable {
             return endIndex;
 
         try (AutoCloseableLock l = writeLock()) {
+            ByteBuffer buffer = getByteBuffer();
+
             for (ItemKey itemKey : items) {
                 incrementEndOffset(leaderTerm);
-                String logEntry = new WALEntry(leaderTerm, endIndex, timestamp, OperationType.DELETE, itemKey.keyString(), null, null).toString();
-                writer.write(logEntry);
-                writer.newLine();
+
+                byte[] keyBytes = itemKey.keyString().getBytes();
+                int entrySize = HEADER_SIZE + keyBytes.length;
+
+                buffer.clear();
+                buffer.position(0);
+                buffer.limit(entrySize);
+
+                buffer.putInt(leaderTerm);
+                buffer.putLong(endIndex);
+                buffer.putLong(timestamp);
+                buffer.put(OperationType.DELETE);
+                buffer.putLong(0L);
+                buffer.put((byte)keyBytes.length);
+                buffer.putShort((short)0);
+
+                buffer.put(keyBytes);
+
+                buffer.flip();
+                writerChannel.write(buffer);
             }
-            writer.flush();
+
+            writerChannel.force(true);
             log.trace("Appended DELETE operation for '{}' items to WAL for table '{}' partition '{}'.", items.size(), tableName, partition);
             return endIndex;
         } catch (IOException e) {
@@ -217,11 +269,33 @@ public class WAL implements AutoCloseable {
 
     public void appendLogs(List<WALEntry> logEntries) {
         try (AutoCloseableLock l = writeLock()) {
+            ByteBuffer buffer = getByteBuffer();
+
             for (WALEntry logEntry : logEntries) {
-                writer.write(logEntry.toString());
-                writer.newLine();
+                byte[] keyBytes = logEntry.key();
+                byte[] valueBytes = logEntry.value();
+                int entrySize = HEADER_SIZE + keyBytes.length + valueBytes.length;
+
+                buffer.clear();
+                buffer.position(0);
+                buffer.limit(entrySize);
+
+                buffer.putInt(logEntry.leaderTerm());
+                buffer.putLong(logEntry.index());
+                buffer.putLong(logEntry.timestamp());
+                buffer.put(logEntry.operation());
+                buffer.putLong(logEntry.expiryTime());
+                buffer.put((byte)keyBytes.length);
+                buffer.putShort((short)valueBytes.length);
+
+                buffer.put(keyBytes);
+                buffer.put(valueBytes);
+
+                buffer.flip();
+                writerChannel.write(buffer);
             }
-            writer.flush();
+
+            writerChannel.force(true);
             if (startLeaderTerm == 0 && startIndex == 0)
                 setStartOffset(logEntries.getFirst().leaderTerm(), logEntries.getFirst().index());
             setEndOffset(logEntries.getLast().leaderTerm(), logEntries.getLast().index());
@@ -235,12 +309,27 @@ public class WAL implements AutoCloseable {
 
     public List<WALEntry> readLogs(LogPosition afterOffset, int limit) {
         try (AutoCloseableLock l = readLock();
-            BufferedReader reader = createReader()) {
-            String line;
+            FileChannel readerChannel = createReaderChannel()) {
+            ByteBuffer buffer = getByteBuffer();
             List<WALEntry> entries = new ArrayList<>();
 
-            while (entries.size() < limit && (line = reader.readLine()) != null) {
-                WALEntry walEntry = WALEntry.fromString(line);
+            buffer.clear();
+            buffer.position(0);
+
+            while (entries.size() < limit) {
+                buffer.clear();
+                buffer.position(0);
+
+                int headerBytesRead = readerChannel.read(buffer);
+                if (headerBytesRead <= 0)
+                    break;
+
+                buffer.flip();
+                buffer.limit(headerBytesRead);
+
+                WALEntry walEntry = WALEntry.fromByteBuffer(buffer);
+                readerChannel.position(readerChannel.position() - headerBytesRead + HEADER_SIZE + walEntry.keyLength() + walEntry.valueLength());
+
                 if (walEntry.isLessThanOrEquals(afterOffset))
                     continue;
                 entries.add(walEntry);
@@ -256,12 +345,24 @@ public class WAL implements AutoCloseable {
 
     public List<WALEntry> readLogs(LogPosition afterOffset, LogPosition upToOffsetInclusive) {
         try (AutoCloseableLock l = readLock();
-             BufferedReader reader = createReader()) {
-            String line;
+             FileChannel readerChannel = createReaderChannel()) {
+            ByteBuffer buffer = getByteBuffer();
             List<WALEntry> entries = new ArrayList<>();
 
-            while ((line = reader.readLine()) != null) {
-                WALEntry walEntry = WALEntry.fromString(line);
+            while (true) {
+                buffer.clear();
+                buffer.position(0);
+
+                int headerBytesRead = readerChannel.read(buffer);
+                if (headerBytesRead <= 0)
+                    break;
+
+                buffer.flip();
+                buffer.limit(headerBytesRead);
+
+                WALEntry walEntry = WALEntry.fromByteBuffer(buffer);
+                readerChannel.position(readerChannel.position() - headerBytesRead + HEADER_SIZE + walEntry.keyLength() + walEntry.valueLength());
+
                 if (walEntry.isLessThanOrEquals(afterOffset))
                     continue;
                 if (walEntry.isGreaterThan(upToOffsetInclusive))
@@ -278,23 +379,37 @@ public class WAL implements AutoCloseable {
     }
 
     public List<WALEntry> loadFromFile() {
-        try (AutoCloseableLock l = writeLock()) {
-            try (BufferedReader reader = createReader()) {
-                String line;
-                List<WALEntry> entries = new ArrayList<>();
+        try (AutoCloseableLock l = writeLock();
+            FileChannel readerChannel = createReaderChannel()) {
+            ByteBuffer buffer = getByteBuffer();
+            List<WALEntry> entries = new ArrayList<>();
 
-                while ((line = reader.readLine()) != null) {
-                    WALEntry walEntry = WALEntry.fromString(line);
-                    entries.add(walEntry);
-                }
+            buffer.clear();
+            buffer.position(0);
 
-                if (!entries.isEmpty()) {
-                    setStartOffset(entries.getFirst().leaderTerm(), entries.getFirst().index());
-                    setEndOffset(entries.getLast().leaderTerm(), entries.getLast().index());
-                }
+            while (true) {
+                buffer.clear();
+                buffer.position(0);
 
-                return entries;
+                int headerBytesRead = readerChannel.read(buffer);
+                if (headerBytesRead <= 0)
+                    break;
+
+                buffer.flip();
+                buffer.limit(headerBytesRead);
+
+                WALEntry walEntry = WALEntry.fromByteBuffer(buffer);
+                readerChannel.position(readerChannel.position() - headerBytesRead + HEADER_SIZE + walEntry.keyLength() + walEntry.valueLength());
+
+                entries.add(walEntry);
             }
+
+            if (!entries.isEmpty()) {
+                setStartOffset(entries.getFirst().leaderTerm(), entries.getFirst().index());
+                setEndOffset(entries.getLast().leaderTerm(), entries.getLast().index());
+            }
+
+            return entries;
         } catch (IOException e) {
             String errorMessage = "Error loading from WAL file for table '%s' partition '%s'.".formatted(tableName, partition);
             log.error(errorMessage, e);
@@ -323,12 +438,28 @@ public class WAL implements AutoCloseable {
             return comparedTo.index() - logPosition.index();
 
         try (AutoCloseableLock l = readLock();
-             BufferedReader reader = createReader()) {
-            String line;
+             FileChannel readerChannel = createReaderChannel()) {
+            ByteBuffer buffer = getByteBuffer();
+            List<WALEntry> entries = new ArrayList<>();
             long difference = 0L;
 
-            while ((line = reader.readLine()) != null) {
-                WALEntry walEntry = WALEntry.fromString(line);
+            buffer.clear();
+            buffer.position(0);
+
+            while (true) {
+                buffer.clear();
+                buffer.position(0);
+
+                int headerBytesRead = readerChannel.read(buffer);
+                if (headerBytesRead <= 0)
+                    break;
+
+                buffer.flip();
+                buffer.limit(headerBytesRead);
+
+                WALEntry walEntry = WALEntry.fromByteBuffer(buffer);
+                readerChannel.position(readerChannel.position() - headerBytesRead + HEADER_SIZE + walEntry.keyLength() + walEntry.valueLength());
+
                 if (walEntry.isLessThan(logPosition))
                     continue;
                 if (walEntry.isGreaterThanOrEquals(comparedTo))
@@ -347,8 +478,10 @@ public class WAL implements AutoCloseable {
     @Override
     public void close() {
         try {
-            if (writer != null)
-                writer.close();
+            if (writerChannel != null) {
+                writerChannel.force(true);
+                writerChannel.close();
+            }
             if (Files.exists(Path.of(logFile)))
                 ChecksumUtil.generateAndWrite(logFile);
         } catch (Exception e) {
@@ -385,12 +518,17 @@ public class WAL implements AutoCloseable {
         this.startIndex = index;
     }
 
-    private BufferedWriter createWriter() throws IOException {
-        return new BufferedWriter(new FileWriter(logFile, true), WRITER_BUFFER_SIZE);
+    private FileChannel createWriter() throws IOException {
+        return FileChannel.open(
+                Path.of(this.logFile),
+                StandardOpenOption.APPEND,
+                StandardOpenOption.CREATE);
     }
 
-    private BufferedReader createReader() throws FileNotFoundException {
-        return new BufferedReader(new FileReader(logFile));
+    private FileChannel createReaderChannel() throws IOException {
+        return FileChannel.open(
+                Path.of(this.logFile),
+                StandardOpenOption.READ);
     }
 
     private AutoCloseableLock readLock() {
@@ -399,5 +537,12 @@ public class WAL implements AutoCloseable {
 
     private AutoCloseableLock writeLock() {
         return AutoCloseableLock.acquire(lock.writeLock());
+    }
+
+    private static ByteBuffer getByteBuffer() {
+        //ByteBuffer buffer = ByteBuffer.allocateDirect(BUFFER_SIZE);
+        ByteBuffer buffer = BUFFER_CACHE.get();
+        buffer.clear();
+        return buffer;
     }
 }

@@ -11,5 +11,5 @@ public class ItemGetResponse {
     private int httpStatusCode;
     private String errorMessage;
     private String leaderEndpoint;
-    private String value;
+    private byte[] value;
 }

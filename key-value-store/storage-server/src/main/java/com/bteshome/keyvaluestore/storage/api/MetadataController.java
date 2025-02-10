@@ -60,9 +60,11 @@ public class MetadataController {
 
     @PostMapping("/isr-list-changed/")
     public Mono<ResponseEntity<?>> isrListChanged(@RequestBody ISRListChangedRequest request) {
-        log.info("Received an ISRListChanged notification from the metadata node for table '{}' partition '{}'.",
+        log.info("Received an ISRListChanged notification from the metadata node for table '{}' partition '{}'. New ISR list is: {}.",
                 request.getTableName(),
-                request.getPartitionId());
+                request.getPartitionId(),
+                request.getInSyncReplicas());
+
         PartitionState partitionState = state.getPartitionState(request.getTableName(), request.getPartitionId());
 
         if (partitionState == null) {

@@ -48,16 +48,16 @@ public class LoadTestController {
         Random random = new Random();
         int requestIntervalMs = 1000 / request.getRequestsPerSecond();
         long totalNumRequests = request.getRequestsPerSecond() * request.getDuration().toSeconds();
-        List<ItemWrite<String>> itemWrites = new ArrayList<>();
+        List<ItemWrite<byte[]>> itemWrites = new ArrayList<>();
 
         for (int i = 0; i < totalNumRequests; i++) {
             int randomNumber = random.nextInt(1, Integer.MAX_VALUE);
             String key = "key" + randomNumber;
             String value = "value" + randomNumber;
-            ItemWrite<String> itemWrite = new ItemWrite<>(
+            ItemWrite<byte[]> itemWrite = new ItemWrite<>(
                     request.getTable(),
                     key,
-                    value,
+                    value.getBytes(),
                     request.getAck(),
                     request.getMaxRetries());
             itemWrites.add(itemWrite);
@@ -71,7 +71,7 @@ public class LoadTestController {
                     .zipWith(Flux.interval(Duration.ofMillis(requestIntervalMs)))
                     .map(Tuple2::getT1)
                     .onBackpressureDrop()
-                    .flatMap(itemWrite -> itemWriter.putString(itemWrite)
+                    .flatMap(itemWrite -> itemWriter.putBytes(itemWrite)
                             .doOnSuccess(response -> {
                                 if (response.getHttpStatusCode() == 200)
                                     succeededRequestsCount.incrementAndGet();

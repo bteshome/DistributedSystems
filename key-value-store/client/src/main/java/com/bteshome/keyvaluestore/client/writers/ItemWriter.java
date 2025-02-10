@@ -32,23 +32,27 @@ public class ItemWriter {
     KeyToPartitionMapper keyToPartitionMapper;
     @Autowired
     WebClient webClient;
+    // TODO - this will be updated.
+    private static final int VALUE_BYTES_MAX = 63;
 
     public Mono<ItemPutResponse> putString(ItemWrite<String> request) {
-        byte[] bytes = request.getValue().getBytes();
-        return putBytes(request.getTable(), request.getKey(), request.getAck(), bytes, request.getMaxRetries());
+        byte[] valueBytes = request.getValue().getBytes();
+        return put(request.getTable(), request.getKey(), request.getAck(), valueBytes, request.getMaxRetries());
     }
 
     public <T extends Serializable> Mono<ItemPutResponse> putObject(ItemWrite<T> request) {
-        byte[] bytes = JavaSerDe.serializeToBytes(request.getValue());
-        return putBytes(request.getTable(), request.getKey(), request.getAck(), bytes, request.getMaxRetries());
+        byte[] valueBytes = JavaSerDe.serializeToBytes(request.getValue());
+        return put(request.getTable(), request.getKey(), request.getAck(), valueBytes, request.getMaxRetries());
     }
 
-    public Mono<ItemPutResponse> putBytes(String table, String key, AckType ack, byte[] bytes, int maxRetries) {
-        String base64EncodedString = Base64.getEncoder().encodeToString(bytes);
+    public <T extends Serializable> Mono<ItemPutResponse> putBytes(ItemWrite<byte[]> request) {
+        return put(request.getTable(), request.getKey(), request.getAck(), request.getValue(), request.getMaxRetries());
+    }
 
+    private Mono<ItemPutResponse> put(String table, String key, AckType ack, byte[] valueBytes, int maxRetries) {
         ItemPutRequest itemPutRequest = new ItemPutRequest();
         itemPutRequest.setTable(Validator.notEmpty(table, "Table name"));
-        itemPutRequest.getItems().add(new Item(key, base64EncodedString));
+        itemPutRequest.getItems().add(new Item(key, valueBytes));
         itemPutRequest.setAck(ack);
 
         int partition = keyToPartitionMapper.map(table, key);
@@ -58,6 +62,11 @@ public class ItemWriter {
     }
 
     Mono<ItemPutResponse> put(ItemPutRequest itemPutRequest, int partition, int maxRetries) {
+        for (Item item : itemPutRequest.getItems()) {
+            if (item.getValue().length > VALUE_BYTES_MAX)
+                throw new ClientException("Value length exceeds %d bytes.".formatted(VALUE_BYTES_MAX));
+        }
+
         String endpoint = MetadataCache.getInstance().getLeaderEndpoint(itemPutRequest.getTable(), partition);
         if (endpoint == null)
             return Mono.error(new ClientException("Table '%s' partition '%s' is offline.".formatted(itemPutRequest.getTable(), partition)));

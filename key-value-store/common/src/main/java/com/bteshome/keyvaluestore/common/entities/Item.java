@@ -11,10 +11,5 @@ import lombok.Setter;
 @AllArgsConstructor
 public class Item {
     private String key;
-    private String value;
-    
-    @Override
-    public String toString() {
-        return key + "=" + value;
-    }
+    private byte[] value;
 }

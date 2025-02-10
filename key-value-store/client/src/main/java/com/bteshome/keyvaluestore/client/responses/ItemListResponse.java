@@ -14,5 +14,5 @@ public class ItemListResponse {
     private int httpStatusCode;
     private String errorMessage;
     private String leaderEndpoint;
-    private List<Map.Entry<String, String>> items;
+    private List<Map.Entry<String, byte[]>> items;
 }
