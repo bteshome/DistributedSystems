@@ -1,64 +1,7 @@
-debug: 'false'
+spring:
+  application:
+    name: kvssmetadataserver
 
-management:
-  server:
-    ssl:
-      enabled: 'false'
-  endpoints:
-    web:
-      exposure:
-        include: '*'
-  info:
-    env:
-      enabled: 'true'
-  endpoint:
-    shutdown:
-      enabled: 'true'
-    health:
-      probes:
-        enabled: 'true'
-      show-details: always
-  health:
-    liveness-state:
-      enabled: 'true'
-    readiness-state:
-      enabled: 'true'
-  metrics:
-    tags:
-      application: ${spring.application.name}
 
-endpoints:
-  shutdown:
-    enabled: 'true'
 
-logging:
-  level:
-    com:
-      bteshome: INFO
-    root: ERROR
-    org:
-      apache:
-        ratis: INFO
 
-metadata:
-  group-id: d7d23a0d-26f1-46ce-b10b-af833738907e
-  local-client-id: 666fb026-2c85-4efc-9de0-1da5ce38fbbf
-  storage-node-heartbeat-expect-interval-ms: 60000
-  storage-node-heartbeat-send-interval-ms: 10000
-  storage-node-heartbeat-monitor-interval-ms: 20000
-  storage-node-metadata-refresh-interval-ms: 300000
-  replica-monitor-interval-ms: 1000
-  replica-lag-threshold-records: 1000
-  replica-lag-threshold-time-ms: 30000
-  replica-fetch-interval-ms: 1000
-  replica-fetch-max-num-records: 10000
-  data-snapshot-interval-ms: 60000
-  end-offset-snapshot-interval-ms: 60000
-  num-partitions-default: 1
-  num-partitions-max: 10000
-  replication-factor-default: 1
-  min-in-sync-replicas-default: 1
-  ring-num-virtual-partitions: 3
-  write-batch-size-max: 10000
-  write-timeout-ms: 30000
-  expiration-monitor-interval-ms: 21600000

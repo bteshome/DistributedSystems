@@ -1,58 +1,7 @@
-debug: 'false'
-#spring.config.import=configserver:http://localhost:8071/
 spring:
-  cloud:
-    config:
-      import-check:
-        enabled: 'false'
-  servlet:
-    multipart:
-      max-file-size: 10MB
-      max-request-size: 10MB
+  application:
+    name: kvsstorageserver
 
-management:
-  server:
-    ssl:
-      enabled: 'false'
-  endpoints:
-    web:
-      exposure:
-        include: '*'
-  info:
-    env:
-      enabled: 'true'
-  endpoint:
-    shutdown:
-      enabled: 'true'
-    health:
-      probes:
-        enabled: 'true'
-      show-details: always
-  health:
-    liveness-state:
-      enabled: 'true'
-    readiness-state:
-      enabled: 'true'
-  metrics:
-    tags:
-      application: ${spring.application.name}
 
-endpoints:
-  shutdown:
-    enabled: 'true'
 
-logging:
-  level:
-    com:
-      bteshome: DEBUG
-    root: ERROR
-    org:
-      apache:
-        ratis: INFO
-
-info:
-  app:
-    name: 'Key Value State Storage Server'
-    version: '1.0'
-    description: 'Key Value State Storage Server'
 
