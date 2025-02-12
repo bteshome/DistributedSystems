@@ -3,16 +3,36 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
-		<groupId>com.bteshome</groupId>
-		<artifactId>distributed-systems</artifactId>
-		<version>0.0.1-SNAPSHOT</version>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>3.4.0</version>
+		<relativePath/>
 	</parent>
+	<groupId>com.bteshome</groupId>
 	<artifactId>api-gateway</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>api-gateway</name>
 	<description>Api Gateway</description>
 
+	<properties>
+		<java.version>21</java.version>
+		<spring-cloud.version>2024.0.0</spring-cloud.version>
+		<opentelemetry-javaagent-version>2.10.0</opentelemetry-javaagent-version>
+		<testcontainers-version>1.20.4</testcontainers-version>
+		<jib-version>3.4.4</jib-version>
+		<lombok-version>1.18.36</lombok-version>
+		<commons-codec-version>1.17.1</commons-codec-version>
+		<redis.clients-version>5.2.0</redis.clients-version>
+		<mysql-connector-j-version>8.3.0</mysql-connector-j-version>
+		<docker-namespace>bteshome</docker-namespace>
+	</properties>
+
 	<dependencies>
+		<dependency>
+			<groupId>com.bteshome</groupId>
+			<artifactId>consistent-hashing</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-gateway</artifactId>
@@ -51,10 +71,6 @@
 			<artifactId>spring-cloud-starter-config</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-actuator</artifactId>
-		</dependency>
-		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
 			<version>${lombok-version}</version>
@@ -69,11 +85,6 @@
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-circuitbreaker-reactor-resilience4j</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>com.bteshome</groupId>
-			<artifactId>consistent-hashing</artifactId>
-			<version>0.0.1-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>commons-codec</groupId>
@@ -103,6 +114,32 @@
 			<artifactId>spring-security-oauth2-jose</artifactId>
 		</dependency>
 	</dependencies>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.springframework.cloud</groupId>
+				<artifactId>spring-cloud-dependencies</artifactId>
+				<version>${spring-cloud.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<dependency>
+				<groupId>org.testcontainers</groupId>
+				<artifactId>testcontainers-bom</artifactId>
+				<version>${testcontainers-version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<dependency>
+				<groupId>com.google.cloud.tools</groupId>
+				<artifactId>jib-maven-plugin</artifactId>
+				<version>${jib-version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 
 	<build>
 		<plugins>
