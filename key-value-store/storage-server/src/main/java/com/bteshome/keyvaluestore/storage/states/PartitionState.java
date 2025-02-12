@@ -1,8 +1,9 @@
 package com.bteshome.keyvaluestore.storage.states;
 
-import com.bteshome.keyvaluestore.client.requests.AckType;
-import com.bteshome.keyvaluestore.client.requests.ItemDeleteRequest;
-import com.bteshome.keyvaluestore.client.requests.ItemPutRequest;
+import com.bteshome.keyvaluestore.client.adminrequests.ItemVersionsGetRequest;
+import com.bteshome.keyvaluestore.client.adminresponses.ItemCountAndOffsetsResponse;
+import com.bteshome.keyvaluestore.client.adminresponses.ItemVersionsGetResponse;
+import com.bteshome.keyvaluestore.client.requests.*;
 import com.bteshome.keyvaluestore.client.responses.*;
 import com.bteshome.keyvaluestore.common.*;
 import com.bteshome.keyvaluestore.common.entities.Item;
@@ -39,6 +40,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @Slf4j
@@ -47,9 +49,9 @@ public class PartitionState implements AutoCloseable {
     private final int partition;
     private final Duration timeToLive;
     private final String nodeId;
-    private final ConcurrentHashMap<ItemKey, byte[]> data;
+    private final Map<String, List<ItemValueVersion>> data;
     @Getter
-    private final PriorityQueue<ItemKey> dataExpiryTimes;
+    private final PriorityQueue<ItemExpiryKey> dataExpiryTimes;
     private final Sinks.Many<LogPosition> replicationMonitorSink;
     @Getter
     private final WAL wal;
@@ -99,7 +101,7 @@ public class PartitionState implements AutoCloseable {
         this.leaderLock = new ReentrantReadWriteLock(true);
         this.replicaLock = new ReentrantReadWriteLock(true);
         this.data = new ConcurrentHashMap<>();
-        this.dataExpiryTimes = new PriorityQueue<>(Comparator.comparing(ItemKey::expiryTime));
+        this.dataExpiryTimes = new PriorityQueue<>(Comparator.comparing(ItemExpiryKey::expiryTime));
         this.replicationMonitorSink = Sinks.many().multicast().onBackpressureBuffer(Queues.SMALL_BUFFER_SIZE, false);
         createPartitionDirectoryIfNotExists();
         wal = new WAL(storageSettings.getNode().getStorageDir(), table, partition);
@@ -116,6 +118,9 @@ public class PartitionState implements AutoCloseable {
             return;
 
         try (AutoCloseableLock l = writeLeaderLock()) {
+            if (offsetState.getEndOffset().equals(LogPosition.ZERO))
+                return;
+
             LogPosition committedOffset = offsetState.getCommittedOffset();
             LogPosition newCommittedOffset = ReplicationMonitor.check(this,
                     nodeId,
@@ -129,33 +134,11 @@ public class PartitionState implements AutoCloseable {
                     isrSynchronizer);
 
             if (newCommittedOffset.isGreaterThan(committedOffset)) {
-                // TODO - this needs to be looked at.
-                List<WALEntry> walEntriesNotCommittedYet = wal.readLogs(committedOffset, newCommittedOffset);
-
-                log.debug("Replication monitor for table '{}' partition '{}' found a new offset eligible for commit. " +
-                                "Current committed offset is '{}', new offset is '{}'. # of items is: '{}'.",
+                log.debug("Replication monitor for table '{}' partition '{}': current committed offset is '{}', new committed offset is '{}'.",
                         table,
                         partition,
                         committedOffset,
-                        newCommittedOffset,
-                        walEntriesNotCommittedYet.size());
-
-                for (WALEntry walEntry : walEntriesNotCommittedYet) {
-                    ItemKey itemKey = ItemKey.of(new String(walEntry.key()), walEntry.expiryTime());
-                    switch (walEntry.operation()) {
-                        case OperationType.PUT -> {
-                            data.put(itemKey, walEntry.value());
-                            if (walEntry.expiryTime() != 0)
-                                dataExpiryTimes.offer(itemKey);
-                        }
-                        case OperationType.DELETE -> {
-                            data.remove(itemKey);
-                            if (walEntry.expiryTime() != 0)
-                                dataExpiryTimes.remove(itemKey);
-                        }
-                    }
-                }
-
+                        newCommittedOffset);
                 offsetState.setCommittedOffset(newCommittedOffset);
                 replicationMonitorSink.tryEmitNext(newCommittedOffset);
             }
@@ -183,12 +166,31 @@ public class PartitionState implements AutoCloseable {
             try (AutoCloseableLock l = writeLeaderLock()) {
                 long expiryTime = (timeToLive == null || timeToLive.equals(Duration.ZERO)) ? 0 : Instant.now().plus(timeToLive).toEpochMilli();
                 long now = System.currentTimeMillis();
-                long index = wal.appendPutOperation(leaderTerm, now, request.getItems(), expiryTime);
-                LogPosition offset = LogPosition.of(leaderTerm, index);
-                offsetState.setEndOffset(offset);
+                List<LogPosition> itemOffsets = wal.appendPutOperation(leaderTerm, now, request.getItems(), expiryTime);
+                LogPosition endOffset = itemOffsets.getLast();
+                offsetState.setEndOffset(endOffset);
+
+                for (int i = 0; i < request.getItems().size(); i++) {
+                    String keyString = request.getItems().get(i).getKey();
+                    byte[] valueBytes = request.getItems().get(i).getValue();
+                    LogPosition offset = itemOffsets.get(i);
+                    ItemValueVersion itemValueVersion = ItemValueVersion.of(offset, valueBytes, expiryTime);
+
+                    data.compute(keyString, (key, value) -> {
+                        if (value == null)
+                            value = new CopyOnWriteArrayList<>();
+                        value.add(itemValueVersion);
+                        return value;
+                    });
+                    if (expiryTime != 0L) {
+                        ItemExpiryKey itemExpiryKey = ItemExpiryKey.of(keyString, offset, expiryTime);
+                        dataExpiryTimes.offer(itemExpiryKey);
+                    }
+                }
+
                 return ResponseEntity.ok(ItemPutResponse.builder()
                         .httpStatusCode(HttpStatus.OK.value())
-                        .endOffset(offset)
+                        .endOffset(endOffset)
                         .build());
             } catch (Exception e) {
                 return ResponseEntity.ok(ItemPutResponse.builder()
@@ -252,11 +254,7 @@ public class PartitionState implements AutoCloseable {
                 partition,
                 request.getAck());
 
-        List<ItemKey> itemKeys = request.getKeys().stream()
-                .map(item -> ItemKey.of(item, 0L))
-                .toList();
-
-        return deleteItemsByItemKey(itemKeys, request.getAck());
+        return deleteItems(request.getKeys(), request.getAck());
     }
 
     public void deleteExpiredItems() {
@@ -265,32 +263,47 @@ public class PartitionState implements AutoCloseable {
 
         log.debug("Item expiration monitor about to check if any items have expired.");
 
-        List<ItemKey> itemsToRemove = new ArrayList<>();
+        List<String> itemsToRemove = new ArrayList<>();
         long now = Instant.now().toEpochMilli();
 
         try (AutoCloseableLock l = writeLeaderLock()) {
             while (!dataExpiryTimes.isEmpty() && dataExpiryTimes.peek().expiryTime() <= now) {
-                ItemKey itemKey = dataExpiryTimes.poll();
-                itemsToRemove.add(itemKey);
+                ItemExpiryKey itemExpiryKey = dataExpiryTimes.poll();
+                itemsToRemove.add(itemExpiryKey.keyString());
             }
         }
 
         if (!itemsToRemove.isEmpty()) {
             log.debug("Expiring '{}' items.", itemsToRemove.size());
-            deleteItemsByItemKey(itemsToRemove, null);
+            deleteItems(itemsToRemove, null);
         }
     }
 
-    private Mono<ResponseEntity<ItemDeleteResponse>> deleteItemsByItemKey(final List<ItemKey> items, AckType ack) {
+    private Mono<ResponseEntity<ItemDeleteResponse>> deleteItems(final List<String> itemKeys, AckType ack) {
         Mono<ResponseEntity<ItemDeleteResponse>> mono = Mono.fromCallable(() -> {
             try (AutoCloseableLock l = writeLeaderLock()) {
                 long now = System.currentTimeMillis();
-                long index = wal.appendDeleteOperation(leaderTerm, now, items);
-                LogPosition offset = LogPosition.of(leaderTerm, index);
-                offsetState.setEndOffset(offset);
+                List<LogPosition> itemOffsets = wal.appendDeleteOperation(leaderTerm, now, itemKeys);
+                LogPosition endOffset = itemOffsets.getLast();
+                offsetState.setEndOffset(endOffset);
+
+                for (int i = 0; i < itemKeys.size(); i++) {
+                    String keyString = itemKeys.get(i);
+                    LogPosition offset = itemOffsets.get(i);
+                    ItemValueVersion itemValueVersion = ItemValueVersion.of(offset, null, 0L);
+
+                    data.compute(keyString, (key, value) -> {
+                        // TODO - this check shouldn't be required. In the first place, the client doesn't send such a request.
+                        if (value == null)
+                            value = new CopyOnWriteArrayList<>();
+                        value.add(itemValueVersion);
+                        return value;
+                    });
+                }
+
                 return ResponseEntity.ok(ItemDeleteResponse.builder()
                         .httpStatusCode(HttpStatus.OK.value())
-                        .endOffset(offset)
+                        .endOffset(endOffset)
                         .build());
             } catch (Exception e) {
                 return ResponseEntity.ok(ItemDeleteResponse.builder()
@@ -325,11 +338,11 @@ public class PartitionState implements AutoCloseable {
                     .last(LogPosition.ZERO)
                     .doOnNext(c -> {
                         if (c.isGreaterThanOrEquals(offset)) {
-                            log.debug("Successfully committed DELETE operation for '{}' items to table '{}' partition '{}'.", items.size(), table, partition);
+                            log.debug("Successfully committed DELETE operation for '{}' itemKeys to table '{}' partition '{}'.", itemKeys.size(), table, partition);
                             response.setHttpStatusCode(HttpStatus.OK.value());
                         }
                         else {
-                            String errorMessage = "DELETE operation for '%s' items to table '%s' partition '%s' timed out.".formatted(items.size(), table, partition);
+                            String errorMessage = "DELETE operation for '%s' itemKeys to table '%s' partition '%s' timed out.".formatted(itemKeys.size(), table, partition);
                             log.debug(errorMessage);
                             response.setHttpStatusCode(HttpStatus.REQUEST_TIMEOUT.value());
                         }
@@ -338,46 +351,142 @@ public class PartitionState implements AutoCloseable {
         });
     }
 
-    public Mono<ResponseEntity<ItemGetResponse>> getItem(String keyString) {
-        if (!isLeader) {
-            String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
+    public Mono<ResponseEntity<ItemGetResponse>> getItem(ItemGetRequest request) {
+        try {
+            if (!isLeader) {
+                String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
+                return Mono.just(ResponseEntity.ok(ItemGetResponse.builder()
+                        .httpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
+                        .leaderEndpoint(leaderEndpoint)
+                        .build()));
+            }
+
+            String key = request.getKey();
+
+            if (!data.containsKey(key)) {
+                return Mono.just(ResponseEntity.ok(ItemGetResponse.builder()
+                        .httpStatusCode(HttpStatus.NOT_FOUND.value())
+                        .build()));
+            }
+
+            List<ItemValueVersion> versions = data.get(key);
+            ItemValueVersion version = null;
+
+            if (request.getIsolationLevel().equals(IsolationLevel.READ_COMMITTED)) {
+                List<ItemValueVersion> committedVersions = versions
+                        .stream()
+                        .filter(v -> v.offset().isLessThanOrEquals(offsetState.getCommittedOffset()))
+                        .toList();
+                if (!committedVersions.isEmpty())
+                        version = versions.getLast();
+            } else {
+                version = versions.getLast();
+            }
+
+            if (version == null || version.bytes() == null) {
+                return Mono.just(ResponseEntity.ok(ItemGetResponse.builder()
+                        .httpStatusCode(HttpStatus.NOT_FOUND.value())
+                        .build()));
+            } else {
+                return Mono.just(ResponseEntity.ok(ItemGetResponse.builder()
+                        .httpStatusCode(HttpStatus.OK.value())
+                        .value(version.bytes())
+                        .build()));
+            }
+        } catch (Exception e) {
             return Mono.just(ResponseEntity.ok(ItemGetResponse.builder()
-                    .httpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
-                    .leaderEndpoint(leaderEndpoint)
+                    .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .errorMessage(e.getMessage())
                     .build()));
         }
-
-        ItemKey key = ItemKey.of(keyString, 0L);
-
-        if (!data.containsKey(key)) {
-            return Mono.just(ResponseEntity.ok(ItemGetResponse.builder()
-                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
-                    .build()));
-        }
-
-        return Mono.just(ResponseEntity.ok(ItemGetResponse.builder()
-                .httpStatusCode(HttpStatus.OK.value())
-                .value(data.get(key))
-                .build()));
     }
 
-    public Mono<ResponseEntity<ItemListResponse>> listItems(int limit) {
-        if (!isLeader) {
-            String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
-            return Mono.just(ResponseEntity.ok(ItemListResponse.builder()
-                    .httpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
-                    .leaderEndpoint(leaderEndpoint)
+    public Mono<ResponseEntity<ItemVersionsGetResponse>> getItemVersions(ItemVersionsGetRequest request) {
+        try {
+            if (!isLeader) {
+                String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
+                return Mono.just(ResponseEntity.ok(ItemVersionsGetResponse.builder()
+                        .httpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
+                        .leaderEndpoint(leaderEndpoint)
+                        .build()));
+            }
+
+            String key = request.getKey();
+
+            if (!data.containsKey(key)) {
+                return Mono.just(ResponseEntity.ok(ItemVersionsGetResponse.builder()
+                        .httpStatusCode(HttpStatus.NOT_FOUND.value())
+                        .build()));
+            }
+
+            List<byte[]> valueVersions = new ArrayList<>();
+            data.get(key).forEach(version -> valueVersions.add(version.bytes()));
+
+            return Mono.just(ResponseEntity.ok(ItemVersionsGetResponse.builder()
+                    .httpStatusCode(HttpStatus.OK.value())
+                    .valueVersions(valueVersions)
+                    .build()));
+        } catch (Exception e) {
+            return Mono.just(ResponseEntity.ok(ItemVersionsGetResponse.builder()
+                    .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .errorMessage(e.getMessage())
                     .build()));
         }
+    }
 
-        return Mono.just(ResponseEntity.ok(ItemListResponse.builder()
-                .httpStatusCode(HttpStatus.OK.value())
-                .items(data.entrySet()
+    public Mono<ResponseEntity<ItemListResponse>> listItems(ItemListRequest request) {
+        try {
+            if (!isLeader) {
+                String leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
+                return Mono.just(ResponseEntity.ok(ItemListResponse.builder()
+                        .httpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
+                        .leaderEndpoint(leaderEndpoint)
+                        .build()));
+            }
+
+            List<Map.Entry<String, byte[]>> items = null;
+
+            if (request.getIsolationLevel().equals(IsolationLevel.READ_COMMITTED)) {
+                LogPosition committedOffset = offsetState.getCommittedOffset();
+                items = data
+                        .entrySet()
                         .stream()
-                        .map(e -> Map.entry(e.getKey().keyString(), e.getValue()))
-                        .limit(limit)
-                        .toList())
-                .build()));
+                        .map(e -> {
+                            List<ItemValueVersion> committedVersions = e.getValue()
+                                    .stream()
+                                    .filter(v -> v.offset().isLessThanOrEquals(committedOffset))
+                                    .toList();
+                            byte[] latestCommittedVersion = null;
+                            if (!committedVersions.isEmpty())
+                                latestCommittedVersion = committedVersions.getLast().bytes();
+                            return latestCommittedVersion == null ? null : Map.entry(e.getKey(), latestCommittedVersion);
+                        })
+                        .filter(Objects::nonNull)
+                        .limit(request.getLimit())
+                        .toList();
+            } else {
+                items = data
+                        .entrySet()
+                        .stream()
+                        .map(e -> {
+                            byte[] latestVersion = e.getValue().getLast().bytes();
+                            return latestVersion == null ? null : Map.entry(e.getKey(), latestVersion);
+                        })
+                        .filter(Objects::nonNull)
+                        .limit(request.getLimit())
+                        .toList();
+            }
+
+            return Mono.just(ResponseEntity.ok(ItemListResponse.builder()
+                    .httpStatusCode(HttpStatus.OK.value())
+                    .items(items)
+                    .build()));
+        } catch (Exception e) {
+            return Mono.just(ResponseEntity.ok(ItemListResponse.builder()
+                    .httpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .errorMessage(e.getMessage())
+                    .build()));
+        }
     }
 
     public Mono<ResponseEntity<WALFetchResponse>> getLogEntries(LogPosition lastFetchOffset,
@@ -530,43 +639,70 @@ public class PartitionState implements AutoCloseable {
     }
 
     public void appendLogEntries(List<WALEntry> logEntries, LogPosition commitedOffset) {
-        LogPosition currentCommitedOffset = offsetState.getCommittedOffset();
+        try (AutoCloseableLock l = writeReplicaLock()) {
+            LogPosition currentCommitedOffset = offsetState.getCommittedOffset();
 
-        if (!logEntries.isEmpty()) {
-            wal.appendLogs(logEntries);
-            offsetState.setEndOffset(logEntries.getLast().getPosition());
-        }
+            if (!logEntries.isEmpty()) {
+                wal.appendLogs(logEntries);
+                offsetState.setEndOffset(logEntries.getLast().getOffset());
+            }
 
-        if (commitedOffset.equals(LogPosition.ZERO) || commitedOffset.equals(currentCommitedOffset))
-            return;
+            if (commitedOffset.equals(LogPosition.ZERO) || commitedOffset.equals(currentCommitedOffset))
+                return;
 
-        List<WALEntry> logEntriesNotAppliedYet = wal.readLogs(currentCommitedOffset, commitedOffset);
-        for (WALEntry walEntry : logEntriesNotAppliedYet) {
-            ItemKey itemKey = ItemKey.of(new String(walEntry.key()), walEntry.expiryTime());
-            switch (walEntry.operation()) {
-                case OperationType.PUT -> {
-                    data.put(itemKey, walEntry.value());
-                    if (walEntry.expiryTime() != 0L)
-                        dataExpiryTimes.offer(itemKey);
-                }
-                case OperationType.DELETE -> {
-                    data.remove(itemKey);
-                    if (walEntry.expiryTime() != 0L)
-                        dataExpiryTimes.remove(itemKey);
+            List<WALEntry> logEntriesNotAppliedYet = wal.readLogs(currentCommitedOffset, commitedOffset);
+            for (WALEntry walEntry : logEntriesNotAppliedYet) {
+                String keyString = new String(walEntry.key());
+                LogPosition offset = walEntry.getOffset();
+                ItemValueVersion itemValueVersion = ItemValueVersion.of(offset, walEntry.value(), walEntry.expiryTime());
+
+                switch (walEntry.operation()) {
+                    case OperationType.PUT -> {
+                        data.compute(keyString, (key, value) -> {
+                            if (value == null)
+                                value = new CopyOnWriteArrayList<>();
+                            value.add(itemValueVersion);
+                            return value;
+                        });
+                        if (walEntry.expiryTime() != 0L) {
+                            ItemExpiryKey itemExpiryKey = ItemExpiryKey.of(keyString, offset, walEntry.expiryTime());
+                            dataExpiryTimes.offer(itemExpiryKey);
+                        }
+                    }
+                    case OperationType.DELETE -> {
+                        data.compute(keyString, (key, value) -> {
+                            if (value == null)
+                                value = new CopyOnWriteArrayList<>();
+                            value.add(itemValueVersion);
+                            return value;
+                        });
+                    }
                 }
             }
+
+            offsetState.setCommittedOffset(commitedOffset);
         }
-        offsetState.setCommittedOffset(commitedOffset);
     }
 
     public void applyDataSnapshot(DataSnapshot dataSnapshot) {
-        offsetState.setEndOffset(dataSnapshot.getLastCommittedOffset());
-        offsetState.setCommittedOffset(dataSnapshot.getLastCommittedOffset());
+        try (AutoCloseableLock l = writeReplicaLock()) {
+            offsetState.setEndOffset(dataSnapshot.getLastCommittedOffset());
+            offsetState.setCommittedOffset(dataSnapshot.getLastCommittedOffset());
 
-        for (Map.Entry<ItemKey, byte[]> entry : dataSnapshot.getData().entrySet()) {
-            data.put(entry.getKey(), entry.getValue());
-            if (entry.getKey().expiryTime() != 0L)
-                dataExpiryTimes.offer(entry.getKey());
+            for (Map.Entry<String, List<ItemValueVersion>> entry : dataSnapshot.getData().entrySet()) {
+                data.compute(entry.getKey(), (key, value) -> {
+                    if (value == null)
+                        value = new CopyOnWriteArrayList<>();
+                    value.addAll(entry.getValue());
+                    return value;
+                });
+                for (ItemValueVersion itemValueVersion : entry.getValue()) {
+                    if (itemValueVersion.expiryTime() != 0L) {
+                        ItemExpiryKey itemExpiryKey = ItemExpiryKey.of(entry.getKey(), itemValueVersion.offset(), itemValueVersion.expiryTime());
+                        dataExpiryTimes.offer(itemExpiryKey);
+                    }
+                }
+            }
         }
     }
 
@@ -628,28 +764,25 @@ public class PartitionState implements AutoCloseable {
                 if (earliestISREndOffset.isLessThan(thisReplicaEndOffset)) {
                     log.info("Detected uncommitted offsets from the previous leader. Truncating WAL to before offset {}.", earliestISREndOffset);
                     wal.truncateToBeforeInclusive(earliestISREndOffset);
-                }
 
-                if (earliestISREndOffset.isGreaterThan(thisReplicaCommittedOffset)) {
-                    offsetState.setCommittedOffset(earliestISREndOffset);
-                    List<WALEntry> walEntries = wal.readLogs(thisReplicaCommittedOffset, earliestISREndOffset);
-                    for (WALEntry walEntry : walEntries) {
-                        ItemKey itemKey = ItemKey.of(new String(walEntry.key()), walEntry.expiryTime());
-
-                        switch (walEntry.operation()) {
-                            case OperationType.PUT -> {
-                                data.put(itemKey, walEntry.value());
-                                if (walEntry.expiryTime() != 0L)
-                                    dataExpiryTimes.offer(itemKey);
-                            }
-                            case OperationType.DELETE -> {
-                                data.remove(itemKey);
-                                if (walEntry.expiryTime() != 0L)
-                                    dataExpiryTimes.remove(itemKey);
+                    for (Map.Entry<String, List<ItemValueVersion>> entry : data.entrySet()) {
+                        while (!entry.getValue().isEmpty()) {
+                            ItemValueVersion latestVersion = entry.getValue().getLast();
+                            if (latestVersion.offset().isGreaterThan(earliestISREndOffset)) {
+                                entry.getValue().removeLast();
+                                ItemExpiryKey itemExpiryKey = ItemExpiryKey.of(entry.getKey(), latestVersion.offset(), latestVersion.expiryTime());
+                                dataExpiryTimes.remove(itemExpiryKey);
+                            } else {
+                                break;
                             }
                         }
+                        if (entry.getValue().isEmpty())
+                            data.remove(entry.getKey());
                     }
                 }
+
+                if (earliestISREndOffset.isGreaterThan(thisReplicaCommittedOffset))
+                    offsetState.setCommittedOffset(earliestISREndOffset);
 
                 offsetState.setPreviousLeaderEndOffset(earliestISREndOffset);
             } else {
@@ -691,9 +824,8 @@ public class PartitionState implements AutoCloseable {
                 return;
             }
 
-            HashMap<ItemKey, byte[]> dataCopy = new HashMap<>(data);
+            HashMap<String, List<ItemValueVersion>> dataCopy = new HashMap<>(data);
             DataSnapshot snapshot = new DataSnapshot(committedOffset, dataCopy);
-
             CompressionUtil.compressAndWrite(dataSnapshotFile, snapshot);
             ChecksumUtil.generateAndWrite(dataSnapshotFile);
             wal.truncateToAfterExclusive(committedOffset);
@@ -742,11 +874,19 @@ public class PartitionState implements AutoCloseable {
             if (Files.exists(Path.of(dataSnapshotFile))) {
                 DataSnapshot dataSnapshot = readDataSnapshot();
                 if (dataSnapshot != null) {
-                    for (Map.Entry<ItemKey, byte[]> entry : dataSnapshot.getData().entrySet()) {
-                        // TODO - do we need to recover log timestamps from snapshot?
-                        data.put(entry.getKey(), entry.getValue());
-                        if (entry.getKey().expiryTime() != 0L)
-                            dataExpiryTimes.offer(entry.getKey());
+                    for (Map.Entry<String, List<ItemValueVersion>> entry : dataSnapshot.getData().entrySet()) {
+                        data.compute(entry.getKey(), (key, value) -> {
+                            value = new CopyOnWriteArrayList<>();
+                            value.addAll(entry.getValue());
+                            return value;
+                        });
+
+                        for (ItemValueVersion itemValueVersion : entry.getValue()) {
+                            if (itemValueVersion.expiryTime() != 0L) {
+                                ItemExpiryKey itemExpiryKey = ItemExpiryKey.of(entry.getKey(), itemValueVersion.offset(), itemValueVersion.expiryTime());
+                                dataExpiryTimes.offer(itemExpiryKey);
+                            }
+                        }
                     }
                     wal.setEndOffset(dataSnapshot.getLastCommittedOffset());
                     offsetState.setEndOffset(dataSnapshot.getLastCommittedOffset());
@@ -759,24 +899,38 @@ public class PartitionState implements AutoCloseable {
             }
 
             List<WALEntry> logEntriesFromFile = wal.loadFromFile();
+
             for (WALEntry walEntry : logEntriesFromFile) {
                 if (walEntry.isGreaterThan(offsetState.getCommittedOffset()))
                     break;
 
-                ItemKey itemKey = ItemKey.of(new String(walEntry.key()), walEntry.expiryTime());
+                String keyString = new String(walEntry.key());
+                ItemValueVersion itemValueVersion = ItemValueVersion.of(walEntry.getOffset(), walEntry.value(), walEntry.expiryTime());
+
                 switch (walEntry.operation()) {
                     case OperationType.PUT -> {
-                        data.put(itemKey, walEntry.value());
-                        if (walEntry.expiryTime() != 0L)
-                            dataExpiryTimes.offer(itemKey);
+                        data.compute(keyString, (key, value) -> {
+                            if (value == null)
+                                value = new CopyOnWriteArrayList<>();
+                            value.add(itemValueVersion);
+                            return value;
+                        });
+                        if (walEntry.expiryTime() != 0L) {
+                            ItemExpiryKey itemExpiryKey = ItemExpiryKey.of(keyString, itemValueVersion.offset(), itemValueVersion.expiryTime());
+                            dataExpiryTimes.offer(itemExpiryKey);
+                        }
                     }
                     case OperationType.DELETE -> {
-                        data.remove(itemKey);
-                        if (walEntry.expiryTime() != 0L)
-                            dataExpiryTimes.remove(itemKey);
+                        data.compute(keyString, (key, value) -> {
+                            if (value == null)
+                                value = new CopyOnWriteArrayList<>();
+                            value.add(itemValueVersion);
+                            return value;
+                        });
                     }
                 }
             }
+
             log.debug("Loaded '{}' log entries from WAL file for table '{}' partition '{}'.",
                       logEntriesFromFile.size(),
                       table,

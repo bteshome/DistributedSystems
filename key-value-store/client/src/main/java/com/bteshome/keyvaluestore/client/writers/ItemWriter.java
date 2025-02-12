@@ -33,9 +33,10 @@ public class ItemWriter {
     @Autowired
     WebClient webClient;
     // TODO - this will be updated.
-    private static final int VALUE_BYTES_MAX = 63;
+    private static final int VALUE_BYTES_MAX = 2015;
 
     public Mono<ItemPutResponse> putString(ItemWrite<String> request) {
+        request.setValue(Validator.notEmpty(request.getValue(), "Value"));
         byte[] valueBytes = request.getValue().getBytes();
         return put(request.getTable(), request.getKey(), request.getAck(), valueBytes, request.getMaxRetries());
     }
@@ -52,6 +53,7 @@ public class ItemWriter {
     private Mono<ItemPutResponse> put(String table, String key, AckType ack, byte[] valueBytes, int maxRetries) {
         ItemPutRequest itemPutRequest = new ItemPutRequest();
         itemPutRequest.setTable(Validator.notEmpty(table, "Table name"));
+        key = Validator.notEmpty(key, "Key");
         itemPutRequest.getItems().add(new Item(key, valueBytes));
         itemPutRequest.setAck(ack);
 

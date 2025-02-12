@@ -52,6 +52,7 @@ public class BatchReader {
             itemListRequest.setTable(Validator.notEmpty(request.getTable(), "Table name"));
             itemListRequest.setPartition(partition);
             itemListRequest.setLimit(request.getLimit());
+            itemListRequest.setIsolationLevel(request.getIsolationLevel());
             partitionRequests.put(endpoint, itemListRequest);
         }
 

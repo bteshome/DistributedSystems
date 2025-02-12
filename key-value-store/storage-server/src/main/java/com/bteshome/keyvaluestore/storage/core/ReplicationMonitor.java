@@ -5,10 +5,8 @@ import com.bteshome.keyvaluestore.common.Tuple;
 import com.bteshome.keyvaluestore.common.entities.Replica;
 import com.bteshome.keyvaluestore.storage.states.PartitionState;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.*;
-import java.util.Comparator;
 
 @Slf4j
 public class ReplicationMonitor {

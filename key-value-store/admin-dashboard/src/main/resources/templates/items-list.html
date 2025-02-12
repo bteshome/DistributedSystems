@@ -42,6 +42,13 @@
                     <label for="limit" class="form-label">Limit</label>
                     <input type="text" class="form-control form-control-sm" id="limit" th:field="*{limit}">
                 </div>
+                <div class="col-md-12">
+                    <label for="isolationLevel" class="form-label">Isolation Level</label>
+                    <select class="form-select" id="isolationLevel" th:field="*{isolationLevel}">
+                        <option selected value="READ_COMMITTED">READ_COMMITTED</option>
+                        <option value="READ_UNCOMMITTED">READ_UNCOMMITTED</option>
+                    </select>
+                </div>
                 <div class="col-auto">
                     <button type="submit" class="btn btn-primary mb-3">List</button>
                 </div>

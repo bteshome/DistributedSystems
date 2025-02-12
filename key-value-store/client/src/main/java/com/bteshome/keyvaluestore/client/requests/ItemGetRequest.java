@@ -13,4 +13,5 @@ public class ItemGetRequest {
     private String table;
     private int partition;
     private String key;
+    private IsolationLevel isolationLevel;
 }

@@ -1,4 +1,4 @@
-package com.bteshome.keyvaluestore.client.requests;
+package com.bteshome.keyvaluestore.client.adminrequests;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -9,9 +9,8 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class ItemListRequest {
+public class ItemVersionsGetRequest {
     private String table;
     private int partition;
-    private int limit;
-    private IsolationLevel isolationLevel;
+    private String key;
 }

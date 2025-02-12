@@ -8,6 +8,7 @@ import lombok.Setter;
 
 import java.io.Serializable;
 import java.util.HashMap;
+import java.util.List;
 
 @Setter
 @Getter
@@ -15,5 +16,5 @@ import java.util.HashMap;
 @AllArgsConstructor
 public class DataSnapshot implements Serializable {
     private LogPosition lastCommittedOffset;
-    private HashMap<ItemKey, byte[]> data;
+    private HashMap<String, List<ItemValueVersion>> data;
 }

@@ -4,7 +4,6 @@ import com.bteshome.keyvaluestore.common.LogPosition;
 import com.bteshome.keyvaluestore.common.entities.Item;
 import com.bteshome.keyvaluestore.storage.common.ChecksumUtil;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
-import com.bteshome.keyvaluestore.storage.entities.ItemKey;
 import com.bteshome.keyvaluestore.storage.entities.OperationType;
 import com.bteshome.keyvaluestore.storage.entities.WALEntry;
 import lombok.extern.slf4j.Slf4j;
@@ -32,7 +31,7 @@ public class WAL implements AutoCloseable {
     private int endLeaderTerm = 0;
     private long endIndex = 0L;
     private static final int HEADER_SIZE = 32;
-    private static final int BUFFER_SIZE = HEADER_SIZE + 1 + 63;
+    private static final int BUFFER_SIZE = HEADER_SIZE + 1 + 2015;
     private static final ThreadLocal<ByteBuffer> BUFFER_CACHE = ThreadLocal.withInitial(() -> ByteBuffer.allocate(BUFFER_SIZE));
 
     public WAL(String storageDirectory, String tableName, int partition) {
@@ -176,12 +175,13 @@ public class WAL implements AutoCloseable {
         }
     }
 
-    public long appendPutOperation(int leaderTerm, long timestamp, List<Item> items, long expiryTime) {
+    public List<LogPosition> appendPutOperation(int leaderTerm, long timestamp, List<Item> items, long expiryTime) {
         if (items.isEmpty())
-            return endIndex;
+            return List.of();
 
         try (AutoCloseableLock l = writeLock()) {
             ByteBuffer buffer = getByteBuffer();
+            List<LogPosition> itemOffsets = new ArrayList<>(items.size());
 
             for (Item item : items) {
                 incrementEndOffset(leaderTerm);
@@ -207,11 +207,15 @@ public class WAL implements AutoCloseable {
 
                 buffer.flip();
                 writerChannel.write(buffer);
+
+                LogPosition offset = LogPosition.of(leaderTerm, endIndex);
+                itemOffsets.add(offset);
             }
 
             writerChannel.force(true);
             log.trace("Appended PUT operation for '{}' items to WAL for table '{}' partition '{}'.", items.size(), tableName, partition);
-            return endIndex;
+
+            return itemOffsets;
         } catch (IOException e) {
             String errorMessage = "Error appending PUT operation to the WAL buffer for table '%s' partition '%s'.".formatted(tableName, partition);
             log.error(errorMessage, e);
@@ -219,17 +223,18 @@ public class WAL implements AutoCloseable {
         }
     }
 
-    public long appendDeleteOperation(int leaderTerm, long timestamp, List<ItemKey> items) {
-        if (items.isEmpty())
-            return endIndex;
+    public List<LogPosition> appendDeleteOperation(int leaderTerm, long timestamp, List<String> itemKeys) {
+        if (itemKeys.isEmpty())
+            return List.of();
 
         try (AutoCloseableLock l = writeLock()) {
             ByteBuffer buffer = getByteBuffer();
+            List<LogPosition> itemOffsets = new ArrayList<>(itemKeys.size());
 
-            for (ItemKey itemKey : items) {
+            for (String key : itemKeys) {
                 incrementEndOffset(leaderTerm);
 
-                byte[] keyBytes = itemKey.keyString().getBytes();
+                byte[] keyBytes = key.getBytes();
                 int entrySize = HEADER_SIZE + keyBytes.length;
 
                 buffer.clear();
@@ -248,11 +253,14 @@ public class WAL implements AutoCloseable {
 
                 buffer.flip();
                 writerChannel.write(buffer);
+
+                LogPosition offset = LogPosition.of(leaderTerm, endIndex);
+                itemOffsets.add(offset);
             }
 
             writerChannel.force(true);
-            log.trace("Appended DELETE operation for '{}' items to WAL for table '{}' partition '{}'.", items.size(), tableName, partition);
-            return endIndex;
+            log.trace("Appended DELETE operation for '{}' items to WAL for table '{}' partition '{}'.", itemKeys.size(), tableName, partition);
+            return itemOffsets;
         } catch (IOException e) {
             String errorMessage = "Error appending DELETE operation to WAL for table '%s' partition '%s'.".formatted(tableName, partition);
             log.error(errorMessage, e);

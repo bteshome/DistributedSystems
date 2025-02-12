@@ -31,10 +31,7 @@ public class ItemPutController {
                 {
                   "id": 1,
                   "name": "Wireless Headphones",
-                  "description": "High-quality noise-canceling headphones with Bluetooth connectivity.",
-                  "price": 199.99,
-                  "currency": "USD",
-                  "available": true
+                  "price": 199.99
                 }""";
         request.setValue(value);
         model.addAttribute("request", request);

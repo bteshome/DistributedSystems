@@ -1,4 +1,4 @@
-package com.bteshome.keyvaluestore.client.responses;
+package com.bteshome.keyvaluestore.client.adminresponses;
 
 import com.bteshome.keyvaluestore.common.LogPosition;
 import lombok.*;

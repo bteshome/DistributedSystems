@@ -2,6 +2,7 @@ package com.bteshome.keyvaluestore.client.responses;
 
 import lombok.*;
 
+import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
 

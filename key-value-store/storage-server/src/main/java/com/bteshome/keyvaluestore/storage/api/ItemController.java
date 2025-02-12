@@ -1,8 +1,11 @@
 package com.bteshome.keyvaluestore.storage.api;
 
+import com.bteshome.keyvaluestore.client.adminrequests.ItemCountAndOffsetsRequest;
+import com.bteshome.keyvaluestore.client.adminrequests.ItemVersionsGetRequest;
+import com.bteshome.keyvaluestore.client.adminresponses.ItemCountAndOffsetsResponse;
+import com.bteshome.keyvaluestore.client.adminresponses.ItemVersionsGetResponse;
 import com.bteshome.keyvaluestore.client.requests.*;
 import com.bteshome.keyvaluestore.client.responses.*;
-import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.storage.states.PartitionState;
 import com.bteshome.keyvaluestore.storage.states.State;
 import lombok.RequiredArgsConstructor;
@@ -13,8 +16,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
-
-import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/api/items")
@@ -34,7 +35,20 @@ public class ItemController {
                     .build()));
         }
 
-        return partitionState.getItem(request.getKey());
+        return partitionState.getItem(request);
+    }
+
+    @PostMapping("/get-versions/")
+    public Mono<ResponseEntity<ItemVersionsGetResponse>> getItem(@RequestBody ItemVersionsGetRequest request) {
+        PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition());
+
+        if (partitionState == null) {
+            return Mono.just(ResponseEntity.ok(ItemVersionsGetResponse.builder()
+                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
+                    .build()));
+        }
+
+        return partitionState.getItemVersions(request);
     }
 
     @PostMapping("/list/")
@@ -47,7 +61,7 @@ public class ItemController {
                     .build()));
         }
 
-        return partitionState.listItems(request.getLimit());
+        return partitionState.listItems(request);
     }
 
     @PostMapping("/put/")

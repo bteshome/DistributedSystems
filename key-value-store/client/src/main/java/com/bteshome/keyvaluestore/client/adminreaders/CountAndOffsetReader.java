@@ -1,7 +1,7 @@
-package com.bteshome.keyvaluestore.client.readers;
+package com.bteshome.keyvaluestore.client.adminreaders;
 
-import com.bteshome.keyvaluestore.client.requests.ItemCountAndOffsetsRequest;
-import com.bteshome.keyvaluestore.client.responses.ItemCountAndOffsetsResponse;
+import com.bteshome.keyvaluestore.client.adminrequests.ItemCountAndOffsetsRequest;
+import com.bteshome.keyvaluestore.client.adminresponses.ItemCountAndOffsetsResponse;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.Validator;
 import lombok.extern.slf4j.Slf4j;

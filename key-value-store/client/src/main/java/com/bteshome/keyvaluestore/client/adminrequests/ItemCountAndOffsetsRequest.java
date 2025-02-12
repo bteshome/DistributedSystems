@@ -1,4 +1,4 @@
-package com.bteshome.keyvaluestore.client.requests;
+package com.bteshome.keyvaluestore.client.adminrequests;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

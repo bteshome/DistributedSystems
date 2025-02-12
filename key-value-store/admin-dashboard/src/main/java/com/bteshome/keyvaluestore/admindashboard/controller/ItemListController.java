@@ -2,6 +2,7 @@ package com.bteshome.keyvaluestore.admindashboard.controller;
 
 import com.bteshome.keyvaluestore.client.clientrequests.*;
 import com.bteshome.keyvaluestore.client.readers.BatchReader;
+import com.bteshome.keyvaluestore.client.requests.IsolationLevel;
 import com.bteshome.keyvaluestore.client.responses.ItemListResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,7 @@ public class ItemListController {
         ItemList listRequest = new ItemList();
         listRequest.setTable("table1");
         listRequest.setLimit(10);
+        listRequest.setIsolationLevel(IsolationLevel.READ_COMMITTED);
         model.addAttribute("listRequest", listRequest);
         model.addAttribute("page", "items-list");
         return "items-list.html";
