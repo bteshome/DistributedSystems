@@ -119,21 +119,14 @@ public class WAL implements AutoCloseable {
                     LogPosition.of(this.startLeaderTerm, this.startIndex),
                     LogPosition.of(this.endLeaderTerm, this.endIndex));
 
-            if (toOffset.isGreaterThan(this.endLeaderTerm, this.endIndex)) {
-                throw new StorageServerException("Invalid log position '%s' to truncate WAL file to. WAL end term is '%s' and index is '%s'.".formatted(
-                        toOffset,
-                        this.endLeaderTerm,
-                        this.endIndex));
-            }
-
-            ByteBuffer buffer = getByteBuffer();
-
-            if (toOffset.equals(this.endLeaderTerm, this.endIndex)) {
+            if (toOffset.isGreaterThanOrEquals(this.endLeaderTerm, this.endIndex)) {
                 writerChannel.truncate(0);
                 writerChannel.force(true);
                 setStartOffset(0, 0L);
                 return;
             }
+
+            ByteBuffer buffer = getByteBuffer();
 
             while (true) {
                 buffer.clear();
