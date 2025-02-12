@@ -44,7 +44,7 @@ public class PartitionLeaderElector {
                             .filter(partition -> storageNode.getId().equals(partition.getLeader()))
                             .peek(partition -> {
                                 partition.setLeader(null);
-                                log.info("Storage node '{}' removed from leadership for table '{}' partition '{}'.",
+                                log.info("Storage node '{}' removed as leader of table '{}' partition '{}'.",
                                         storageNode.getId(),
                                         partition.getTableName(),
                                         partition.getId());
