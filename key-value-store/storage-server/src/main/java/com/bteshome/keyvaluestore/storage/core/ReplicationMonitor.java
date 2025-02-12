@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.*;
+import java.util.Comparator;
 
 @Slf4j
 public class ReplicationMonitor {
@@ -30,24 +31,22 @@ public class ReplicationMonitor {
         Map<String, Tuple<LogPosition, Long>> replicaEndOffsets = leaderPartitionState.getOffsetState().getReplicaEndOffsets();
 
         if (committedOffset.isLessThan(endOffset)) {
-            PriorityQueue<LogPosition> upToDateReplicas = new PriorityQueue<>(LogPosition::compareTo);
-            upToDateReplicas.offer(endOffset);
+            PriorityQueue<LogPosition> upToDateReplicaOffsets = new PriorityQueue<>();
+            upToDateReplicaOffsets.offer(endOffset);
 
             for (Tuple<LogPosition, Long> replicaEndOffset : replicaEndOffsets.values()) {
-                if (upToDateReplicas.size() < minISRCount) {
-                    upToDateReplicas.offer(replicaEndOffset.first());
+                if (upToDateReplicaOffsets.size() < minISRCount) {
+                    upToDateReplicaOffsets.offer(replicaEndOffset.first());
                 } else {
-                    if (replicaEndOffset.first().isGreaterThan(upToDateReplicas.peek())) {
-                        upToDateReplicas.poll();
-                        upToDateReplicas.offer(replicaEndOffset.first());
+                    if (replicaEndOffset.first().isGreaterThan(upToDateReplicaOffsets.peek())) {
+                        upToDateReplicaOffsets.poll();
+                        upToDateReplicaOffsets.offer(replicaEndOffset.first());
                     }
                 }
             }
 
-            while (upToDateReplicas.size() > 1)
-                upToDateReplicas.poll();
-
-            committedOffset = upToDateReplicas.poll();
+            if (upToDateReplicaOffsets.size() == minISRCount)
+                committedOffset = upToDateReplicaOffsets.peek();
         }
 
         for (String replicaId : allReplicaIds) {
@@ -57,21 +56,21 @@ public class ReplicationMonitor {
             if (!replicaEndOffsets.containsKey(replicaId))
                 continue;
 
-            if (replicaEndOffsets.get(replicaId).first().isGreaterThanOrEquals(committedOffset)) {
+            Tuple<LogPosition, Long> replicaEndOffset = replicaEndOffsets.get(replicaId);
+            long timeLag = System.currentTimeMillis() - replicaEndOffset.second();
+            boolean isLagging = timeLag > timeLagThresholdMs;
+
+            if (!isLagging) {
+                long recordLag = leaderPartitionState.getWal().getLag(replicaEndOffset.first(), committedOffset);
+                isLagging = recordLag > recordLagThreshold;
+            }
+
+            if (!isLagging) {
                 if (!inSyncReplicaIds.contains(replicaId))
                     caughtUpReplicas.add(new Replica(replicaId, table, partition));
             } else {
                 if (inSyncReplicaIds.contains(replicaId)) {
-                    Tuple<LogPosition, Long> replicaEndOffset = replicaEndOffsets.get(replicaId);
-                    long timeLag = System.currentTimeMillis() - replicaEndOffset.second();
-                    if (timeLag > timeLagThresholdMs) {
-                        laggingReplicas.add(new Replica(replicaId, table, partition));
-                    } else {
-                        // TODO - how do we determine the right record lag threshold?
-                        long recordLag = leaderPartitionState.getWal().getLag(replicaEndOffset.first(), committedOffset);
-                        if (recordLag > recordLagThreshold)
-                            laggingReplicas.add(new Replica(replicaId, table, partition));
-                    }
+                    laggingReplicas.add(new Replica(replicaId, table, partition));
                 }
             }
         }
