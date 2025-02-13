@@ -166,7 +166,7 @@ public class PartitionState implements AutoCloseable {
             try (AutoCloseableLock l = writeLeaderLock()) {
                 if (request.isWithVersionCheck()) {
                     for (Item item : request.getItems()) {
-                        if (data.containsKey(item.getKey())) {
+                        if (!data.containsKey(item.getKey())) {
                             return ResponseEntity.ok(ItemPutResponse.builder()
                                     .httpStatusCode(HttpStatus.BAD_REQUEST.value())
                                     .errorMessage("Unable to perform version check. Item with key %s does not exist.".formatted(item.getKey()))

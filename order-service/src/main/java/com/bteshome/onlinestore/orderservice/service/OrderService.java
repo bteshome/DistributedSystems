@@ -60,9 +60,7 @@ public class OrderService {
             return ResponseEntity.status(HttpStatus.CREATED).body("Order placed successfully.");
         } catch (HttpClientErrorException e) {
             log.error(e.getMessage(), e);
-            if (e.getStatusCode() == HttpStatus.UNPROCESSABLE_ENTITY)
-                return ResponseEntity.unprocessableEntity().body(e.getMessage());
-            return ResponseEntity.internalServerError().body(e.getMessage());
+            return ResponseEntity.unprocessableEntity().body(e.getMessage());
         } catch (Exception e) {
             log.error(e.getMessage(), e);
             return ResponseEntity.internalServerError().body(e.getMessage());
