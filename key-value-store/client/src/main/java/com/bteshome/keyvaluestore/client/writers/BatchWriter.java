@@ -67,7 +67,7 @@ public class BatchWriter {
                 partitionRequests.get(partition).setAck(ack);
             }
 
-            partitionRequests.get(partition).getItems().add(new Item(item.getKey(), item.getValue()));
+            partitionRequests.get(partition).getItems().add(new Item(item.getKey(), item.getValue(), null));
         }
 
         int maxBatchSize = (Integer) MetadataCache.getInstance().getConfiguration(ConfigKeys.WRITE_BATCH_SIZE_MAX_KEY);

@@ -1,6 +1,8 @@
 package com.bteshome.onlinestore.inventoryservice.service;
 
 import com.bteshome.keyvaluestore.client.writers.ItemWriter;
+import com.bteshome.keyvaluestore.common.LogPosition;
+import com.bteshome.keyvaluestore.common.Tuple;
 import com.bteshome.onlinestore.inventoryservice.InventoryException;
 import com.bteshome.onlinestore.inventoryservice.dto.StockRequest;
 import com.bteshome.onlinestore.inventoryservice.model.Product;
@@ -50,7 +52,9 @@ public class StockService {
             log.debug("Attempting to reserve stock items");
 
             for (StockRequest stockRequest : stockRequests) {
-                Product product = productRepository.get(stockRequest.getSkuCode());
+                Tuple<Product, LogPosition> productVersioned = productRepository.getVersioned(stockRequest.getSkuCode());
+                Product product = productVersioned.first();
+                LogPosition version = productVersioned.second();
                 int quantity = product.getStockLevel() - stockRequest.getQuantity();
                 // TODO - work on compensating transactions in case of any error
                 if (quantity < 0) {
@@ -61,7 +65,7 @@ public class StockService {
                 }
                 product.setStockLevel(quantity);
                 // TODO - in the key value store system, consider optimistic concurrency
-                productRepository.put(product);
+                productRepository.put(product, version);
             }
 
             log.debug("Successfully reserved stock items");

@@ -1,5 +1,6 @@
 package com.bteshome.keyvaluestore.client.responses;
 
+import com.bteshome.keyvaluestore.common.LogPosition;
 import lombok.*;
 
 @Getter
@@ -12,4 +13,5 @@ public class ItemGetResponse {
     private String errorMessage;
     private String leaderEndpoint;
     private byte[] value;
+    private LogPosition version;
 }

@@ -8,6 +8,7 @@ import com.bteshome.keyvaluestore.client.requests.AckType;
 import com.bteshome.keyvaluestore.client.requests.ItemPutRequest;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
 import com.bteshome.keyvaluestore.common.JavaSerDe;
+import com.bteshome.keyvaluestore.common.LogPosition;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.Validator;
 import com.bteshome.keyvaluestore.common.entities.Item;
@@ -38,24 +39,26 @@ public class ItemWriter {
     public Mono<ItemPutResponse> putString(ItemWrite<String> request) {
         request.setValue(Validator.notEmpty(request.getValue(), "Value"));
         byte[] valueBytes = request.getValue().getBytes();
-        return put(request.getTable(), request.getKey(), request.getAck(), valueBytes, request.getMaxRetries());
+        return put(request.getTable(), request.getKey(), request.getAck(), valueBytes, request.getMaxRetries(), request.getPreviousVersion());
     }
 
     public <T extends Serializable> Mono<ItemPutResponse> putObject(ItemWrite<T> request) {
         byte[] valueBytes = JavaSerDe.serializeToBytes(request.getValue());
-        return put(request.getTable(), request.getKey(), request.getAck(), valueBytes, request.getMaxRetries());
+        return put(request.getTable(), request.getKey(), request.getAck(), valueBytes, request.getMaxRetries(), request.getPreviousVersion());
     }
 
     public <T extends Serializable> Mono<ItemPutResponse> putBytes(ItemWrite<byte[]> request) {
-        return put(request.getTable(), request.getKey(), request.getAck(), request.getValue(), request.getMaxRetries());
+        return put(request.getTable(), request.getKey(), request.getAck(), request.getValue(), request.getMaxRetries(), request.getPreviousVersion());
     }
 
-    private Mono<ItemPutResponse> put(String table, String key, AckType ack, byte[] valueBytes, int maxRetries) {
+    private Mono<ItemPutResponse> put(String table, String key, AckType ack, byte[] valueBytes, int maxRetries, LogPosition previousVersion) {
         ItemPutRequest itemPutRequest = new ItemPutRequest();
         itemPutRequest.setTable(Validator.notEmpty(table, "Table name"));
         key = Validator.notEmpty(key, "Key");
-        itemPutRequest.getItems().add(new Item(key, valueBytes));
+        itemPutRequest.getItems().add(new Item(key, valueBytes, previousVersion));
         itemPutRequest.setAck(ack);
+        if (previousVersion != null && !previousVersion.equals(LogPosition.ZERO))
+            itemPutRequest.setWithVersionCheck(true);
 
         int partition = keyToPartitionMapper.map(table, key);
         itemPutRequest.setPartition(partition);

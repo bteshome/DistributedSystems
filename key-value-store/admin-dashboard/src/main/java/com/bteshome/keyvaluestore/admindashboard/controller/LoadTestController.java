@@ -59,7 +59,8 @@ public class LoadTestController {
                     key,
                     value.getBytes(),
                     request.getAck(),
-                    request.getMaxRetries());
+                    request.getMaxRetries(),
+                    null);
             itemWrites.add(itemWrite);
         }
 

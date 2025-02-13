@@ -7,9 +7,7 @@ import com.bteshome.keyvaluestore.client.clientrequests.ItemGet;
 import com.bteshome.keyvaluestore.client.requests.ItemGetRequest;
 import com.bteshome.keyvaluestore.client.responses.ItemGetResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
-import com.bteshome.keyvaluestore.common.JavaSerDe;
-import com.bteshome.keyvaluestore.common.MetadataCache;
-import com.bteshome.keyvaluestore.common.Validator;
+import com.bteshome.keyvaluestore.common.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
@@ -33,17 +31,34 @@ public class ItemReader {
     WebClient webClient;
 
     public Mono<String> getString(ItemGet request) {
-        return getBytes(request).map(String::new);
-    }
-
-    public <T extends Serializable> Mono<T> getObject(ItemGet request, Class<T> clazz) {
-        return getBytes(request).flatMap(bytes -> {
-            T value = JavaSerDe.deserialize(bytes);
+        return getBytes(request).flatMap(response -> {
+            String value = new String(response.getValue());
             return Mono.just(value);
         });
     }
 
-    public Mono<byte[]> getBytes(ItemGet request) {
+    public <T extends Serializable> Mono<T> getObject(ItemGet request, Class<T> clazz) {
+        return getBytes(request).flatMap(response -> {
+            T value = JavaSerDe.deserialize(response.getValue());
+            return Mono.just(value);
+        });
+    }
+
+    public <T extends Serializable> Mono<Tuple<T, LogPosition>> getVersionedObject(ItemGet request, Class<T> clazz) {
+        return getBytes(request).flatMap(response -> {
+            T value = JavaSerDe.deserialize(response.getValue());
+            LogPosition version = response.getVersion();
+            return Mono.just(Tuple.of(value, version));
+        });
+    }
+
+    public Mono<Tuple<byte[], LogPosition>> getBytesAndVersion(ItemGet request) {
+        return getBytes(request).flatMap(response -> {
+            return Mono.just(Tuple.of(response.getValue(), response.getVersion()));
+        });
+    }
+
+    private Mono<ItemGetResponse> getBytes(ItemGet request) {
         ItemGetRequest itemGetRequest = new ItemGetRequest();
         itemGetRequest.setTable(Validator.notEmpty(request.getTable(), "Table name"));
         itemGetRequest.setKey(Validator.notEmpty(request.getKey(), "Key"));
@@ -55,7 +70,7 @@ public class ItemReader {
         String endpoint = MetadataCache.getInstance().getLeaderEndpoint(request.getTable(), partition);
         if (endpoint == null)
             return Mono.error(new ClientException("Table '%s' partition '%s' is offline.".formatted(request.getTable(), partition)));
-        return get(endpoint, itemGetRequest).map(ItemGetResponse::getValue);
+        return get(endpoint, itemGetRequest);
     }
 
     private Mono<ItemGetResponse> get(String endpoint, ItemGetRequest itemGetRequest) {

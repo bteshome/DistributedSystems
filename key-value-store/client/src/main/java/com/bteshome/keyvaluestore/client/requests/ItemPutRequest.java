@@ -18,4 +18,5 @@ public class ItemPutRequest {
     private int partition;
     private List<Item> items = new ArrayList<>();
     private AckType Ack;
+    boolean withVersionCheck;
 }

@@ -164,6 +164,34 @@ public class PartitionState implements AutoCloseable {
 
         Mono<ResponseEntity<ItemPutResponse>> mono = Mono.fromCallable(() -> {
             try (AutoCloseableLock l = writeLeaderLock()) {
+                if (request.isWithVersionCheck()) {
+                    for (Item item : request.getItems()) {
+                        if (data.containsKey(item.getKey())) {
+                            return ResponseEntity.ok(ItemPutResponse.builder()
+                                    .httpStatusCode(HttpStatus.BAD_REQUEST.value())
+                                    .errorMessage("Unable to perform version check. Item with key %s does not exist.".formatted(item.getKey()))
+                                    .build());
+                        }
+
+                        LogPosition previousVersion = item.getPreviousVersion();
+                        LogPosition version = data.get(item.getKey()).getLast().offset();
+
+                        if (previousVersion == null || previousVersion.equals(LogPosition.ZERO)){
+                            return ResponseEntity.ok(ItemPutResponse.builder()
+                                    .httpStatusCode(HttpStatus.BAD_REQUEST.value())
+                                    .errorMessage("Version has not been specified for the item with key %s.".formatted(item.getKey()))
+                                    .build());
+                        }
+
+                        if (!version.equals(previousVersion)){
+                            return ResponseEntity.ok(ItemPutResponse.builder()
+                                    .httpStatusCode(HttpStatus.CONFLICT.value())
+                                    .errorMessage("The item with key %s has been modified.".formatted(item.getKey()))
+                                    .build());
+                        }
+                    }
+                }
+
                 long expiryTime = (timeToLive == null || timeToLive.equals(Duration.ZERO)) ? 0 : Instant.now().plus(timeToLive).toEpochMilli();
                 long now = System.currentTimeMillis();
                 List<LogPosition> itemOffsets = wal.appendPutOperation(leaderTerm, now, request.getItems(), expiryTime);
@@ -391,6 +419,7 @@ public class PartitionState implements AutoCloseable {
                 return Mono.just(ResponseEntity.ok(ItemGetResponse.builder()
                         .httpStatusCode(HttpStatus.OK.value())
                         .value(version.bytes())
+                        .version(version.offset())
                         .build()));
             }
         } catch (Exception e) {
