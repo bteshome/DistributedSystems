@@ -1,4 +1,6 @@
 package com.bteshome.onlinestore.orderservice.dto;
 
-public record OrderCreatedNotificationSentEvent(String orderNumber, String status){}
+import com.bteshome.onlinestore.orderservice.model.NotificationStatus;
+
+public record OrderCreatedNotificationSentEvent(String orderNumber, NotificationStatus status){}
 

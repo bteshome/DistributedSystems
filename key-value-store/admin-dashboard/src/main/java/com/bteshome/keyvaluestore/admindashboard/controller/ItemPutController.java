@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 public class ItemPutController {
     @Autowired
-    ItemWriter itemWriter;
+    private ItemWriter itemWriter;
 
     @GetMapping("/")
     public String put(Model model) {

@@ -1,4 +1,4 @@
-package com.bteshome.onlinestore.orderservice.repository;
+package com.bteshome.onlinestore.inventoryservice.repository;
 
 import com.bteshome.keyvaluestore.client.clientrequests.ItemGet;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemList;
@@ -9,8 +9,8 @@ import com.bteshome.keyvaluestore.client.requests.AckType;
 import com.bteshome.keyvaluestore.client.requests.IsolationLevel;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
 import com.bteshome.keyvaluestore.client.writers.ItemWriter;
-import com.bteshome.onlinestore.orderservice.OrderException;
-import com.bteshome.onlinestore.orderservice.model.Order;
+import com.bteshome.onlinestore.inventoryservice.InventoryException;
+import com.bteshome.onlinestore.inventoryservice.model.Product;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Repository;
@@ -19,8 +19,8 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 @Repository
-public class OrderRepository {
-    private final String tableName = "orders";
+public class ProductRepository {
+    private final String tableName = "products";
     @Autowired
     private ItemWriter itemWriter;
     @Autowired
@@ -28,45 +28,45 @@ public class OrderRepository {
     @Autowired
     private BatchReader batchReader;
 
-    public void put(Order order) {
-        ItemWrite<Order> request = new ItemWrite<>();
+    public void put(Product product) {
+        ItemWrite<Product> request = new ItemWrite<>();
         request.setTable(tableName);
-        request.setKey(order.getOrderNumber());
+        request.setKey(product.getSkuCode());
         request.setAck(AckType.MIN_ISR_COUNT);
         request.setMaxRetries(0);
-        request.setValue(order);
+        request.setValue(product);
 
         ItemPutResponse itemPutResponse = itemWriter.putObject(request).block();
 
         if (itemPutResponse.getHttpStatusCode() != HttpStatus.OK.value()) {
-            String errorMessage = "Failed to place order %s. Status code=%s, error message=%s".formatted(
-                    order.getOrderNumber(),
+            String errorMessage = "Failed to create product %s. Status code=%s, error message=%s".formatted(
+                    product.getSkuCode(),
                     itemPutResponse.getHttpStatusCode(),
                     itemPutResponse.getErrorMessage());
-            throw new OrderException(errorMessage);
+            throw new InventoryException(errorMessage);
         }
     }
 
-    public Order get(String orderNumber) {
+    public Product get(String skuCode) {
         ItemGet request = new ItemGet();
         request.setTable(tableName);
-        request.setKey(orderNumber);
+        request.setKey(skuCode);
         request.setIsolationLevel(IsolationLevel.READ_COMMITTED);
 
-        return itemReader.getObject(request, Order.class).block();
+        return itemReader.getObject(request, Product.class).block();
     }
 
-    public Stream<Order> getAll() {
+    public Stream<Product> getAll() {
         ItemList listRequest = new ItemList();
         listRequest.setTable(tableName);
         listRequest.setLimit(10);
         listRequest.setIsolationLevel(IsolationLevel.READ_COMMITTED);
 
         return batchReader
-                .listObjects(listRequest, Order.class)
+                .listObjects(listRequest, Product.class)
                 .collectList()
                 .block()
                 .stream()
                 .map(Map.Entry::getValue);
-    }
+     }
 }

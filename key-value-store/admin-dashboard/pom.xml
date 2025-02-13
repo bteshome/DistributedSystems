@@ -23,9 +23,7 @@
 		<spring-cloud.version>2024.0.0</spring-cloud.version>
 		<jib-version>3.4.4</jib-version>
 		<lombok-version>1.18.36</lombok-version>
-		<commons-codec-version>1.17.1</commons-codec-version>
 		<jackson-version>2.18.2</jackson-version>
-		<snappy-version>1.1.10.7</snappy-version>
 		<docker-namespace>bteshome</docker-namespace>
 		<ratis-version>3.1.2</ratis-version>
 		<ratis-thirdparty-version>1.0.8</ratis-thirdparty-version>

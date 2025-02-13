@@ -36,7 +36,7 @@ public class ItemReader {
         return getBytes(request).map(String::new);
     }
 
-    public <T extends Serializable> Mono<T> getObject(ItemGet request) {
+    public <T extends Serializable> Mono<T> getObject(ItemGet request, Class<T> clazz) {
         return getBytes(request).flatMap(bytes -> {
             T value = JavaSerDe.deserialize(bytes);
             return Mono.just(value);

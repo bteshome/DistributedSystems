@@ -22,18 +22,12 @@ public class InventoryController {
 
     @GetMapping("/{sku-code}/")
     @ResponseStatus(HttpStatus.OK)
-    public boolean isInStock(@PathVariable("sku-code") String skuCode, @RequestParam int quantity) {
+    public ResponseEntity<?> isInStock(@PathVariable("sku-code") String skuCode, @RequestParam int quantity) {
         return stockService.isInStock(skuCode, quantity);
     }
 
     @PutMapping("/")
-    public ResponseEntity<String> reserveStockItems(@RequestBody List<StockRequest> stockRequests) {
-        try {
-            stockService.reserveStockItems(stockRequests);
-            return ResponseEntity.ok().build();
-        } catch (InventoryException e) {
-            log.error(e.getMessage());
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public ResponseEntity<?> reserveStockItems(@RequestBody List<StockRequest> stockRequests) {
+        return stockService.reserveStockItems(stockRequests);
     }
 }

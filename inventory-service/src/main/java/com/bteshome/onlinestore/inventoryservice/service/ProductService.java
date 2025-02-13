@@ -3,36 +3,47 @@ package com.bteshome.onlinestore.inventoryservice.service;
 import com.bteshome.onlinestore.inventoryservice.dto.ProductRequest;
 import com.bteshome.onlinestore.inventoryservice.dto.ProductResponse;
 import com.bteshome.onlinestore.inventoryservice.model.Product;
-import com.bteshome.onlinestore.inventoryservice.repository.InventoryRepository;
+import com.bteshome.onlinestore.inventoryservice.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.stream.StreamSupport;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
-@Transactional
 public class ProductService {
     @Autowired
-    private final InventoryRepository productRepository;
+    private ProductRepository productRepository;
 
-    public void create(ProductRequest productRequest) {
-        log.debug("Creating product: {}", productRequest.getName());
-        Product product = mapToProduct(productRequest);
-        product = productRepository.save(product);
-        log.debug("Successfully created product: {}", productRequest.getName());
+    public ResponseEntity<?> put(ProductRequest productRequest) {
+        try {
+            log.debug("Creating or updating product: {}", productRequest.getName());
+
+            Product product = mapToProduct(productRequest);
+            productRepository.put(product);
+
+            log.debug("Successfully created or updated product: {}", productRequest.getName());
+
+            return ResponseEntity.status(HttpStatus.CREATED.value()).build();
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(e.getMessage());
+        }
     }
 
-    public List<ProductResponse> getAll() {
-        Iterable<Product> products = productRepository.findAll();
-        return StreamSupport.stream(products.spliterator(), false)
-                .map(this::mapToProductResponse)
-                .toList();
+    public ResponseEntity<?> getAll() {
+        try {
+            List<ProductResponse> products = productRepository.getAll().map(this::mapToProductResponse).toList();
+            return ResponseEntity.ok(products);
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(e.getMessage());
+        }
     }
 
     private Product mapToProduct(ProductRequest productRequest) {
@@ -47,7 +58,6 @@ public class ProductService {
 
     private ProductResponse mapToProductResponse(Product product) {
         return ProductResponse.builder()
-                .id(product.getId())
                 .name(product.getName())
                 .description(product.getDescription())
                 .price(product.getPrice())

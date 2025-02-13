@@ -1,0 +1,5 @@
+notification-disabled: true
+
+spring:
+  config:
+    import: configserver:http://localhost:8071/

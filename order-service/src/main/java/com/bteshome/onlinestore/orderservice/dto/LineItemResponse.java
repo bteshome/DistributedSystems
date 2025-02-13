@@ -10,7 +10,6 @@ import java.math.BigDecimal;
 @Setter
 @Builder
 public class LineItemResponse {
-    private long id;
     private String skuCode;
     private int quantity;
     private BigDecimal price;

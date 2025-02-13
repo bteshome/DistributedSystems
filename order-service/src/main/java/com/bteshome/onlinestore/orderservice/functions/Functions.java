@@ -1,6 +1,5 @@
 package com.bteshome.onlinestore.orderservice.functions;
 
-import com.bteshome.onlinestore.orderservice.OrderException;
 import com.bteshome.onlinestore.orderservice.dto.OrderCreatedNotificationSentEvent;
 import com.bteshome.onlinestore.orderservice.model.Order;
 import com.bteshome.onlinestore.orderservice.repository.OrderRepository;
@@ -22,13 +21,17 @@ public class Functions {
     @Bean
     public Consumer<OrderCreatedNotificationSentEvent> orderCreatedNotificationSent() {
         return notificationSentEvent -> {
-            Order order = orderRepository.findFirstByOrderNumber(notificationSentEvent.orderNumber());
-            if (order == null) {
-                log.error("Order '{}' not found. Unable to update notification status.", notificationSentEvent.orderNumber());
-            } else {
-                order.setNotificationStatus(notificationSentEvent.status());
-                orderRepository.save(order);
-                log.debug("Updated notification status for order: {}", notificationSentEvent);
+            try {
+                Order order = orderRepository.get(notificationSentEvent.orderNumber());
+                if (order == null) {
+                    log.error("Order '{}' not found. Unable to update notification status.", notificationSentEvent.orderNumber());
+                } else {
+                    order.setNotificationStatus(notificationSentEvent.status());
+                    orderRepository.put(order);
+                    log.debug("Updated notification status for order: {}", notificationSentEvent);
+                }
+            } catch (Exception e) {
+                log.error("Failed to update notification status for order: {}.", notificationSentEvent.orderNumber(), e);
             }
         };
     }

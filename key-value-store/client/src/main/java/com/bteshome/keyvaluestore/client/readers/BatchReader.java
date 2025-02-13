@@ -33,7 +33,7 @@ public class BatchReader {
         });
     }
 
-    public <T> Flux<Map.Entry<String, T>> listObjects(ItemList request) {
+    public <T> Flux<Map.Entry<String, T>> listObjects(ItemList request, Class<T> clazz) {
         return listBytes(request).map(item -> {
             T valueTyped = JavaSerDe.deserialize(item.getValue());
             return Map.entry(item.getKey(), valueTyped);

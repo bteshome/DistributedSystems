@@ -1,5 +1,6 @@
 package com.bteshome.onlinestore.orderservice.dto;
 
+import com.bteshome.onlinestore.orderservice.model.NotificationStatus;
 import lombok.*;
 
 import java.util.List;
@@ -10,9 +11,8 @@ import java.util.List;
 @Setter
 @Builder
 public class OrderResponse {
-    private long id;
     private String orderNumber;
     private String email;
-    private String notificationStatus;
+    private NotificationStatus notificationStatus;
     private List<LineItemResponse> lineItems;
 }

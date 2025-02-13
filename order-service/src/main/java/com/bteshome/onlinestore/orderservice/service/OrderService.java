@@ -1,22 +1,27 @@
 package com.bteshome.onlinestore.orderservice.service;
 
+import com.bteshome.onlinestore.orderservice.InventoryClientException;
+import com.bteshome.onlinestore.orderservice.OrderException;
 import com.bteshome.onlinestore.orderservice.client.InventoryClient;
 import com.bteshome.onlinestore.orderservice.client.InventoryRequest;
 import com.bteshome.onlinestore.orderservice.config.AppSettings;
 import com.bteshome.onlinestore.orderservice.dto.*;
 import com.bteshome.onlinestore.orderservice.model.LineItem;
+import com.bteshome.onlinestore.orderservice.model.NotificationStatus;
 import com.bteshome.onlinestore.orderservice.model.Order;
 import com.bteshome.onlinestore.orderservice.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.stream.function.StreamBridge;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.HttpClientErrorException;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.StreamSupport;
 
 @Service
 @Slf4j
@@ -32,25 +37,46 @@ public class OrderService {
     @Autowired
     private final AppSettings appSettings;
 
-    public void create(OrderRequest orderRequest) {
-        log.debug("Creating an order...");
+    public ResponseEntity<?> create(OrderRequest orderRequest) {
+        try {
+            Order order = mapToOrder(orderRequest);
 
-        Order order = mapToOrder(orderRequest);
+            log.debug("Creating order {}.", order.getOrderNumber());
 
-        var addInventoryQuantitiesRequest = order.getLineItems().stream().map(item ->
-                    InventoryRequest.builder()
+            List<InventoryRequest> addInventoryQuantitiesRequest = order.getLineItems()
+                    .stream()
+                    .map(item -> InventoryRequest.builder()
                             .skuCode(item.getSkuCode())
-                            .quantity(-item.getQuantity())
+                            .quantity(item.getQuantity())
                             .build())
-                .toList();
+                    .toList();
 
-        inventoryClient.reserveStockItems(addInventoryQuantitiesRequest);
+            inventoryClient.reserveStockItems(addInventoryQuantitiesRequest);
+            orderRepository.put(order);
+            createOrderCreatedEvent(order);
 
-        orderRepository.save(order);
+            log.debug("Order {} created successfully.", order.getOrderNumber());
 
-        createOrderCreatedEvent(order);
+            return ResponseEntity.status(HttpStatus.CREATED).body("Order placed successfully.");
+        } catch (HttpClientErrorException e) {
+            log.error(e.getMessage(), e);
+            if (e.getStatusCode() == HttpStatus.UNPROCESSABLE_ENTITY)
+                return ResponseEntity.unprocessableEntity().body(e.getMessage());
+            return ResponseEntity.internalServerError().body(e.getMessage());
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(e.getMessage());
+        }
+    }
 
-        log.debug("Order created successfully");
+    public ResponseEntity<?> getAll() {
+        try {
+            List<OrderResponse> orders = orderRepository.getAll().map(this::mapToOrderResponse).toList();
+            return ResponseEntity.ok(orders);
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(e.getMessage());
+        }
     }
 
     private void createOrderCreatedEvent(Order order) {
@@ -65,24 +91,13 @@ public class OrderService {
         log.debug("Created OrderCreatedEvent for order: {}", order.getOrderNumber());
     }
 
-    public List<OrderResponse> getAll() {
-        Iterable<Order> orders = orderRepository.findAll();
-        return StreamSupport.stream(orders.spliterator(), false)
-                .map(this::mapToOrderResponse)
-                .toList();
-    }
-
     private Order mapToOrder(OrderRequest orderRequest) {
         var order = Order.builder()
                 .orderNumber(UUID.randomUUID().toString())
                 .email(orderRequest.getEmail())
-                .notificationStatus("PENDING")
+                .notificationStatus(NotificationStatus.PENDING)
                 .build();
-        var lineItems = orderRequest.getLineItems().stream().map(i -> {
-            var item = mapToLineItem(i);
-            item.setOrder(order);
-            return item;
-        }).toList();
+        var lineItems = orderRequest.getLineItems().stream().map(this::mapToLineItem).toList();
         order.setLineItems(lineItems);
         return order;
     }
@@ -99,7 +114,6 @@ public class OrderService {
         var lineItems = order.getLineItems().stream().map(this::mapToLineItemResponse).toList();
 
         return OrderResponse.builder()
-                .id(order.getId())
                 .orderNumber(order.getOrderNumber())
                 .email(order.getEmail())
                 .notificationStatus(order.getNotificationStatus())
@@ -109,7 +123,6 @@ public class OrderService {
 
     private LineItemResponse mapToLineItemResponse(LineItem lineItem) {
         return LineItemResponse.builder()
-                .id(lineItem.getId())
                 .skuCode(lineItem.getSkuCode())
                 .quantity(lineItem.getQuantity())
                 .price(lineItem.getPrice())
