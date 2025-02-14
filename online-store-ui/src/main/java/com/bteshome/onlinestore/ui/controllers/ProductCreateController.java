@@ -40,11 +40,9 @@ public class ProductCreateController {
     @PostMapping("/")
     public String create(@ModelAttribute("product") @RequestBody Product product, Model model) {
         try {
-            product.setName(Validator.notEmpty(product.getName()));
-            product.setDescription(Validator.notEmpty(product.getDescription()));
-            // TODO - validate price
-            //product.setPrice(Validator.notLessThan(product.getPrice(), Deci));
-            product.setSkuCode(Validator.notEmpty(product.getSkuCode()));
+            product.setName(Validator.notEmpty(product.getName(), "product name"));
+            product.setPrice(Validator.nonNegative(product.getPrice(), "price"));
+            product.setSkuCode(Validator.notEmpty(product.getSkuCode(), "sku code"));
             product.setStockLevel(Validator.nonNegative(product.getStockLevel(), "stock level"));
 
             String response = webClient

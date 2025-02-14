@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Component
-@ConfigurationProperties(prefix = "client")
+@ConfigurationProperties(prefix = "metadata-client")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -20,7 +20,6 @@ public class MetadataClientSettings {
     private UUID clientId;
     private UUID groupId;
     private List<PeerInfo> peers;
-    private long metadataRefreshIntervalMs = 60000;
 
     @Getter
     @Setter

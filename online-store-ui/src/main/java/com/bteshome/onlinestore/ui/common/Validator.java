@@ -1,5 +1,6 @@
 package com.bteshome.onlinestore.ui.common;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 public class Validator {
@@ -38,6 +39,17 @@ public class Validator {
 
     public static int nonNegative(int value, String fieldName) {
         if (value < 0) {
+            throw new IllegalArgumentException(fieldName + " cannot be negative.");
+        }
+        return value;
+    }
+
+    public static BigDecimal nonNegative(BigDecimal value) {
+        return nonNegative(value, "Value");
+    }
+
+    public static BigDecimal nonNegative(BigDecimal value, String fieldName) {
+        if (value.compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalArgumentException(fieldName + " cannot be negative.");
         }
         return value;

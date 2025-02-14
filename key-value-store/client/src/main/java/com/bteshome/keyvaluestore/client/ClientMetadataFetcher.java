@@ -3,58 +3,25 @@ package com.bteshome.keyvaluestore.client;
 import com.bteshome.keyvaluestore.client.responses.ClientMetadataFetchResponse;
 import com.bteshome.keyvaluestore.common.JavaSerDe;
 import com.bteshome.keyvaluestore.common.MetadataCache;
-import com.bteshome.keyvaluestore.common.MetadataClientSettings;
 import com.bteshome.keyvaluestore.common.entities.EntityType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.CommandLineRunner;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.Map;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 @Component
 @Slf4j
-public class ClientMetadataRefresher implements CommandLineRunner {
-    private ScheduledExecutorService executor = null;
-    @Value("${client.storage-node-endpoints}")
-    private String endpoints;
+public class ClientMetadataFetcher {
     @Autowired
-    MetadataClientSettings metadataClientSettings;
+    ClientSettings clientSettings;
     @Autowired
     WebClient webClient;
 
-    @Override
-    public void run(String... args) throws Exception {
-        schedule();
-    }
-
-    public void schedule() {
-        try {
-            executor = Executors.newSingleThreadScheduledExecutor();
-            Runtime.getRuntime().addShutdownHook(new Thread() {
-                @Override
-                public void run() {
-                    executor.close();
-                }
-            });
-            executor.scheduleAtFixedRate(this::fetch,
-                    0L,
-                    metadataClientSettings.getMetadataRefreshIntervalMs(),
-                    TimeUnit.MILLISECONDS);
-            log.info("Scheduled metadata refresher. The interval is {} ms.", metadataClientSettings.getMetadataRefreshIntervalMs());
-        } catch (Exception e) {
-            log.error("Error scheduling metadata refresher: ", e);
-        }
-    }
-
     public void fetch() {
-        for (String endpoint : endpoints.split(",")) {
+        for (String endpoint : clientSettings.getStorageNodeEndpoints().split(",")) {
             try {
                 fetch(endpoint);
                 return;
