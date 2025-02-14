@@ -1,0 +1,29 @@
+server:
+  port: '9330'
+
+metadata:
+  node:
+    id: '3'
+    host: localhost
+    port: '9313'
+  peers:
+    - id: ${metadata.node.id}
+      host: ${metadata.node.host}
+      port: ${metadata.node.port}
+    - id: '1'
+      host: localhost
+      port: '9311'
+    - id: '2'
+      host: localhost
+      port: '9312'
+  storage-dir: /tmp/raft-server-3
+
+info:
+  app:
+    name: 'Key Value Store Metadata Node 3'
+    version: '1.0'
+    description: 'Key Value Store Metadata Node 3'
+
+management:
+  server:
+    port: '9338'
