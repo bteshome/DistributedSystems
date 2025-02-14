@@ -21,7 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpClientErrorException;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -45,9 +47,13 @@ public class OrderService {
 
             List<InventoryRequest> addInventoryQuantitiesRequest = order.getLineItems()
                     .stream()
+                    .collect(Collectors.groupingBy(LineItem::getSkuCode, Collectors.counting()))
+                    .entrySet()
+                    .stream()
+                    .filter(item -> item.getValue() > 0)
                     .map(item -> InventoryRequest.builder()
-                            .skuCode(item.getSkuCode())
-                            .quantity(item.getQuantity())
+                            .skuCode(item.getKey())
+                            .quantity(item.getValue().intValue())
                             .build())
                     .toList();
 
