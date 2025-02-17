@@ -4,6 +4,9 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
@@ -16,18 +19,15 @@ import java.util.UUID;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Slf4j
 public class MetadataClientSettings {
     private UUID clientId;
     private UUID groupId;
     private List<PeerInfo> peers;
 
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class PeerInfo {
-        private String id;
-        private String host;
-        private int port;
+    public void print() {
+        log.info("MetadataClientSettings: clientId={}", clientId);
+        log.info("MetadataClientSettings: groupId={}", groupId);
+        log.info("MetadataClientSettings: peers={}", peers);
     }
 }

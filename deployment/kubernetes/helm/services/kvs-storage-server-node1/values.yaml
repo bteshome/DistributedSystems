@@ -1,0 +1,18 @@
+serviceName: kvs-storage-server-node1
+appName: kvsstorageservernode1
+
+replicaCount: 1
+
+image: bteshome/kvs-storage-server:latest
+
+ports:
+  - 94
+  - 9408
+
+service:
+  clusterIP: None
+  ports:
+    - 94
+    - 9408
+
+config_client_enabled: true

@@ -1,6 +1,6 @@
 package com.bteshome.apigateway.ratelimiter;
 
-import com.bteshome.apigateway.config.AppSettings;
+import com.bteshome.apigateway.common.AppSettings;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

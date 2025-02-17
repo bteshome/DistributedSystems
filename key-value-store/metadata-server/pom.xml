@@ -9,10 +9,10 @@
 		<relativePath/>
 	</parent>
 	<groupId>com.bteshome.key-value-store</groupId>
-	<artifactId>metadata-server</artifactId>
+	<artifactId>kvs-metadata-server</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>metadata-server</name>
-	<description>Metadata Server</description>
+	<name>kvs-metadata-server</name>
+	<description>Key Value Store Metadata Server</description>
 	<packaging>jar</packaging>
 
 	<properties>
@@ -35,12 +35,6 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-devtools</artifactId>
-			<scope>runtime</scope>
-			<optional>true</optional>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -114,7 +108,7 @@
 		</dependency>
 		<dependency>
 			<groupId>com.bteshome.key-value-store</groupId>
-			<artifactId>common</artifactId>
+			<artifactId>kvs-common</artifactId>
 			<version>0.0.1-SNAPSHOT</version>
 		</dependency>
 	</dependencies>

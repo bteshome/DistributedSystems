@@ -5,10 +5,22 @@ management:
   server:
     port: '9907'
 
+storage:
+  node:
+    id: '3'
+    host: localhost
+    port: ${server.port}
+    management-port: ${management.server.port}
+    rack: ""
+    storage-dir: storage-server-3
+
 metadata-client:
   client-id: 2ac5a91b-b439-4c52-9617-bdc4f3683c97
   group-id: d7d23a0d-26f1-46ce-b10b-af833738907e
   peers:
+    - id: '0'
+      host: localhost
+      port: '9310'
     - id: '1'
       host: localhost
       port: '9311'
@@ -19,11 +31,8 @@ metadata-client:
       host: localhost
       port: '9313'
 
-storage:
-  node:
-    id: '3'
-    host: localhost
-    port: ${server.port}
-    jmx-port: ${management.server.port}
-    rack: ""
-    storage-dir: storage-server-3
+info:
+  app:
+    name: 'Key Value State Storage Server 3'
+    version: '1.0'
+    description: 'Key Value State Storage Server 3'

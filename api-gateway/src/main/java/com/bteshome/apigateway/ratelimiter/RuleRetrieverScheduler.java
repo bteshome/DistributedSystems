@@ -1,6 +1,6 @@
 package com.bteshome.apigateway.ratelimiter;
 
-import com.bteshome.apigateway.config.AppSettings;
+import com.bteshome.apigateway.common.AppSettings;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
@@ -28,7 +28,9 @@ public class RuleRetrieverScheduler implements CommandLineRunner {
             return;
         }
 
-        log.info("Rate limiter is enabled. Scheduling rule retriever.");
+        log.info("Rate limiter is enabled. Scheduling rule retriever ...");
+
+        appSettings.print();
 
         final int syncFrequency = Integer.parseInt(appSettings.getRateLimiterRulesSyncFrequencySeconds());
         executor = Executors.newSingleThreadScheduledExecutor();

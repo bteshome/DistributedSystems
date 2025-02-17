@@ -1,0 +1,18 @@
+<nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse" th:fragment="sidebar">
+    <div class="position-sticky pt-3">
+        <ul class="nav flex-column">
+            <li class="nav-item">
+                <a class="nav-link" th:classappend="${page}=='list'?'active'" href="/">
+                    <span data-feather="list"></span>
+                    List
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" th:classappend="${page}=='create'?'active'" href="/create/">
+                    <span data-feather="plus"></span>
+                    Create
+                </a>
+            </li>
+        </ul>
+    </div>
+</nav>

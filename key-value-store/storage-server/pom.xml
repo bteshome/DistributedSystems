@@ -9,10 +9,10 @@
 		<relativePath/>
 	</parent>
 	<groupId>com.bteshome.key-value-store</groupId>
-	<artifactId>storage-server</artifactId>
+	<artifactId>kvs-storage-server</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>storage-server</name>
-	<description>Storage Server</description>
+	<name>kvs-storage-server</name>
+	<description>Key Value Store Storage Server</description>
 	<packaging>jar</packaging>
 
 	<properties>
@@ -39,23 +39,17 @@
 		</dependency>
 		<dependency>
 			<groupId>com.bteshome.key-value-store</groupId>
-			<artifactId>common</artifactId>
+			<artifactId>kvs-common</artifactId>
 			<version>0.0.1-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>com.bteshome.key-value-store</groupId>
-			<artifactId>client</artifactId>
+			<artifactId>kvs-client</artifactId>
 			<version>0.0.1-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-devtools</artifactId>
-			<scope>runtime</scope>
-			<optional>true</optional>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

@@ -12,43 +12,37 @@ dependencies:
   - name: config-server
     version: "0.1.0"
     repository: file://../services/config-server
-  - name: inventory-service
+  - name: os-inventory-service
     version: "0.1.0"
-    repository: file://../services/inventory-service
-  - name: inventory-service-db
-    version: "0.1.0"
-    repository: file://../services/inventory-service-db
-
-
-  - name: kafka
-    version: "0.1.0"
-    repository: file://../services/kafka
-  - name: order-service
-    version: "0.1.0"
-    repository: file://../services/order-service
-  - name: order-service-db
-    version: "0.1.0"
-    repository: file://../services/order-service-db
-  - name: notification-service
-    version: "0.1.0"
-    repository: file://../services/notification-service
-
-
-  # - name: rate-limiter-rules-db
+    repository: file://../services/os-inventory-service
+  # - name: os-ui
   #   version: "0.1.0"
-  #   repository: file://../services/rate-limiter-rules-db
-  # - name: rate-limiter-rules-dashboard
+  #   repository: file://../services/os-ui
+
+
+  - name: kafka-node1
+    version: "0.1.0"
+    repository: file://../services/kafka-node1
+  - name: os-order-service
+    version: "0.1.0"
+    repository: file://../services/os-order-service
+  # - name: os-notification-service
   #   version: "0.1.0"
-  #   repository: file://../services/rate-limiter-rules-dashboard
+  #   repository: file://../services/os-notification-service
+
+
+  - name: rate-limiter-rules-dashboard
+    version: "0.1.0"
+    repository: file://../services/rate-limiter-rules-dashboard
   - name: keycloak
     version: "24.3.1"
     repository: file://../services/keycloak
-  # - name: rate-limiter-cache-1
-  #   version: "0.1.0"
-  #   repository: file://../services/rate-limiter-cache-1
-  # - name: rate-limiter-cache-2
-  #   version: "0.1.0"
-  #   repository: file://../services/rate-limiter-cache-2
+  - name: rate-limiter-cache-node1
+    version: "0.1.0"
+    repository: file://../services/rate-limiter-cache-node1
+  - name: rate-limiter-cache-node2
+    version: "0.1.0"
+    repository: file://../services/rate-limiter-cache-node2
   - name: api-gateway
     version: "0.1.0"
     repository: file://../services/api-gateway
@@ -66,3 +60,14 @@ dependencies:
   # - name: prometheus
   #   version: "26.0.1"
   #   repository: file://../observability/prometheus
+
+
+  # - name: kvs-metadata-server-node0
+  #   version: "0.1.0"
+  #   repository: file://../services/kvs-metadata-server-node0
+  # - name: kvs-storage-server-node1
+  #   version: "0.1.0"
+  #   repository: file://../services/kvs-storage-server-node1
+  # - name: kvs-admin-dashboard
+  #   version: "0.1.0"
+  #   repository: file://../services/kvs-admin-dashboard

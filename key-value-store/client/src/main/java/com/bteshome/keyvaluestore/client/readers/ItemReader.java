@@ -39,14 +39,14 @@ public class ItemReader {
 
     public <T extends Serializable> Mono<T> getObject(ItemGet request, Class<T> clazz) {
         return getBytes(request).flatMap(response -> {
-            T value = JavaSerDe.deserialize(response.getValue());
+            T value = JsonSerDe.deserialize(response.getValue(), clazz);
             return Mono.just(value);
         });
     }
 
     public <T extends Serializable> Mono<Tuple<T, LogPosition>> getVersionedObject(ItemGet request, Class<T> clazz) {
         return getBytes(request).flatMap(response -> {
-            T value = JavaSerDe.deserialize(response.getValue());
+            T value = JsonSerDe.deserialize(response.getValue(), clazz);
             LogPosition version = response.getVersion();
             return Mono.just(Tuple.of(value, version));
         });

@@ -2,6 +2,7 @@ package com.bteshome.keyvaluestore.metadata;
 
 import com.bteshome.keyvaluestore.common.ConfigKeys;
 import com.bteshome.keyvaluestore.common.MetadataClientBuilder;
+import com.bteshome.keyvaluestore.common.MetadataClientSettings;
 import com.bteshome.keyvaluestore.common.ResponseStatus;
 import com.bteshome.keyvaluestore.common.entities.StorageNodeStatus;
 import com.bteshome.keyvaluestore.common.requests.StorageNodeActivateRequest;
@@ -16,7 +17,7 @@ import java.nio.charset.StandardCharsets;
 
 @Slf4j
 public class StorageNodeMonitor {
-    private MetadataSettings metadataSettings;
+    private MetadataClientSettings metadataClientSettings;
 
     private void checkStatus(String nodeId) {
         Long lastHeartbeatTime = UnmanagedState.getInstance().getHeartbeatTime(nodeId);
@@ -50,17 +51,17 @@ public class StorageNodeMonitor {
         }
     }
 
-    public void checkStatus(MetadataSettings metadataSettings) {
-        this.metadataSettings = metadataSettings;
+    public void checkStatus(MetadataClientSettings metadataClientSettings) {
+        this.metadataClientSettings = metadataClientSettings;
         log.debug("Storage node heartbeat monitor fired. Checking...");
         UnmanagedState.getInstance().getStorageNodeIds().forEach(this::checkStatus);
     }
 
     private void activate(String nodeId) {
         StorageNodeActivateRequest request = new StorageNodeActivateRequest(nodeId);
-        try (RaftClient client = MetadataClientBuilder.createRaftClient(metadataSettings.getPeers(),
-                                                                        metadataSettings.getGroupId(),
-                                                                        metadataSettings.getLocalClientId())) {
+        try (RaftClient client = MetadataClientBuilder.createRaftClient(metadataClientSettings.getPeers(),
+                                                                        metadataClientSettings.getGroupId(),
+                                                                        metadataClientSettings.getClientId())) {
             final RaftClientReply reply = client.io().send(request);
             if (reply.isSuccess()) {
                 String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);
@@ -77,9 +78,9 @@ public class StorageNodeMonitor {
 
     private void deactivate(String nodeId) {
         StorageNodeDeactivateRequest request = new StorageNodeDeactivateRequest(nodeId);
-        try (RaftClient client = MetadataClientBuilder.createRaftClient(metadataSettings.getPeers(),
-                                                                        metadataSettings.getGroupId(),
-                                                                        metadataSettings.getLocalClientId())) {
+        try (RaftClient client = MetadataClientBuilder.createRaftClient(metadataClientSettings.getPeers(),
+                                                                        metadataClientSettings.getGroupId(),
+                                                                        metadataClientSettings.getClientId())) {
             final RaftClientReply reply = client.io().send(request);
             if (reply.isSuccess()) {
                 String messageString = reply.getMessage().getContent().toString(StandardCharsets.UTF_8);

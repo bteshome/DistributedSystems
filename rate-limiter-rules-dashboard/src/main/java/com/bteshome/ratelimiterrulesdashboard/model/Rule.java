@@ -1,32 +1,18 @@
 package com.bteshome.ratelimiterrulesdashboard.model;
 
 import com.bteshome.ratelimiterrulesdashboard.Granularity;
-import com.bteshome.ratelimiterrulesdashboard.RateLimiterRuleException;
-import jakarta.persistence.*;
+import com.bteshome.ratelimiterrulesdashboard.common.RateLimiterRuleException;
 import lombok.*;
 
+import java.io.Serializable;
+import java.util.UUID;
 
 @Getter
 @Setter
 @Builder
-@Entity
-@Table(name = "rules")
-public class Rule {
-    @Id
-    @GeneratedValue(
-            strategy = GenerationType.TABLE,
-            generator = "table-generator"
-    )
-    @TableGenerator(
-            name =  "table-generator",
-            table = "hibernate_seq",
-            pkColumnName = "table_name",
-            valueColumnName = "next_val",
-            allocationSize = 5
-    )
-    private long id;
+public class Rule implements Serializable {
+    private UUID id;
     private String api;
-    @Column(name = "is_per_client")
     private boolean isPerClient;
     private String granularity;
     private int threshold;

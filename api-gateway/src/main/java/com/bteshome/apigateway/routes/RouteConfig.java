@@ -1,6 +1,6 @@
 package com.bteshome.apigateway.routes;
 
-import com.bteshome.apigateway.config.AppSettings;
+import com.bteshome.apigateway.common.AppSettings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;

@@ -1,3 +1,84 @@
+debug: 'false'
+
 spring:
-  config:
-    import: configserver:http://localhost:8071/
+  cloud:
+    config:
+      import-check:
+        enabled: 'false'
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    mode: HTML
+    cache: false
+    enabled: true
+
+server:
+  port: '9207'
+
+management:
+  server:
+    port: '9307'
+    ssl:
+      enabled: 'false'
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+  info:
+    env:
+      enabled: 'true'
+  endpoint:
+    shutdown:
+      enabled: 'true'
+    health:
+      probes:
+        enabled: 'true'
+      show-details: always
+  health:
+    liveness-state:
+      enabled: 'true'
+    readiness-state:
+      enabled: 'true'
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+endpoints:
+  shutdown:
+    enabled: 'true'
+
+logging:
+  level:
+    com:
+      bteshome: DEBUG
+    root: INFO
+
+info:
+  app:
+    name: 'Key Value Store Admin Dashboard'
+    version: '1.0'
+    description: 'Key Value Store Admin Dashboard'
+
+metadata-client:
+  client-id: 5a73f6ba-c728-4895-9acf-f20e919f0223
+  group-id: d7d23a0d-26f1-46ce-b10b-af833738907e
+  peers:
+    - id: '0'
+      host: localhost
+      port: '9310'
+    - id: '1'
+      host: localhost
+      port: '9311'
+    - id: '2'
+      host: localhost
+      port: '9312'
+    - id: '3'
+      host: localhost
+      port: '9313'
+
+storage-client:
+  endpoints: "localhost:9407,localhost:9607,localhost:9807"

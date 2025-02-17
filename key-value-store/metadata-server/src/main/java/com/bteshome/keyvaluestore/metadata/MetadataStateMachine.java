@@ -37,11 +37,13 @@ public class MetadataStateMachine extends BaseStateMachine {
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
     private final Map<EntityType, Map<String, Object>> state;
     private final MetadataSettings metadataSettings;
+    private final MetadataClientSettings metadataClientSettings;
     private ScheduledExecutorService heartBeatMonitorExecutor = null;
     private static final String CURRENT = "current";
 
-    public MetadataStateMachine(MetadataSettings metadataSettings) {
+    public MetadataStateMachine(MetadataSettings metadataSettings, MetadataClientSettings metadataClientSettings) {
         this.metadataSettings = metadataSettings;
+        this.metadataClientSettings = metadataClientSettings;
         this.state = new ConcurrentHashMap<>();
         state.put(EntityType.TABLE, new ConcurrentHashMap<>());
         state.put(EntityType.STORAGE_NODE, new ConcurrentHashMap<>());
@@ -499,7 +501,7 @@ public class MetadataStateMachine extends BaseStateMachine {
         try {
             heartBeatMonitorExecutor = Executors.newSingleThreadScheduledExecutor();
             heartBeatMonitorExecutor.scheduleAtFixedRate(
-                    () -> new StorageNodeMonitor().checkStatus(metadataSettings),
+                    () -> new StorageNodeMonitor().checkStatus(metadataClientSettings),
                     monitorIntervalMs,
                     monitorIntervalMs,
                     TimeUnit.MILLISECONDS);

@@ -1,0 +1,60 @@
+spring:
+  cloud:
+    config:
+      import-check:
+        enabled: 'false'
+
+debug: 'false'
+
+server:
+  port: '82'
+
+management:
+  server:
+    port: '8208'
+    ssl:
+      enabled: 'false'
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+  info:
+    env:
+      enabled: 'true'
+  endpoint:
+    shutdown:
+      enabled: 'true'
+    health:
+      probes:
+        enabled: 'true'
+      show-details: always
+  health:
+    liveness-state:
+      enabled: 'true'
+    readiness-state:
+      enabled: 'true'
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+endpoints:
+  shutdown:
+    enabled: 'true'
+
+info:
+  app:
+    name: 'Inventory Service'
+    version: '1.0'
+    description: 'Inventory Service'
+
+logging:
+  level:
+    com:
+      bteshome: DEBUG
+    root: INFO
+  pattern:
+    level: "%5p [${spring.application.name},%X{trace_id},%X{span_id}]"
+
+storage-client:
+  endpoints: localhost:9407,localhost:9607,localhost:9807
+

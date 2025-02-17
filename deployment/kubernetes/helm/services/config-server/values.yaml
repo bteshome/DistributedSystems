@@ -10,7 +10,6 @@ ports:
   - 8078
 
 service:
-  type: LoadBalancer
   ports:
     - 8071
     - 8078

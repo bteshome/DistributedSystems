@@ -20,7 +20,7 @@ public class StorageNode implements Serializable {
     private String id;
     private String host;
     private int port;
-    private int jmxPort;
+    private int managementPort;
     private String rack;
     private String storageDir;
     private StorageNodeStatus status;
@@ -32,7 +32,7 @@ public class StorageNode implements Serializable {
         return new StorageNode( request.getId(),
                                 request.getHost(),
                                 request.getPort(),
-                                request.getJmxPort(),
+                                request.getManagementPort(),
                                 request.getRack(),
                                 request.getStorageDir(),
                                 StorageNodeStatus.INACTIVE,
@@ -68,7 +68,7 @@ public class StorageNode implements Serializable {
         return new StorageNode( id,
                                 host,
                                 port,
-                                jmxPort,
+                managementPort,
                                 rack,
                                 storageDir,
                                 status,

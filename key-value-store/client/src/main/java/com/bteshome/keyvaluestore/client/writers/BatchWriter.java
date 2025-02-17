@@ -6,10 +6,7 @@ import com.bteshome.keyvaluestore.client.clientrequests.BatchWrite;
 import com.bteshome.keyvaluestore.client.requests.AckType;
 import com.bteshome.keyvaluestore.client.requests.ItemPutRequest;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
-import com.bteshome.keyvaluestore.common.ConfigKeys;
-import com.bteshome.keyvaluestore.common.JavaSerDe;
-import com.bteshome.keyvaluestore.common.MetadataCache;
-import com.bteshome.keyvaluestore.common.Validator;
+import com.bteshome.keyvaluestore.common.*;
 import com.bteshome.keyvaluestore.common.entities.Item;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,7 +42,7 @@ public class BatchWriter {
         for (Map.Entry<String, T> item : request.getItems()) {
             String key = Validator.notEmpty(item.getKey(), "Key");
             T value = item.getValue();
-            byte[] valueBytes = JavaSerDe.serializeToBytes(value);
+            byte[] valueBytes = JsonSerDe.serializeToBytes(value);
             items.add(new AbstractMap.SimpleEntry<>(key, valueBytes));
         }
 

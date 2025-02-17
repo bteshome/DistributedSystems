@@ -1,0 +1,78 @@
+spring:
+  cloud:
+    config:
+      import-check:
+        enabled: 'false'
+    stream:
+      bindings:
+        orderCreatedNotificationSent-in-0:
+          destination: order-created-notification-sent
+          group: ${spring.application.name}
+        orderCreated-out-0:
+          destination: order-created
+      kafka:
+        binder:
+          brokers: localhost:9092
+    function:
+      definition: orderCreated;orderCreatedNotificationSent
+    circuitbreaker:
+      resilience4j:
+        enabled: 'true'
+
+debug: 'false'
+
+server:
+  port: '83'
+
+notification-disabled: true
+inventory-service-url: http://localhost:82
+
+management:
+  server:
+    port: '8308'
+    ssl:
+      enabled: 'false'
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+  info:
+    env:
+      enabled: 'true'
+  endpoint:
+    shutdown:
+      enabled: 'true'
+    health:
+      probes:
+        enabled: 'true'
+      show-details: always
+  health:
+    liveness-state:
+      enabled: 'true'
+    readiness-state:
+      enabled: 'true'
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+endpoints:
+  shutdown:
+    enabled: 'true'
+
+info:
+  app:
+    name: 'Order Service'
+    version: '1.0'
+    description: 'Order Service'
+
+logging:
+  level:
+    com:
+      bteshome: DEBUG
+    root: INFO
+  pattern:
+    level: "%5p [${spring.application.name},%X{trace_id},%X{span_id}]"
+
+storage-client:
+  endpoints: localhost:9407,localhost:9607,localhost:9807
+

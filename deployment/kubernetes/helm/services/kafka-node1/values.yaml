@@ -1,0 +1,9 @@
+serviceName: kafka-node1
+
+service:
+  clusterIP: None
+  ports:
+    - 9092
+    - 9093
+
+    

@@ -1,6 +1,5 @@
 package com.bteshome.ratelimiterrulesdashboard.dto;
 
-import jakarta.persistence.Column;
 import lombok.*;
 
 @Getter

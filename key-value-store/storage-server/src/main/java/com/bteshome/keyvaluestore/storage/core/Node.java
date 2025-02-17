@@ -1,7 +1,7 @@
 package com.bteshome.keyvaluestore.storage.core;
 
-import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.MetadataClientBuilder;
+import com.bteshome.keyvaluestore.common.MetadataClientSettings;
 import com.bteshome.keyvaluestore.common.ResponseStatus;
 import com.bteshome.keyvaluestore.common.requests.StorageNodeJoinRequest;
 import com.bteshome.keyvaluestore.common.responses.GenericResponse;
@@ -24,6 +24,8 @@ public class Node implements CommandLineRunner {
     @Autowired
     MetadataClientBuilder metadataClientBuilder;
     @Autowired
+    MetadataClientSettings metadataClientSettings;
+    @Autowired
     StorageSettings storageSettings;
     @Autowired
     HeartbeatSender heartbeatSender;
@@ -34,12 +36,16 @@ public class Node implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws IOException {
+        log.info("Starting server ...");
+        storageSettings.print();
+        metadataClientSettings.print();
+
         try (RaftClient client = this.metadataClientBuilder.createRaftClient()) {
             StorageNodeJoinRequest request = new StorageNodeJoinRequest(
                     storageSettings.getNode().getId(),
                     storageSettings.getNode().getHost(),
                     storageSettings.getNode().getPort(),
-                    storageSettings.getNode().getJmxPort(),
+                    storageSettings.getNode().getManagementPort(),
                     storageSettings.getNode().getRack(),
                     storageSettings.getNode().getStorageDir());
             log.info("Trying to join cluster '{}' with node id: '{}'", client.getGroupId().getUuid(), request.getId());

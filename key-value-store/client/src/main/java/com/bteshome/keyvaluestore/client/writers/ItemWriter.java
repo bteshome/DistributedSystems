@@ -7,10 +7,7 @@ import com.bteshome.keyvaluestore.client.clientrequests.ItemWrite;
 import com.bteshome.keyvaluestore.client.requests.AckType;
 import com.bteshome.keyvaluestore.client.requests.ItemPutRequest;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
-import com.bteshome.keyvaluestore.common.JavaSerDe;
-import com.bteshome.keyvaluestore.common.LogPosition;
-import com.bteshome.keyvaluestore.common.MetadataCache;
-import com.bteshome.keyvaluestore.common.Validator;
+import com.bteshome.keyvaluestore.common.*;
 import com.bteshome.keyvaluestore.common.entities.Item;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,7 +40,7 @@ public class ItemWriter {
     }
 
     public <T extends Serializable> Mono<ItemPutResponse> putObject(ItemWrite<T> request) {
-        byte[] valueBytes = JavaSerDe.serializeToBytes(request.getValue());
+        byte[] valueBytes = JsonSerDe.serializeToBytes(request.getValue());
         return put(request.getTable(), request.getKey(), request.getAck(), valueBytes, request.getMaxRetries(), request.getPreviousVersion());
     }
 

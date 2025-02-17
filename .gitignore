@@ -34,3 +34,7 @@ build/
 
 ### KVS ###
 /storage-server-*/
+
+### helm ###
+*.tgz
+*.lock

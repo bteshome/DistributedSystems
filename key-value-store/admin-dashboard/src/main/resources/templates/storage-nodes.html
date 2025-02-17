@@ -41,7 +41,7 @@
                         <th>Storage Directory</th>
                         <th>Host</th>
                         <th>Port</th>
-                        <th>Jmx Port</th>
+                        <th>Management Port</th>
                         <th>Rack</th>
                         <th></th>
                     </tr>
@@ -55,7 +55,7 @@
                         <td th:text="${node.storageDir}"></td>
                         <td th:text="${node.host}"></td>
                         <td th:text="${node.port}"></td>
-                        <td th:text="${node.jmxPort}"></td>
+                        <td th:text="${node.managementPort}"></td>
                         <td th:text="${node.rack}"></td>
                         <th>
                             <!--<a class="" th:href="@{/nodes/storage/remove/?id={id}(id=${node.id})}" th:if="${node.status != T(com.bteshome.keyvaluestore.common.entities.StorageNodeStatus).REMOVED}">Remove</a>-->

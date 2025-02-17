@@ -7,15 +7,12 @@ import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-import java.util.UUID;
-
 @Component
-@ConfigurationProperties(prefix = "client")
+@ConfigurationProperties(prefix = "storage-client")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class ClientSettings {
-    private String storageNodeEndpoints;
+    private String endpoints;
 }

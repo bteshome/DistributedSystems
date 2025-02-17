@@ -1,6 +1,6 @@
 package com.bteshome.apigateway.ratelimiter;
 
-import com.bteshome.apigateway.config.AppSettings;
+import com.bteshome.apigateway.common.AppSettings;
 import com.bteshome.consistenthashing.Ring;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -1,0 +1,19 @@
+serviceName: os-ui
+appName: osui
+
+replicaCount: 1
+
+image: bteshome/os-ui:latest
+
+ports:
+  - 81
+  - 8108
+
+service:
+  type: LoadBalancer
+  ports:
+    - 81
+    - 8108
+
+config_client_enabled: true
+

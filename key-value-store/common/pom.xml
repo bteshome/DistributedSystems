@@ -9,10 +9,10 @@
 		<relativePath/>
 	</parent>
 	<groupId>com.bteshome.key-value-store</groupId>
-	<artifactId>common</artifactId>
+	<artifactId>kvs-common</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>common</name>
-	<description>Common</description>
+	<name>kvs-common</name>
+	<description>Key Value Store Common</description>
 	<packaging>jar</packaging>
 
 	<properties>

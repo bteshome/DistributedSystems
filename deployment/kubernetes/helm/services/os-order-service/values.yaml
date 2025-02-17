@@ -1,0 +1,19 @@
+serviceName: os-order-service
+appName: orders
+
+replicaCount: 1
+
+image: bteshome/os-order-service:latest
+
+ports:
+  - 83
+  - 8308
+
+service:
+  ports:
+    - 83
+    - 8308
+
+config_client_enabled: true
+otel_enabled: true
+

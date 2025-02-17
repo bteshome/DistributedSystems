@@ -1,0 +1,20 @@
+serviceName: kvs-metadata-server-node0
+appName: kvssmetadataservernode0
+
+replicaCount: 1
+
+image: bteshome/kvs-metadata-server:latest
+
+ports:
+  - 93
+  - 9308
+  - 9300
+
+service:
+  clusterIP: None
+  ports:
+    - 93
+    - 9308
+    - 9300
+
+config_client_enabled: true

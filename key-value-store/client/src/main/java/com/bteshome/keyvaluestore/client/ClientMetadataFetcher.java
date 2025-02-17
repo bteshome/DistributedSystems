@@ -21,7 +21,7 @@ public class ClientMetadataFetcher {
     WebClient webClient;
 
     public void fetch() {
-        for (String endpoint : clientSettings.getStorageNodeEndpoints().split(",")) {
+        for (String endpoint : clientSettings.getEndpoints().split(",")) {
             try {
                 fetch(endpoint);
                 return;

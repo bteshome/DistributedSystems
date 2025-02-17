@@ -1,6 +1,7 @@
 package com.bteshome.keyvaluestore.metadata;
 
 import com.bteshome.keyvaluestore.common.MetadataClientSettings;
+import com.bteshome.keyvaluestore.common.PeerInfo;
 import com.bteshome.keyvaluestore.common.Utils;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -24,11 +25,12 @@ import java.util.Map;
 @Slf4j
 public class Node implements CommandLineRunner {
     private RaftServer server = null;
-
     @Autowired
     MetadataSettings metadataSettings;
+    @Autowired
+    MetadataClientSettings metadataClientSettings;
 
-    private RaftPeer buildPeer(MetadataClientSettings.PeerInfo nodeInfo) {
+    private RaftPeer buildPeer(PeerInfo nodeInfo) {
         return RaftPeer.newBuilder()
                 .setId(RaftPeerId.valueOf(nodeInfo.getId()))
                 .setAddress(nodeInfo.getHost() + ":" + nodeInfo.getPort())
@@ -49,13 +51,17 @@ public class Node implements CommandLineRunner {
     @Override
     public void run(String... args) throws Exception {
         try {
+            log.info("Starting server ...");
+            metadataSettings.print();
+            metadataClientSettings.print();
+
             // TODO - don't delete this everytime
             Utils.deleteDirectoryIfItExists(metadataSettings.getStorageDir());
 
             RaftPeer node = buildPeer(metadataSettings.getNode());
             List<RaftPeer> peers = metadataSettings.getPeers().stream().map(this::buildPeer).toList();
             RaftGroup group = RaftGroup.valueOf(RaftGroupId.valueOf(metadataSettings.getGroupId()), peers);
-            MetadataStateMachine stateMachine = new MetadataStateMachine(metadataSettings);
+            MetadataStateMachine stateMachine = new MetadataStateMachine(metadataSettings, metadataClientSettings);
 
             RaftProperties properties = new RaftProperties();
             NettyConfigKeys.Server.setHost(properties, metadataSettings.getNode().getHost());

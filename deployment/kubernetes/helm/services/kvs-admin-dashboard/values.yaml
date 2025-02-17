@@ -1,0 +1,18 @@
+serviceName: kvs-admin-dashboard
+appName: kvsadmindashboard
+
+replicaCount: 1
+
+image: bteshome/kvs-admin-dashboard:latest
+
+ports:
+  - 9500
+  - 9508
+
+service:
+  type: LoadBalancer
+  ports:
+    - 9500
+    - 9508
+
+config_client_enabled: true

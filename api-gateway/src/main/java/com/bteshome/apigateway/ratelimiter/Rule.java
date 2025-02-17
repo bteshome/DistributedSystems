@@ -1,20 +1,19 @@
 package com.bteshome.apigateway.ratelimiter;
 
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class Rule {
-    private final String api;
-    private final boolean isPerClient;
-    private final Granularity granularity;
-    private final int threshold;
-
-    private Rule(String api, boolean isPerClient, Granularity granularity, int threshold) {
-        this.api = api;
-        this.isPerClient = isPerClient;
-        this.granularity = granularity;
-        this.threshold = threshold;
-    }
+    private String api;
+    private boolean isPerClient;
+    private Granularity granularity;
+    private int threshold;
 
     public static RuleBuilder builder(String api, Granularity granularity, int threshold) {
         if (api == null || api.isBlank()) {

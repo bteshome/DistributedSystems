@@ -9,10 +9,10 @@
 		<relativePath/>
 	</parent>
 	<groupId>com.bteshome.key-value-store</groupId>
-	<artifactId>client</artifactId>
+	<artifactId>kvs-client</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>client</name>
-	<description>Client</description>
+	<name>kvs-client</name>
+	<description>Key Value Store Client</description>
 	<packaging>jar</packaging>
 
 	<properties>
@@ -32,7 +32,7 @@
 		</dependency>
 		<dependency>
 			<groupId>com.bteshome.key-value-store</groupId>
-			<artifactId>common</artifactId>
+			<artifactId>kvs-common</artifactId>
 			<version>0.0.1-SNAPSHOT</version>
 		</dependency>
 		<dependency>

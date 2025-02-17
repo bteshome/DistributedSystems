@@ -5,6 +5,7 @@ import com.bteshome.keyvaluestore.client.clientrequests.ItemList;
 import com.bteshome.keyvaluestore.client.requests.ItemListRequest;
 import com.bteshome.keyvaluestore.client.responses.ItemListResponse;
 import com.bteshome.keyvaluestore.common.JavaSerDe;
+import com.bteshome.keyvaluestore.common.JsonSerDe;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.Validator;
 import lombok.extern.slf4j.Slf4j;
@@ -35,7 +36,7 @@ public class BatchReader {
 
     public <T> Flux<Map.Entry<String, T>> listObjects(ItemList request, Class<T> clazz) {
         return listBytes(request).map(item -> {
-            T valueTyped = JavaSerDe.deserialize(item.getValue());
+            T valueTyped = JsonSerDe.deserialize(item.getValue(), clazz);
             return Map.entry(item.getKey(), valueTyped);
         });
     }

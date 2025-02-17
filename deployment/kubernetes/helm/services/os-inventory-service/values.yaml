@@ -1,0 +1,18 @@
+serviceName: os-inventory-service
+appName: inventory
+
+replicaCount: 1
+
+image: bteshome/os-inventory-service:latest
+
+ports:
+  - 82
+  - 8208
+
+service:
+  ports:
+    - 82
+    - 8208
+
+config_client_enabled: true
+otel_enabled: true

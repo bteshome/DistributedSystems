@@ -1,5 +1,9 @@
 server:
-  port: '9320'
+  port: '9220'
+
+management:
+  server:
+    port: '9228'
 
 metadata:
   node:
@@ -7,23 +11,33 @@ metadata:
     host: localhost
     port: '9312'
   peers:
-    - id: ${metadata.node.id}
-      host: ${metadata.node.host}
-      port: ${metadata.node.port}
     - id: '1'
       host: localhost
       port: '9311'
+    - id: '2'
+      host: localhost
+      port: '9312'
     - id: '3'
       host: localhost
       port: '9313'
   storage-dir: /tmp/raft-server-2
 
+metadata-client:
+  client-id: 2e4599e0-d0cd-461d-86e3-01f0206d4736
+  group-id: d7d23a0d-26f1-46ce-b10b-af833738907e
+  peers:
+    - id: '1'
+      host: localhost
+      port: '9311'
+    - id: '2'
+      host: localhost
+      port: '9312'
+    - id: '3'
+      host: localhost
+      port: '9313'
+
 info:
   app:
-    name: 'Key Value Store Metadata Node 2'
+    name: 'Key Value State Metadata Server 2'
     version: '1.0'
-    description: 'Key Value Store Metadata Node 2'
-
-management:
-  server:
-    port: '9328'
+    description: 'Key Value State Metadata Server 2'

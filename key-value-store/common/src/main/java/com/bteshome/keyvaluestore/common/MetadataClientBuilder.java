@@ -24,14 +24,14 @@ public class MetadataClientBuilder {
     }
 
     public static RaftClient createRaftClient(
-            List<MetadataClientSettings.PeerInfo> peerInfoList,
+            List<PeerInfo> peerInfoList,
             UUID groupId,
             UUID clientId) {
         return createClient(peerInfoList, groupId, clientId);
     }
 
     private static RaftClient createClient(
-            List<MetadataClientSettings.PeerInfo> peerInfoList,
+            List<PeerInfo> peerInfoList,
             UUID  groupId,
             UUID clientId) {
         List<RaftPeer> peers = peerInfoList.stream().map(peerInfo ->
