@@ -553,8 +553,8 @@ service:
   ## @param service.ports.https Keycloak service HTTPS port
   ##
   ports:
-    #http: 80
-    http: 88
+    http: 80
+    #http: 88
     https: 443
   ## @param service.nodePorts [object] Specify the nodePort values for the LoadBalancer and NodePort service types.
   ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport

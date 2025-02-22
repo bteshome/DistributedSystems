@@ -30,8 +30,6 @@ public class RuleRetrieverScheduler implements CommandLineRunner {
 
         log.info("Rate limiter is enabled. Scheduling rule retriever ...");
 
-        appSettings.print();
-
         final int syncFrequency = Integer.parseInt(appSettings.getRateLimiterRulesSyncFrequencySeconds());
         executor = Executors.newSingleThreadScheduledExecutor();
         Runtime.getRuntime().addShutdownHook(new Thread() {

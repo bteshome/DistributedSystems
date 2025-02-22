@@ -1,0 +1,13 @@
+serviceName: os-ordering-ui
+
+replicaCount: 1
+
+image: bteshome/os-ordering-ui:latest
+
+ports:
+  - 80
+
+service:
+  type: LoadBalancer
+  ports:
+    - 80

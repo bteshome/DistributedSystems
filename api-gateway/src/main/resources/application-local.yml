@@ -1,0 +1,131 @@
+debug: 'false'
+
+server:
+  port: '80'
+
+inventory-service-name: inventory
+order-service-name: orders
+inventory-service-url: http://localhost:82
+order-service-url: http://localhost:83
+ordering-ui-url: http://localhost:4200
+keycloak-url: http://localhost:88
+keycloak-realm: apigateway
+
+security-disabled: 'true'
+rate-limiter-disabled: 'true'
+rate-limiter-cache-servers: redis://localhost:6379
+rate-limiter-num-of-virtual-nodes: '3'
+rate-limiter-rules-sync-frequency-seconds: '60'
+
+storage-client:
+  endpoints: localhost:9407,localhost:9607,localhost:9807
+
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${keycloak-url}/realms/${keycloak-realm}/protocol/openid-connect/certs
+  cloud:
+    gateway:
+      httpclient:
+        connect-timeout: '1000'
+        response-timeout: 5s
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "http://localhost:4200"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+            allowedHeaders: "*"
+            allowCredentials: false
+    circuitbreaker:
+      resilience4j:
+        enabled: 'true'
+    config:
+      import-check:
+        enabled: 'false'
+  autoconfigure:
+    exclude: org.keycloak.adapters.springboot.KeycloakSpringBootConfiguration
+
+logging:
+  pattern:
+    level: '%5p [${spring.application.name},%X{trace_id},%X{span_id}]'
+  level:
+    org:
+      springframework:
+        cloud: WARN
+    com:
+      bteshome:
+        apigateway: DEBUG
+    root: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+  info:
+    env:
+      enabled: 'true'
+  endpoint:
+    shutdown:
+      enabled: 'true'
+    gateway:
+      enabled: 'true'
+    health:
+      probes:
+        enabled: 'true'
+      show-details: always
+  health:
+    liveness-state:
+      enabled: 'true'
+    circuitbreakers:
+      enabled: 'true'
+    readiness-state:
+      enabled: 'true'
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  server:
+    port: '8008'
+    ssl:
+      enabled: 'false'
+
+endpoints:
+  shutdown:
+    enabled: 'true'
+
+info:
+  app:
+    version: '1.0'
+    name: Api Gateway
+    description: Api Gateway
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        minimum-number-of-calls: '2'
+        slidingWindowSize: '2'
+        recordExceptions: org.springframework.web.client.ResourceAccessException,java.net.SocketTimeoutException,java.net.ConnectException
+        slidingWindowType: COUNT_BASED
+        registerHealthIndicator: 'true'
+        slowCallDurationThreshold: 2s
+        failureRateThreshold: '50'
+        waitDurationInOpenState: 5s
+        permittedNumberOfCallsInHalfOpenState: '3'
+        automaticTransitionFromOpenToHalfOpenEnabled: 'true'
+        slowCallRateThreshold: '50'
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 5s
+
+#resilience4j.retry.configs.default.max-attempts=2
+#resilience4j.retry.configs.default.wait-duration=2s
+#resilience4j.retry.configs.default.enable-exponential-backoff=true
+#resilience4j.retry.configs.default.exponential-backoff-multiplier=2

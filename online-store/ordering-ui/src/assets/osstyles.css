@@ -1,0 +1,47 @@
+
+.bd-placeholder-img {
+    font-size: 1.125rem;
+    text-anchor: middle;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+}
+
+@media (min-width: 768px) {
+    .bd-placeholder-img-lg {
+        font-size: 3.5rem;
+    }
+}
+
+.no-data {
+    text-align: center;
+    padding: 60px;
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}
+
+.spinner {
+    text-align: center;
+    
+    > div {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 4px solid #ccc;
+        border-top: 4px solid #007bff;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.user-name {
+    color: var(--bs-nav-link-color);
+    border-style: none !important;
+}

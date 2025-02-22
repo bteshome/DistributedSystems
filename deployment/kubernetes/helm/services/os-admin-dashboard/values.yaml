@@ -1,0 +1,19 @@
+serviceName: os-admin-dashboard
+appName: osadmindashboard
+
+replicaCount: 1
+
+image: bteshome/os-admin-dashboard:latest
+
+ports:
+  - 81
+  - 8108
+
+service:
+  type: LoadBalancer
+  ports:
+    - 81
+    - 8108
+
+config_client_enabled: true
+

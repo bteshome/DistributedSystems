@@ -52,6 +52,15 @@ services:
       #OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4318"
       #OTEL_METRICS_EXPORTER: none
 
+  keycloak_db:
+    image: postgres:latest
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=keycloak
+    networks:
+      - ds
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
     #command: "start"
@@ -59,24 +68,27 @@ services:
     command: "start-dev"
     #restart: unless-stopped
     environment:
-      KC_DB: mysql
-      KC_DB_USERNAME: ds
+      KC_DB: postgres
+      KC_DB_USERNAME: postgres
       KC_DB_PASSWORD: password
-      KC_DB_URL: jdbc:mysql://host.docker.internal:3306/keycloak
+      KC_DB_URL: jdbc:postgresql://keycloak_db:5432/keycloak
       KC_METRICS_ENABLED: true
       KC_HEALTH_ENABLED: true
       KC_LOG_LEVEL: info
       KC_REALM_NAME: realm1
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-      KC_HOSTNAME: localhost
+      #KC_HOSTNAME: localhost
       KC_HOSTNAME_PORT: 88
       KC_HOSTNAME_STRICT: false
       KC_HOSTNAME_STRICT_HTTPS: false
+      KC_HTTP_RESPONSE_HEADERS: "Access-Control-Allow-Origin:http://localhost:4200;Access-Control-Allow-Methods:GET,POST,OPTIONS,PUT,DELETE;Access-Control-Allow-Headers:Authorization,Content-Type"
     ports:
       - 88:88
     networks:
       - ds
+    depends_on:
+      - keycloak_db
 
   rate-limiter-db-1:
     container_name: rate-limiter-db-1
@@ -236,6 +248,13 @@ services:
       #OTEL_METRICS_EXPORTER: none
       #OTEL_SERVICE_NAME: "notification"
       SPRING_CLOUD_STREAM_KAFKA_BINDER_BROKERS: "broker:29092"
+
+  ordering-ui:
+    image: bteshome/os-ordering-ui:latest
+    ports:
+      - "4200:4200"
+    networks:
+      - ds
 
 networks:
   ds:

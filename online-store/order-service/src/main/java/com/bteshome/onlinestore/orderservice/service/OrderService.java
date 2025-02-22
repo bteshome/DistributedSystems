@@ -39,7 +39,7 @@ public class OrderService {
     @Autowired
     private final AppSettings appSettings;
 
-    public ResponseEntity<?> create(OrderRequest orderRequest) {
+    public ResponseEntity<OrderCreateResponse> create(OrderRequest orderRequest) {
         try {
             Order order = mapToOrder(orderRequest);
 
@@ -63,13 +63,25 @@ public class OrderService {
 
             log.debug("Order {} created successfully.", order.getOrderNumber());
 
-            return ResponseEntity.status(HttpStatus.CREATED).body("Order placed successfully.");
+            return ResponseEntity.status(HttpStatus.OK).body(
+                    OrderCreateResponse.builder()
+                        .httpStatus(HttpStatus.OK.value())
+                        .infoMessage("Order placed successfully.")
+                        .build());
         } catch (HttpClientErrorException e) {
             log.error(e.getMessage(), e);
-            return ResponseEntity.unprocessableEntity().body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.OK).body(
+                    OrderCreateResponse.builder()
+                            .httpStatus(HttpStatus.UNPROCESSABLE_ENTITY.value())
+                            .errorMessage(e.getMessage())
+                            .build());
         } catch (Exception e) {
             log.error(e.getMessage(), e);
-            return ResponseEntity.internalServerError().body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.OK).body(
+                    OrderCreateResponse.builder()
+                            .httpStatus(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                            .errorMessage(e.getMessage())
+                            .build());
         }
     }
 

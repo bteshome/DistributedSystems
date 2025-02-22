@@ -15,9 +15,9 @@ dependencies:
   - name: os-inventory-service
     version: "0.1.0"
     repository: file://../services/os-inventory-service
-  # - name: os-ui
+  # - name: os-admin-dashboard
   #   version: "0.1.0"
-  #   repository: file://../services/os-ui
+  #   repository: file://../services/os-admin-dashboard
 
 
   - name: kafka-node1
@@ -29,6 +29,9 @@ dependencies:
   # - name: os-notification-service
   #   version: "0.1.0"
   #   repository: file://../services/os-notification-service
+  - name: os-ordering-ui
+    version: "0.1.0"
+    repository: file://../services/os-ordering-ui
 
 
   - name: rate-limiter-rules-dashboard

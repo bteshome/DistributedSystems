@@ -1,0 +1,18 @@
+<nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
+    <div class="position-sticky pt-3">
+        <ul class="nav flex-column">
+            <li class="nav-item">
+                <a class="nav-link" th:classappend="${page}=='products'?'active'" href="#" routerLink="/">
+                    <i class="bi bi-list"></i> Products
+                </a>
+            </li>
+            @if (user()) {
+            <li class="nav-item">
+                <a class="nav-link" th:classappend="${page}=='orders'?'active'" href="#" routerLink="/orders">
+                    <i class="bi bi-check"></i> Orders
+                </a>
+            </li>
+            }
+        </ul>
+    </div>
+</nav>

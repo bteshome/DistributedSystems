@@ -10,8 +10,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.ServerResponse;
 
-import java.util.Set;
-
 import static org.springframework.web.reactive.function.server.RouterFunctions.route;
 
 @Configuration
@@ -38,9 +36,9 @@ public class RouteConfig {
                         .path("/inventory/**")
                         .filters(f -> f
                                         .rewritePath("/inventory/?(?<remaining>.*)", "/api/${remaining}")
-                                        .circuitBreaker(config -> config
+                                        /*.circuitBreaker(config -> config
                                                 .setName("inventory")
-                                                .setFallbackUri("forward:/fallback"))
+                                                .setFallbackUri("forward:/fallback"))*/
                                 /*.retry(config -> config
                                         .setRetries(3)
                                         .setMethods(HttpMethod.GET)
@@ -57,9 +55,9 @@ public class RouteConfig {
                         .path("/orders/**")
                         .filters(f -> f
                                         .rewritePath("/orders/?(?<remaining>.*)", "/api/orders/${remaining}")
-                                        .circuitBreaker(config -> config
+                                        /*.circuitBreaker(config -> config
                                                 .setName("orders")
-                                                .setFallbackUri("forward:/fallback"))
+                                                .setFallbackUri("forward:/fallback"))*/
                                 /*.retry(config -> config
                                         .setRetries(3)
                                         .setMethods(HttpMethod.GET)

@@ -20,6 +20,9 @@ public class AppSettings {
     private String orderServiceName;
     private String inventoryServiceUrl;
     private String orderServiceUrl;
+    private String keycloakUrl;
+    private String keycloakRealm;
+    private String orderingUiUrl;
     private boolean securityDisabled;
     private boolean rateLimiterDisabled;
     private String rateLimiterCacheServers;
@@ -31,6 +34,9 @@ public class AppSettings {
         log.info("AppSettings: orderServiceName={}", orderServiceName);
         log.info("AppSettings: inventoryServiceUrl={}", inventoryServiceUrl);
         log.info("AppSettings: orderServiceUrl={}", orderServiceUrl);
+        log.info("AppSettings: keycloakUrl={}", keycloakUrl);
+        log.info("AppSettings: orderingUiUrl={}", orderingUiUrl);
+        log.info("AppSettings: keycloakRealm={}", keycloakRealm);
         log.info("AppSettings: securityDisabled={}", securityDisabled);
         log.info("AppSettings: rateLimiterDisabled={}", rateLimiterDisabled);
         log.info("AppSettings: rateLimiterCacheServers={}", rateLimiterCacheServers);

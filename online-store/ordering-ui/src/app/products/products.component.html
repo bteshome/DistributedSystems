@@ -1,0 +1,68 @@
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ page() }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+       <div class="position-relative">
+            <div class="dropdown">
+                <button class="btn btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-cart"></i>
+                    <span id="cart" class="badge bg-danger position-absolute top-0 start-100 translate-middle p-2 rounded-circle">{{ cart().length }}</span>
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="#" routerLink="/orders-place"><i class="bi bi-stripe"></i> Checkout</a></li>
+                    <li><a class="dropdown-item" href="#" (click)="clearCart()"><i class="bi bi-trash"></i> Clear</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (errorMessage()) {
+    <div class="alert alert-danger" role="alert">{{ errorMessage() }}</div>
+}
+
+@if (infoMessage()) {
+    <div class="alert alert-info" role="alert">{{ infoMessage() }}</div>
+}
+
+@if (loading()) {
+    <div class="spinner"><div></div></div>
+}
+
+@if (!loading()) {
+    @if (products().length == 0) {
+        <div class="no-data">No Data</div>
+    }
+
+    @if (products().length > 0) {
+        <div>
+            <div class="table-responsive">
+                <table class="table table-striped table-sm">
+                    <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Description</th>
+                        <th>Price</th>
+                        <th>Sku Code</th>
+                        <th>Stock Level</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                        @for (product of products(); track product.skuCode) {
+                            <tr>
+                                <td>{{product.name}}</td>
+                                <td>{{product.description}}</td>
+                                <td>{{product.price}}</td>
+                                <td>{{product.skuCode}}</td>
+                                <td>{{product.stockLevel}}</td>
+                                <td>
+                                    <span class="cursor-pointer" (click)="addToCart(product)"><i class="bi bi-cart-plus"></i></span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}

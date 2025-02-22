@@ -1,0 +1,60 @@
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ page() }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary">Share</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary">Export</button>
+        </div>
+    </div>
+</div>
+
+@if (errorMessage()) {
+    <div class="alert alert-danger" role="alert">{{ errorMessage() }}</div>
+}
+
+@if (infoMessage()) {
+    <div class="alert alert-info" role="alert">{{ infoMessage() }}</div>
+}
+
+@if (processing()) {
+    <div class="spinner"><div></div></div>
+} @else {
+    @if (cart().length == 0) {
+        <div class="no-data">Cart is Empty</div>
+    }
+
+    @if (cart().length > 0) {
+        <div class="table-responsive">
+            <table class="table table-striped table-sm">
+                <thead>
+                <tr>
+                    <th>Product Name</th>
+                    <th>Sku Code</th>
+                    <th>Unit Price</th>
+                    <th>Quantity</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                    @for (cartItem of cart(); track cartItem.skuCode) {
+                        <tr>
+                            <td>{{cartItem.name}}</td>
+                            <td>{{cartItem.skuCode}}</td>
+                            <td>{{cartItem.price}}</td>
+                            <td>{{cartItem.quantity}}</td>
+                            <td class="text-center">
+                                <span class="cursor-pointer" (click)="removeFromCart(cartItem)"><i class="bi bi-trash"></i></span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (user()) {
+            <div class="col-md-12">
+                <button type="button" class="btn btn-primary mb-3" (click)="createOrder()">Submit</button>
+            </div>
+        }
+    }
+}

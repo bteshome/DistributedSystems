@@ -1,11 +1,11 @@
 package com.bteshome.onlinestore.orderservice.controller;
 
+import com.bteshome.onlinestore.orderservice.dto.OrderCreateResponse;
 import com.bteshome.onlinestore.orderservice.dto.OrderRequest;
 import com.bteshome.onlinestore.orderservice.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,14 +18,19 @@ public class OrderController {
     private OrderService orderService;
 
     @PostMapping("/")
-    @ResponseStatus(HttpStatus.CREATED)
-    public ResponseEntity<?> create(@RequestBody OrderRequest orderRequest) {
+    public ResponseEntity<OrderCreateResponse> create(@RequestBody OrderRequest orderRequest) {
         return orderService.create(orderRequest);
     }
 
+    @GetMapping("/list/")
+    public ResponseEntity<?> list() {
+        return orderService.getAll();
+    }
+
     @GetMapping("/")
-    @ResponseStatus(HttpStatus.OK)
-    public ResponseEntity<?> getAll() {
+    public ResponseEntity<?> get(@RequestParam("email") String email) {
+        // TODO - needs a lot of work in KVS.
+        //        implement using an auxiliary data structure
         return orderService.getAll();
     }
 }
