@@ -29,8 +29,11 @@
                 </div>
             </div>
 
-            <div class="no-data" th:if="${nodes.size == 0}">No Data</div>
-            <div class="table-responsive" th:if="${nodes.size > 0}">
+            <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}"></div>
+
+            <div class="no-data" th:if="${nodes == null}">No Data</div>
+
+            <div class="table-responsive" th:if="${nodes}">
                 <table class="table table-striped table-sm">
                     <thead>
                     <tr>

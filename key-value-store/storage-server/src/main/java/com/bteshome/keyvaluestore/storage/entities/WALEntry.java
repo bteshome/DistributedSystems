@@ -11,8 +11,10 @@ public record WALEntry(int leaderTerm,
                        long expiryTime,
                        byte keyLength,
                        short valueLength,
+                       short indexLength,
                        byte[] key,
-                       byte[] value) {
+                       byte[] value,
+                       byte[] indexes) {
     public static WALEntry fromByteBuffer(ByteBuffer buffer) {
         int term = buffer.getInt();
         long index = buffer.getLong();
@@ -21,6 +23,7 @@ public record WALEntry(int leaderTerm,
         long expiryTime = buffer.getLong();
         byte keyLength = buffer.get();
         short valueLength = buffer.getShort();
+        short indexLength = buffer.getShort();
 
         byte[] key = new byte[keyLength];
         buffer.get(key);
@@ -29,6 +32,10 @@ public record WALEntry(int leaderTerm,
         if (valueLength > 0)
             buffer.get(value);
 
+        byte[] indexes = indexLength == 0 ? null : new byte[indexLength];
+        if (indexLength > 0)
+            buffer.get(indexes);
+
         return new WALEntry(term,
                             index,
                             timestamp,
@@ -36,8 +43,10 @@ public record WALEntry(int leaderTerm,
                             expiryTime,
                             keyLength,
                             valueLength,
+                            indexLength,
                             key,
-                            value);
+                            value,
+                            indexes);
     }
 
     public boolean equals(WALEntry other) {

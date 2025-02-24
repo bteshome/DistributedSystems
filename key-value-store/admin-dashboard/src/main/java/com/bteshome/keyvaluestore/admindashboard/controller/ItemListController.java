@@ -1,16 +1,14 @@
 package com.bteshome.keyvaluestore.admindashboard.controller;
 
 import com.bteshome.keyvaluestore.client.clientrequests.*;
-import com.bteshome.keyvaluestore.client.readers.BatchReader;
+import com.bteshome.keyvaluestore.client.readers.ItemLister;
 import com.bteshome.keyvaluestore.client.requests.IsolationLevel;
-import com.bteshome.keyvaluestore.client.responses.ItemListResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Map;
@@ -21,12 +19,12 @@ import java.util.Map;
 @Slf4j
 public class ItemListController {
     @Autowired
-    BatchReader batchReader;
+    ItemLister itemLister;
 
     @GetMapping("/")
     public String list(Model model) {
         ItemList listRequest = new ItemList();
-        listRequest.setTable("table1");
+        listRequest.setTable("products");
         listRequest.setLimit(10);
         listRequest.setIsolationLevel(IsolationLevel.READ_COMMITTED);
         model.addAttribute("listRequest", listRequest);
@@ -37,7 +35,7 @@ public class ItemListController {
     @PostMapping("/")
     public String list(@ModelAttribute("listRequest") @RequestBody ItemList listRequest, Model model) {
         try {
-            List<Map.Entry<String, String>> response = batchReader
+            List<Map.Entry<String, String>> response = itemLister
                     .listStrings(listRequest)
                     .collectList()
                     .block();

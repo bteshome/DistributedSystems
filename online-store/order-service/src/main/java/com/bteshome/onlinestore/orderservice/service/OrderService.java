@@ -85,6 +85,16 @@ public class OrderService {
         }
     }
 
+    public ResponseEntity<?> queryByEmail(String email) {
+        try {
+            List<OrderResponse> orders = orderRepository.queryByEmail(email).map(this::mapToOrderResponse).toList();
+            return ResponseEntity.ok(orders);
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(e.getMessage());
+        }
+    }
+
     public ResponseEntity<?> getAll() {
         try {
             List<OrderResponse> orders = orderRepository.getAll().map(this::mapToOrderResponse).toList();

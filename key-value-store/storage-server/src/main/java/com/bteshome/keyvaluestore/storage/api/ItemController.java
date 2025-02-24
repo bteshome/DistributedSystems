@@ -64,6 +64,19 @@ public class ItemController {
         return partitionState.listItems(request);
     }
 
+    @PostMapping("/query/")
+    public Mono<ResponseEntity<ItemListResponse>> queryForItems(@RequestBody ItemQueryRequest request) {
+        PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition());
+
+        if (partitionState == null) {
+            return Mono.just(ResponseEntity.ok(ItemListResponse.builder()
+                    .httpStatusCode(HttpStatus.NOT_FOUND.value())
+                    .build()));
+        }
+
+        return partitionState.queryForItems(request);
+    }
+
     @PostMapping("/put/")
     public Mono<ResponseEntity<ItemPutResponse>> putItem(@RequestBody ItemPutRequest request) {
         PartitionState partitionState = state.getPartitionState(request.getTable(), request.getPartition());

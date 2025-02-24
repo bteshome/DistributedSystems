@@ -1,5 +1,6 @@
 package com.bteshome.keyvaluestore.storage.states;
 
+import com.bteshome.keyvaluestore.common.JsonSerDe;
 import com.bteshome.keyvaluestore.common.LogPosition;
 import com.bteshome.keyvaluestore.common.entities.Item;
 import com.bteshome.keyvaluestore.storage.common.ChecksumUtil;
@@ -30,8 +31,8 @@ public class WAL implements AutoCloseable {
     private long startIndex = 0L;
     private int endLeaderTerm = 0;
     private long endIndex = 0L;
-    private static final int HEADER_SIZE = 32;
-    private static final int BUFFER_SIZE = HEADER_SIZE + 1 + 2015;
+    private static final int HEADER_SIZE = 34;
+    private static final int BUFFER_SIZE = HEADER_SIZE + 4062;
     private static final ThreadLocal<ByteBuffer> BUFFER_CACHE = ThreadLocal.withInitial(() -> ByteBuffer.allocate(BUFFER_SIZE));
 
     public WAL(String storageDirectory, String tableName, int partition) {
@@ -70,15 +71,16 @@ public class WAL implements AutoCloseable {
                 buffer.clear();
                 buffer.position(0);
 
-                int headerBytesRead = writerChannel.read(buffer);
-                if (headerBytesRead <= 0)
+                int bytesRead = writerChannel.read(buffer);
+                if (bytesRead <= 0)
                     break;
 
                 buffer.flip();
-                buffer.limit(headerBytesRead);
+                buffer.limit(bytesRead);
 
                 WALEntry walEntry = WALEntry.fromByteBuffer(buffer);
-                writerChannel.position(writerChannel.position() - headerBytesRead + HEADER_SIZE + walEntry.keyLength() + walEntry.valueLength());
+                int entryLength = HEADER_SIZE + walEntry.keyLength() + walEntry.valueLength() + walEntry.indexLength();
+                writerChannel.position(writerChannel.position() - bytesRead + entryLength);
 
                 if (walEntry.isLessThanOrEquals(toOffset)) {
                     position = writerChannel.position();
@@ -131,15 +133,16 @@ public class WAL implements AutoCloseable {
                 buffer.clear();
                 buffer.position(0);
 
-                int headerBytesRead = writerChannel.read(buffer);
-                if (headerBytesRead <= 0)
+                int bytesRead = writerChannel.read(buffer);
+                if (bytesRead <= 0)
                     break;
 
                 buffer.flip();
-                buffer.limit(headerBytesRead);
+                buffer.limit(bytesRead);
 
                 WALEntry walEntry = WALEntry.fromByteBuffer(buffer);
-                writerChannel.position(writerChannel.position() - headerBytesRead + HEADER_SIZE + walEntry.keyLength() + walEntry.valueLength());
+                int entryLength = HEADER_SIZE + walEntry.keyLength() + walEntry.valueLength() + walEntry.indexLength();
+                writerChannel.position(writerChannel.position() - bytesRead + entryLength);
 
                 if (walEntry.isLessThanOrEquals(toOffset))
                     continue;
@@ -188,7 +191,14 @@ public class WAL implements AutoCloseable {
 
                 byte[] keyBytes = item.getKey().getBytes();
                 byte[] valueBytes = item.getValue();
+                byte[] indexBytes = null;
+
                 int entrySize = HEADER_SIZE + keyBytes.length + valueBytes.length;
+
+                if (item.getIndexKeys() != null && !item.getIndexKeys().isEmpty()) {
+                    indexBytes = JsonSerDe.serializeToBytes(item.getIndexKeys());
+                    entrySize += indexBytes.length;
+                }
 
                 buffer.clear();
                 buffer.position(0);
@@ -201,9 +211,12 @@ public class WAL implements AutoCloseable {
                 buffer.putLong(expiryTime);
                 buffer.put((byte)keyBytes.length);
                 buffer.putShort((short)valueBytes.length);
+                buffer.putShort((short)(indexBytes == null ? 0 : indexBytes.length));
 
                 buffer.put(keyBytes);
                 buffer.put(valueBytes);
+                if (indexBytes != null)
+                    buffer.put(indexBytes);
 
                 buffer.flip();
                 writerChannel.write(buffer);
@@ -248,6 +261,7 @@ public class WAL implements AutoCloseable {
                 buffer.putLong(0L);
                 buffer.put((byte)keyBytes.length);
                 buffer.putShort((short)0);
+                buffer.putShort((short)0);
 
                 buffer.put(keyBytes);
 
@@ -275,7 +289,11 @@ public class WAL implements AutoCloseable {
             for (WALEntry logEntry : logEntries) {
                 byte[] keyBytes = logEntry.key();
                 byte[] valueBytes = logEntry.value();
+                byte[] indexBytes = logEntry.indexes();
+
                 int entrySize = HEADER_SIZE + keyBytes.length + valueBytes.length;
+                if (indexBytes != null)
+                    entrySize += indexBytes.length;
 
                 buffer.clear();
                 buffer.position(0);
@@ -288,9 +306,12 @@ public class WAL implements AutoCloseable {
                 buffer.putLong(logEntry.expiryTime());
                 buffer.put((byte)keyBytes.length);
                 buffer.putShort((short)valueBytes.length);
+                buffer.putShort((short)(indexBytes == null ? 0 : indexBytes.length));
 
                 buffer.put(keyBytes);
                 buffer.put(valueBytes);
+                if (indexBytes != null)
+                    buffer.put(indexBytes);
 
                 buffer.flip();
                 writerChannel.write(buffer);
@@ -321,15 +342,16 @@ public class WAL implements AutoCloseable {
                 buffer.clear();
                 buffer.position(0);
 
-                int headerBytesRead = readerChannel.read(buffer);
-                if (headerBytesRead <= 0)
+                int bytesRead = readerChannel.read(buffer);
+                if (bytesRead <= 0)
                     break;
 
                 buffer.flip();
-                buffer.limit(headerBytesRead);
+                buffer.limit(bytesRead);
 
                 WALEntry walEntry = WALEntry.fromByteBuffer(buffer);
-                readerChannel.position(readerChannel.position() - headerBytesRead + HEADER_SIZE + walEntry.keyLength() + walEntry.valueLength());
+                int entryLength = HEADER_SIZE + walEntry.keyLength() + walEntry.valueLength() + walEntry.indexLength();
+                readerChannel.position(readerChannel.position() - bytesRead + entryLength);
 
                 if (walEntry.isLessThanOrEquals(afterOffset))
                     continue;
@@ -354,15 +376,16 @@ public class WAL implements AutoCloseable {
                 buffer.clear();
                 buffer.position(0);
 
-                int headerBytesRead = readerChannel.read(buffer);
-                if (headerBytesRead <= 0)
+                int bytesRead = readerChannel.read(buffer);
+                if (bytesRead <= 0)
                     break;
 
                 buffer.flip();
-                buffer.limit(headerBytesRead);
+                buffer.limit(bytesRead);
 
                 WALEntry walEntry = WALEntry.fromByteBuffer(buffer);
-                readerChannel.position(readerChannel.position() - headerBytesRead + HEADER_SIZE + walEntry.keyLength() + walEntry.valueLength());
+                int entryLength = HEADER_SIZE + walEntry.keyLength() + walEntry.valueLength() + walEntry.indexLength();
+                readerChannel.position(readerChannel.position() - bytesRead + entryLength);
 
                 if (walEntry.isLessThanOrEquals(afterOffset))
                     continue;
@@ -392,15 +415,16 @@ public class WAL implements AutoCloseable {
                 buffer.clear();
                 buffer.position(0);
 
-                int headerBytesRead = readerChannel.read(buffer);
-                if (headerBytesRead <= 0)
+                int bytesRead = readerChannel.read(buffer);
+                if (bytesRead <= 0)
                     break;
 
                 buffer.flip();
-                buffer.limit(headerBytesRead);
+                buffer.limit(bytesRead);
 
                 WALEntry walEntry = WALEntry.fromByteBuffer(buffer);
-                readerChannel.position(readerChannel.position() - headerBytesRead + HEADER_SIZE + walEntry.keyLength() + walEntry.valueLength());
+                int entryLength = HEADER_SIZE + walEntry.keyLength() + walEntry.valueLength() + walEntry.indexLength();
+                readerChannel.position(readerChannel.position() - bytesRead + entryLength);
 
                 entries.add(walEntry);
             }

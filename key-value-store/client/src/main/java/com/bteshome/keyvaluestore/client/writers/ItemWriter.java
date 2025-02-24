@@ -21,7 +21,7 @@ import reactor.util.retry.Retry;
 
 import java.io.Serializable;
 import java.time.Duration;
-import java.util.Base64;
+import java.util.Map;
 
 @Component
 @Slf4j
@@ -36,23 +36,47 @@ public class ItemWriter {
     public Mono<ItemPutResponse> putString(ItemWrite<String> request) {
         request.setValue(Validator.notEmpty(request.getValue(), "Value"));
         byte[] valueBytes = request.getValue().getBytes();
-        return put(request.getTable(), request.getKey(), request.getAck(), valueBytes, request.getMaxRetries(), request.getPreviousVersion());
+        return put(request.getTable(),
+                request.getKey(),
+                request.getAck(),
+                valueBytes,
+                request.getIndexKeys(),
+                request.getMaxRetries(),
+                request.getPreviousVersion());
     }
 
     public <T extends Serializable> Mono<ItemPutResponse> putObject(ItemWrite<T> request) {
         byte[] valueBytes = JsonSerDe.serializeToBytes(request.getValue());
-        return put(request.getTable(), request.getKey(), request.getAck(), valueBytes, request.getMaxRetries(), request.getPreviousVersion());
+        return put(request.getTable(),
+                request.getKey(),
+                request.getAck(),
+                valueBytes,
+                request.getIndexKeys(),
+                request.getMaxRetries(),
+                request.getPreviousVersion());
     }
 
     public <T extends Serializable> Mono<ItemPutResponse> putBytes(ItemWrite<byte[]> request) {
-        return put(request.getTable(), request.getKey(), request.getAck(), request.getValue(), request.getMaxRetries(), request.getPreviousVersion());
+        return put(request.getTable(),
+                request.getKey(),
+                request.getAck(),
+                request.getValue(),
+                request.getIndexKeys(),
+                request.getMaxRetries(),
+                request.getPreviousVersion());
     }
 
-    private Mono<ItemPutResponse> put(String table, String key, AckType ack, byte[] valueBytes, int maxRetries, LogPosition previousVersion) {
+    private Mono<ItemPutResponse> put(String table,
+                                      String key,
+                                      AckType ack,
+                                      byte[] valueBytes,
+                                      Map<String, String> indexes,
+                                      int maxRetries,
+                                      LogPosition previousVersion) {
         ItemPutRequest itemPutRequest = new ItemPutRequest();
         itemPutRequest.setTable(Validator.notEmpty(table, "Table name"));
         key = Validator.notEmpty(key, "Key");
-        itemPutRequest.getItems().add(new Item(key, valueBytes, previousVersion));
+        itemPutRequest.getItems().add(new Item(key, valueBytes, indexes, previousVersion));
         itemPutRequest.setAck(ack);
         if (previousVersion != null && !previousVersion.equals(LogPosition.ZERO))
             itemPutRequest.setWithVersionCheck(true);
@@ -63,7 +87,9 @@ public class ItemWriter {
         return put(itemPutRequest, partition, maxRetries);
     }
 
-    Mono<ItemPutResponse> put(ItemPutRequest itemPutRequest, int partition, int maxRetries) {
+    Mono<ItemPutResponse> put(ItemPutRequest itemPutRequest,
+                              int partition,
+                              int maxRetries) {
         for (Item item : itemPutRequest.getItems()) {
             if (item.getValue().length > VALUE_BYTES_MAX)
                 throw new ClientException("Value length exceeds %d bytes.".formatted(VALUE_BYTES_MAX));

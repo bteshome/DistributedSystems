@@ -1,16 +1,24 @@
 package com.bteshome.keyvaluestore.admindashboard.controller;
 
 import com.bteshome.keyvaluestore.admindashboard.common.AdminDashboardException;
+import com.bteshome.keyvaluestore.admindashboard.dto.ItemPutDto;
+import com.bteshome.keyvaluestore.admindashboard.model.Product;
 import com.bteshome.keyvaluestore.client.clientrequests.*;
 import com.bteshome.keyvaluestore.client.requests.AckType;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
 import com.bteshome.keyvaluestore.client.writers.ItemWriter;
+import com.bteshome.keyvaluestore.common.JsonSerDe;
+import com.bteshome.keyvaluestore.common.MetadataCache;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @Controller
 @RequestMapping("/items/put")
@@ -22,27 +30,45 @@ public class ItemPutController {
 
     @GetMapping("/")
     public String put(Model model) {
-        ItemWrite<String> request = new ItemWrite<>();
-        request.setTable("table1");
-        request.setKey("key1");
-        request.setAck(AckType.MIN_ISR_COUNT);
-        request.setMaxRetries(0);
+        ItemPutDto itemPutDto = new ItemPutDto();
+        itemPutDto.setTable("products");
+        itemPutDto.setKey("p1");
+        itemPutDto.setAck(AckType.MIN_ISR_COUNT);
+        itemPutDto.setMaxRetries(0);
         String value = """
                 {
-                  "id": 1,
-                  "name": "Wireless Headphones",
-                  "price": 199.99
+                  "category": "electronics",
+                  "subcategory": "phones",
+                  "name": "iPhone 16",
+                  "price": 899.99
                 }""";
-        request.setValue(value);
-        model.addAttribute("request", request);
+        itemPutDto.setValue(value);
+        itemPutDto.setIndexKeys("category=electronics,subcategory=phones");
+        model.addAttribute("itemPutDto", itemPutDto);
         model.addAttribute("page", "items-put");
         return "items-put.html";
     }
 
     @PostMapping("/")
-    public String put(@ModelAttribute("request") @RequestBody ItemWrite<String> request, Model model) {
+    public String put(@ModelAttribute("itemPutDto") @RequestBody ItemPutDto itemPutDto, Model model) {
         try {
-            ItemPutResponse response = itemWriter.putString(request).block();
+            ItemWrite<Product> request = new ItemWrite<>();
+            request.setTable(itemPutDto.getTable());
+            request.setKey(itemPutDto.getKey());
+            request.setAck(itemPutDto.getAck());
+            request.setMaxRetries(itemPutDto.getMaxRetries());
+            Product value = JsonSerDe.deserialize(itemPutDto.getValue(), Product.class);
+            request.setValue(value);
+            if (Strings.isNotBlank(itemPutDto.getIndexKeys())) {
+                request.setIndexKeys(new HashMap<>());
+                for (String indexNameAndKey : itemPutDto.getIndexKeys().split(",")) {
+                    String[] parts = indexNameAndKey.split("=");
+                    String indexName = parts[0];
+                    String indexKey = parts[1];
+                    request.getIndexKeys().put(indexName, indexKey);
+                }
+            }
+            ItemPutResponse response = itemWriter.putObject(request).block();
             if (response.getHttpStatusCode() != 200) {
                 throw new AdminDashboardException("PUT failed. Http status: %s, error: %s, end offset: %s.".formatted(
                         response.getHttpStatusCode(),
@@ -55,7 +81,7 @@ public class ItemPutController {
             model.addAttribute("error", e.getMessage());
         }
 
-        model.addAttribute("request", request);
+        model.addAttribute("itemPutDto", itemPutDto);
         model.addAttribute("page", "items-put");
         return "items-put.html";
     }

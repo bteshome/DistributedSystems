@@ -22,7 +22,14 @@ spec:
           ports:
             {{- range .Values.ports }}
             - containerPort: {{ . }}
-            {{- end }}   
+            {{- end }}
+          resources:
+            requests:
+              memory: "200Mi"
+              cpu: "250m"
+            limits:
+              memory: "200Mi"
+              cpu: "250m"
           env:
             {{- if .Values.appName }}
             - name: SPRING_APPLICATION_NAME

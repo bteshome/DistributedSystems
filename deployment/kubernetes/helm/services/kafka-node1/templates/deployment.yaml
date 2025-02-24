@@ -21,6 +21,13 @@ spec:
           ports:
             - containerPort: 9092
             - containerPort: 9093
+          resources:
+            requests:
+              memory: "200Mi"
+              cpu: "250m"
+            limits:
+              memory: "200Mi"
+              cpu: "250m"
           env:
             - name: KAFKA_KRAFT_CLUSTER_ID
               value: 'MkU3OEVBNTcwNTJENDM2Qk'

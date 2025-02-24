@@ -34,4 +34,8 @@ export class CookieService {
     const cookiePath = path ? '; path=' + path : '; path=/';
     this.document.cookie = `${name}=${value}${expires}${cookiePath}`;
   }
+
+  deleteCookie(name: string): void {
+    this.setCookie(name, "", -1, "/");
+  }
 }

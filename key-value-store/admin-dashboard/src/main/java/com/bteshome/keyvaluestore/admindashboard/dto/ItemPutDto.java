@@ -1,23 +1,23 @@
-package com.bteshome.keyvaluestore.client.clientrequests;
+package com.bteshome.keyvaluestore.admindashboard.dto;
 
 import com.bteshome.keyvaluestore.client.requests.AckType;
+import com.bteshome.keyvaluestore.common.LogPosition;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class BatchWrite<T> {
+public class ItemPutDto {
     private String table;
-    private List<Map.Entry<String, T>> items = new ArrayList<>();
-    private List<Map<String, String>> indexKeys = new ArrayList<>();
+    private String key;
+    private String value;
     private AckType ack;
     private int maxRetries;
+    private String indexKeys;
 }

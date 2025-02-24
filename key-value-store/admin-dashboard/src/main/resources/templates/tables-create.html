@@ -49,15 +49,25 @@
                     <label for="minInSyncReplicas" class="form-label">Min in sync replicas</label>
                     <input type="text" class="form-control" id="minInSyncReplicas" th:field="*{minInSyncReplicas}">
                 </div>
-                <div class="col-md-6 form-check">
-                    <input class="form-check-input" type="checkbox" id="timeToLiveEnabled" th:field="*{timeToLiveEnabled}" onclick="toggleTTL()">
-                    <label class="form-check-label" for="timeToLiveEnabled">
-                        Enable TTL
-                    </label>
+                <div class="col-md-6">
+                    <label for="indexNames" class="form-label">Index Names (Comma Separated)</label>
+                    <input type="text" class="form-control" id="indexNames" th:field="*{indexNames}">
                 </div>
-                <div class="col-md-6" id="timeToLiveContainer" style="display: none">
-                    <label for="timeToLive" class="form-label">TTL (ISO-8601 Format)</label>
-                    <input type="text" class="form-control" id="timeToLive" th:field="*{timeToLive}">
+                <div class="col-md-6">
+                    <div class="row g-3">
+                        <div class="col-md-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="timeToLiveEnabled" th:field="*{timeToLiveEnabled}" onclick="toggleTTL()">
+                                <label class="form-check-label" for="timeToLiveEnabled">
+                                    Enable TTL
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-12" id="timeToLiveContainer" style="display: none">
+                            <label for="timeToLive" class="form-label">TTL (ISO-8601 Format)</label>
+                            <input type="text" class="form-control" id="timeToLive" th:field="*{timeToLive}">
+                        </div>
+                    </div>
                 </div>
                 <div class="col-md-12">
                     <button type="submit" class="btn btn-primary mb-3">Create</button>

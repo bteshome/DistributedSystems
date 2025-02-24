@@ -1,14 +1,12 @@
 package com.bteshome.apigateway.ratelimiter;
 
-import com.bteshome.apigateway.common.AppSettings;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemList;
-import com.bteshome.keyvaluestore.client.readers.BatchReader;
+import com.bteshome.keyvaluestore.client.readers.ItemLister;
 import com.bteshome.keyvaluestore.client.requests.IsolationLevel;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.sql.DriverManager;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -19,7 +17,7 @@ import java.util.Map;
 public class RuleRetriever {
     private final String tableName = "rate_limiter_rules";
     @Autowired
-    BatchReader batchReader;
+    ItemLister itemLister;
 
     public void fetchRules() {
         log.debug("Attempting to fetch rate limiter rules...");
@@ -32,7 +30,7 @@ public class RuleRetriever {
             listRequest.setLimit(10);
             listRequest.setIsolationLevel(IsolationLevel.READ_COMMITTED);
 
-            batchReader
+            itemLister
                     .listObjects(listRequest, Rule.class)
                     .collectList()
                     .block()

@@ -40,27 +40,13 @@ public class ProductListController {
                     .block()
                     .getBody();
 
-            List<String> cart = getCartFromCookie(httpServletRequest);
-
-            model.addAttribute("cartSize", cart.size());
-            model.addAttribute("products", products);
+            if (products != null && !products.isEmpty())
+                model.addAttribute("products", products);
         } catch (Exception e) {
             model.addAttribute("error", e.getMessage());
         }
 
         model.addAttribute("page", "products");
         return "products-list.html";
-    }
-
-    private List<String> getCartFromCookie(HttpServletRequest httpServletRequest) throws IOException {
-        Cookie cartCookie = WebUtils.getCookie(httpServletRequest, "cart");
-        List<String> cart = new ArrayList<>();
-
-        if (cartCookie != null) {
-            String cartItems = cartCookie.getValue();
-            cart.addAll(Arrays.asList(cartItems.split("\\|")));
-        }
-
-        return cart;
     }
 }

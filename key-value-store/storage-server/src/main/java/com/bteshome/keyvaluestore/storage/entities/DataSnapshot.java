@@ -16,5 +16,5 @@ import java.util.List;
 @AllArgsConstructor
 public class DataSnapshot implements Serializable {
     private LogPosition lastCommittedOffset;
-    private HashMap<String, List<ItemValueVersion>> data;
+    private HashMap<String, ItemEntry> data;
 }

@@ -33,7 +33,7 @@
 
             <div class="alert alert-info" role="alert" th:if="${info}" th:text="${info}"></div>
 
-            <form class="row g-3" method="post" th:action="@{/items/put/}" th:object="${request}">
+            <form class="row g-3" method="post" th:action="@{/items/put/}" th:object="${itemPutDto}">
                 <div class="col-md-6">
                     <label for="table" class="form-label">Table name</label>
                     <input type="text" class="form-control" id="table" th:field="*{table}">
@@ -54,9 +54,13 @@
                     <label for="maxRetries" class="form-label">Max Retries</label>
                     <input type="text" class="form-control" id="maxRetries" th:field="*{maxRetries}">
                 </div>
-                <div class="col-md-12">
+                <div class="col-md-6">
                     <label for="value" class="form-label">Value</label>
                     <textarea class="form-control" id="value" th:field="*{value}" rows="10"></textarea>
+                </div>
+                <div class="col-md-6">
+                    <label for="indexKeys" class="form-label">Index Keys (Format: name1=key1,name2=key2)</label>
+                    <textarea class="form-control" id="indexKeys" th:field="*{indexKeys}" rows="10"></textarea>
                 </div>
                 <div class="col-auto">
                     <button type="submit" class="btn btn-primary mb-3">Put</button>

@@ -476,6 +476,24 @@ public class MetadataStateMachine extends BaseStateMachine {
                     yield CompletableFuture.completedFuture(new ConfigurationListResponse(result));
                 }
             }
+            case METADATA_NODE_LIST -> {
+                try (AutoCloseableLock lock = readLock()) {
+                    yield this.getServer().thenApply(raftServer -> {
+                        try {
+                            String thisServerId = raftServer.getId().toString();
+                            List<RaftPeerInfo> peers = raftServer.getGroups().iterator().next().getPeers().stream().map(peer -> {
+                                RaftPeerInfo peerInfo = new RaftPeerInfo(peer.getAddress(), peer.getId().toString(), peer.getStartupRole());
+                                if (peerInfo.getId().equals(thisServerId))
+                                    peerInfo.setRole(RaftProtos.RaftPeerRole.LEADER);
+                                return peerInfo;
+                            }).toList();
+                            return new MetadataNodeListResponse(peers);
+                        } catch (IOException e) {
+                            return new GenericResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), e.getMessage());
+                        }
+                    });
+                }
+            }
             default -> CompletableFuture.completedFuture(new GenericResponse(HttpStatus.BAD_REQUEST.value()));
         };
     }

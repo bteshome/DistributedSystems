@@ -12,6 +12,7 @@ import java.util.Map;
 @Setter
 public class TableCreateDto {
     private String tableName;
+    private String indexNames;
     private int numPartitions;
     private int replicationFactor;
     private int minInSyncReplicas;

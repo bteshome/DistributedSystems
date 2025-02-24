@@ -29,14 +29,15 @@ public class OrderListController {
         try {
             List<Order> orders = webClient
                     .get()
-                    .uri("%s/api/orders/".formatted(appSettings.getOrderServiceUrl()))
+                    .uri("%s/api/orders/list/".formatted(appSettings.getOrderServiceUrl()))
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .toEntityList(Order.class)
                     .block()
                     .getBody();
 
-            model.addAttribute("orders", orders);
+            if (orders != null && !orders.isEmpty())
+                model.addAttribute("orders", orders);
         } catch (Exception e) {
             model.addAttribute("error", e.getMessage());
         }

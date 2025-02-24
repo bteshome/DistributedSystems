@@ -8,13 +8,16 @@ import com.bteshome.keyvaluestore.common.requests.TableCreateRequest;
 import com.bteshome.keyvaluestore.common.requests.TableListRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/tables")
@@ -27,12 +30,13 @@ public class TableController {
     @GetMapping("/create/")
     public String create(Model model) {
         TableCreateDto tableCreateDto = new TableCreateDto();
-        tableCreateDto.setTableName("table1");
+        tableCreateDto.setTableName("products");
         tableCreateDto.setNumPartitions(1);
         tableCreateDto.setReplicationFactor(1);
         tableCreateDto.setMinInSyncReplicas(1);
         tableCreateDto.setTimeToLiveEnabled(false);
         tableCreateDto.setTimeToLive(Duration.ofMinutes(5L));
+        tableCreateDto.setIndexNames("category");
         model.addAttribute("table", tableCreateDto);
         model.addAttribute("page", "tables");
         return "tables-create.html";
@@ -49,7 +53,8 @@ public class TableController {
             table.setMinInSyncReplicas(tableCreateDto.getMinInSyncReplicas());
             if (tableCreateDto.isTimeToLiveEnabled())
                 table.setTimeToLive(tableCreateDto.getTimeToLive());
-
+            if (Strings.isNotBlank(tableCreateDto.getIndexNames()))
+                table.setIndexNames(Arrays.stream(tableCreateDto.getIndexNames().split(",")).collect(Collectors.toSet()));
             tableService.createTable(table);
             return "redirect:/tables/";
         } catch (Exception e) {

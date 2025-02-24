@@ -67,9 +67,16 @@ public class MetadataCache {
         return JavaSerDe.serialize(state);
     }
 
-    public Duration getTableTimeToLive(String tableName, int partition) {
+    public Duration getTableTimeToLive(String tableName) {
         Table table = (Table)state.get(EntityType.TABLE).get(tableName);
         return table.getTimeToLive();
+    }
+
+    public Set<String> getTableIndexNames(String tableName) {
+        Table table = (Table)state.get(EntityType.TABLE).get(tableName);
+        return (table.getIndexNames() == null || table.getIndexNames().isEmpty()) ?
+                null :
+                new HashSet<>(table.getIndexNames());
     }
 
     public String getLeaderNodeId(String tableName, int partition) {

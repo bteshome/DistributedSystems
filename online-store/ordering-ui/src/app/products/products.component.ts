@@ -27,7 +27,7 @@ export class ProductsComponent implements OnInit {
 
   clearCart() {
     this.cart.set([]);
-    this.cookieService.setCookie('cart', "", -1, "/"); 
+    this.cookieService.deleteCookie('cart');
   }
 
   addToCart(product: Product) {
@@ -38,21 +38,21 @@ export class ProductsComponent implements OnInit {
       updatedArray.forEach(item => {
         if (item.skuCode === product.skuCode)
           item.quantity = item.quantity + 1;
-      })     
+      })
     } else {
       let cartItem = new CartItem(product.name, product.skuCode, product.price, 1);
       updatedArray.push(cartItem);
     }
 
     this.cart.set(updatedArray);
-    this.cookieService.setCookie('cart', updatedArray.join("|"), 1, "/"); 
+    this.cookieService.setCookie('cart', updatedArray.join("|"), 1, "/");
   }
 
   ngOnInit(): void {
     this.loading.set(true);
     this.errorMessage.set("");
     this.cart.set(this.cartService.getFromCookie());
-    
+
     this.apiService.getProducts()
       .pipe(
         catchError(error => {

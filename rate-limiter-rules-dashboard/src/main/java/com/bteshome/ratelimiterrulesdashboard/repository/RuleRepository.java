@@ -2,7 +2,7 @@ package com.bteshome.ratelimiterrulesdashboard.repository;
 
 import com.bteshome.keyvaluestore.client.clientrequests.ItemList;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemWrite;
-import com.bteshome.keyvaluestore.client.readers.BatchReader;
+import com.bteshome.keyvaluestore.client.readers.ItemLister;
 import com.bteshome.keyvaluestore.client.requests.AckType;
 import com.bteshome.keyvaluestore.client.requests.IsolationLevel;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
@@ -22,7 +22,7 @@ public class RuleRepository {
     @Autowired
     private ItemWriter itemWriter;
     @Autowired
-    private BatchReader batchReader;
+    private ItemLister itemLister;
 
     public void create(Rule rule) {
         ItemWrite<Rule> request = new ItemWrite<>();
@@ -51,7 +51,7 @@ public class RuleRepository {
         listRequest.setLimit(10);
         listRequest.setIsolationLevel(IsolationLevel.READ_COMMITTED);
 
-        return batchReader
+        return itemLister
                 .listObjects(listRequest, Rule.class)
                 .collectList()
                 .block()

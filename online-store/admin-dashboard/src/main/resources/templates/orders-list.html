@@ -33,12 +33,7 @@
 
             <div class="alert alert-info" role="alert" th:if="${info}" th:text="${info}"></div>
 
-            <div>
-                <a class="btn btn-primary" href="/orders/create/">
-                    <span data-feather="plus"></span>
-                    Create
-                </a>
-            </div>
+            <div class="no-data" th:if="${orders == null}">No Data</div>
 
             <div th:if="${orders}">
                 <div class="table-responsive">

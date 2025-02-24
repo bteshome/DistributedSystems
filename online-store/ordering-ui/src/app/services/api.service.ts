@@ -5,6 +5,7 @@ import { Order } from '../model/order.type';
 import { OrderCreateRequest } from '../model/orderCreateRequest.type';
 import { OrderCreateResponse } from '../model/orderCreateResponse.type';
 import { environment } from '../../environments/environment';
+import { AuthService } from './auth.service';
 
 @Injectable({
   providedIn: 'root'
@@ -13,22 +14,32 @@ import { environment } from '../../environments/environment';
 export class ApiService {
   baseUrl = environment.apiBaseUrl;
   productsUrl: string = this.baseUrl + "/inventory/products/"
-  ordersUrl: string = this.baseUrl + "/orders/"
+  ordersUrl: string = this.baseUrl + "/orders/query/"
   http = inject(HttpClient);
+  authService = inject(AuthService);
+
+  createAuthHeader() {
+    if (!this.authService.tokenResponse())
+      this.authService.signin();
+
+    const headers = new HttpHeaders ({
+      'Authorization': 'Bearer ' + this.authService.tokenResponse()?.access_token
+    });
+
+    return headers;
+  }
 
   getProducts() {
     return this.http.get<Array<Product>>(this.productsUrl)
   }
 
   getOrders(email: string) {
-    return this.http.get<Array<Order>>(this.ordersUrl + "?email=" + email)
+    const headers = this.createAuthHeader();
+    return this.http.get<Array<Order>>(this.ordersUrl + "?email=" + email, { headers })
   }
 
   createOrder(order: OrderCreateRequest) {
-    const headers = new HttpHeaders({
-      'Content-Type': 'application/json'
-    });
-
+    const headers = this.createAuthHeader();
     return this.http.post<OrderCreateResponse>(this.ordersUrl, order, { headers });
   }
 }

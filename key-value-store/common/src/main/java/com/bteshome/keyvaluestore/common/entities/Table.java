@@ -11,6 +11,7 @@ import java.io.Serializable;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 @Getter
 @Setter
@@ -18,6 +19,7 @@ import java.util.Map;
 @AllArgsConstructor
 public class Table implements Serializable {
     private String name;
+    private Set<String> indexNames;
     private int replicationFactor;
     private int minInSyncReplicas;
     private Map<Integer, Partition> partitions = new HashMap<>();
@@ -28,6 +30,7 @@ public class Table implements Serializable {
     public static Table toTable(TableCreateRequest request) {
         Table table = new Table();
         table.setName(request.getTableName());
+        table.setIndexNames(request.getIndexNames());
         table.setReplicationFactor(request.getReplicationFactor());
         table.setMinInSyncReplicas(request.getMinInSyncReplicas());
         table.setTimeToLive(request.getTimeToLive());

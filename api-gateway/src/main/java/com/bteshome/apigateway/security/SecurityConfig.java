@@ -34,9 +34,9 @@ public class SecurityConfig {
 
         return http
                 .authorizeExchange( authorize -> authorize
-                    .pathMatchers("/inventory/**").hasRole("customer")
-                    .pathMatchers("/orders/**").hasRole("admin")
-                    .anyExchange().permitAll())
+                    .pathMatchers("/inventory/products/").permitAll()
+                    .pathMatchers("/orders/query/").authenticated()
+                    .anyExchange().denyAll())
                 .oauth2ResourceServer(oAuth2ResourceServerSpec -> oAuth2ResourceServerSpec
                         .jwt(jwtSpec -> jwtSpec.jwtAuthenticationConverter(keycloakRoleExtractor.grantedAuthoritiesExtractor())))
                 .cors(ServerHttpSecurity.CorsSpec::disable)

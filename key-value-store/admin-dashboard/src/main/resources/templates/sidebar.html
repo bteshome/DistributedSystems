@@ -47,6 +47,12 @@
                                 </a>
                             </li>
                             <li class="nav-item">
+                                <a class="nav-link" th:classappend="${page}=='items-query'?'active'" href="/items/query/">
+                                    <span data-feather="search"></span>
+                                    Query
+                                </a>
+                            </li>
+                            <li class="nav-item">
                                 <a class="nav-link" th:classappend="${page}=='items-list'?'active'" href="/items/list/">
                                     <span data-feather="list"></span>
                                     List

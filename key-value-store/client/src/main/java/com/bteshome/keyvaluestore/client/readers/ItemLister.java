@@ -4,7 +4,6 @@ import com.bteshome.keyvaluestore.client.ClientException;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemList;
 import com.bteshome.keyvaluestore.client.requests.ItemListRequest;
 import com.bteshome.keyvaluestore.client.responses.ItemListResponse;
-import com.bteshome.keyvaluestore.common.JavaSerDe;
 import com.bteshome.keyvaluestore.common.JsonSerDe;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.Validator;
@@ -23,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 @Slf4j
-public class BatchReader {
+public class ItemLister {
     @Autowired
     WebClient webClient;
 

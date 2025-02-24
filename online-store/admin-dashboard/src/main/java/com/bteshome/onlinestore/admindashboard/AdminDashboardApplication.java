@@ -1,11 +1,11 @@
-package com.bteshome.onlinestore.ui;
+package com.bteshome.onlinestore.admindashboard;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class OnlineStoreUIApplication {
+public class AdminDashboardApplication {
     public static void main(String[] args) {
-        SpringApplication.run(OnlineStoreUIApplication.class, args);
+        SpringApplication.run(AdminDashboardApplication.class, args);
     }
 }

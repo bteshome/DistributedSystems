@@ -3,7 +3,7 @@ package com.bteshome.onlinestore.inventoryservice.repository;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemGet;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemList;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemWrite;
-import com.bteshome.keyvaluestore.client.readers.BatchReader;
+import com.bteshome.keyvaluestore.client.readers.ItemLister;
 import com.bteshome.keyvaluestore.client.readers.ItemReader;
 import com.bteshome.keyvaluestore.client.requests.AckType;
 import com.bteshome.keyvaluestore.client.requests.IsolationLevel;
@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Repository;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -28,7 +29,7 @@ public class ProductRepository {
     @Autowired
     private ItemReader itemReader;
     @Autowired
-    private BatchReader batchReader;
+    private ItemLister itemLister;
 
     public void put(Product product) {
         put(product, null);
@@ -78,7 +79,7 @@ public class ProductRepository {
         listRequest.setLimit(10);
         listRequest.setIsolationLevel(IsolationLevel.READ_COMMITTED);
 
-        return batchReader
+        return itemLister
                 .listObjects(listRequest, Product.class)
                 .collectList()
                 .block()

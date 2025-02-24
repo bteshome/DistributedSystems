@@ -43,6 +43,7 @@ public class ItemPutBatchController {
             Random random = new Random();
             BatchWrite<String> batchWrite = new BatchWrite<>();
             batchWrite.setTable(request.getTable());
+            batchWrite.setIndexKeys(null);
             batchWrite.setAck(request.getAck());
             batchWrite.setMaxRetries(request.getMaxRetries());
             Instant now = Instant.now();

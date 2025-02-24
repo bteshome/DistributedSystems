@@ -58,6 +58,7 @@ public class LoadTestController {
                     request.getTable(),
                     key,
                     value.getBytes(),
+                    null,
                     request.getAck(),
                     request.getMaxRetries(),
                     null);

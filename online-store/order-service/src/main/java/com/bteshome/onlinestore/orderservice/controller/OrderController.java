@@ -27,10 +27,8 @@ public class OrderController {
         return orderService.getAll();
     }
 
-    @GetMapping("/")
-    public ResponseEntity<?> get(@RequestParam("email") String email) {
-        // TODO - needs a lot of work in KVS.
-        //        implement using an auxiliary data structure
-        return orderService.getAll();
+    @GetMapping("/query/")
+    public ResponseEntity<?> queryByEmail(@RequestParam("email") String email) {
+        return orderService.queryByEmail(email);
     }
 }

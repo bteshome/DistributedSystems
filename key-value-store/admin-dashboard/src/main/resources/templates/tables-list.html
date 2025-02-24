@@ -47,6 +47,7 @@
                         <th>Time to Live</th>
                         <th>Partitions</th>
                         <th>Offline Partitions</th>
+                        <th>Index Fields</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -57,6 +58,7 @@
                         <td th:text="${table.timeToLive}"></td>
                         <td th:text="${table.partitions.size}"></td>
                         <td th:text="${table.numOfflinePartitions}" th:classappend="${table.numOfflinePartitions == 0 ? 'healthy' : 'unhealthy'}"></td>
+                        <td th:text="${table.indexNames}"></td>
                     </tr>
                     </tbody>
                 </table>

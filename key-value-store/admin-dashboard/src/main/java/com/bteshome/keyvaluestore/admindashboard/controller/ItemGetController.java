@@ -27,8 +27,8 @@ public class ItemGetController {
     @GetMapping("/")
     public String get(Model model) {
         ItemGet request = new ItemGet();
-        request.setTable("table1");
-        request.setKey("key1");
+        request.setTable("products");
+        request.setKey("p1");
         model.addAttribute("request", request);
         model.addAttribute("page", "items-get");
         return "items-get.html";

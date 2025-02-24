@@ -10,12 +10,13 @@ import org.apache.ratis.util.ProtoUtils;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Map;
+import java.util.Set;
 
 @Getter
 @Setter
 public class TableCreateRequest implements Serializable, Message {
     private String tableName;
+    private Set<String> indexNames;
     private int numPartitions;
     private int replicationFactor;
     private int minInSyncReplicas;

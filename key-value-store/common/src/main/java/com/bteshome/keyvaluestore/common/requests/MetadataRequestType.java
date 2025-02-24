@@ -4,6 +4,7 @@ public enum MetadataRequestType {
     TABLE_CREATE,
     TABLE_GET,
     TABLE_LIST,
+    METADATA_NODE_LIST,
     STORAGE_NODE_JOIN,
     STORAGE_NODE_LEAVE,
     STORAGE_NODE_GET,

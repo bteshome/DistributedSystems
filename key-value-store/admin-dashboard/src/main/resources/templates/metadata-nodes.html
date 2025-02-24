@@ -29,9 +29,28 @@
                 </div>
             </div>
 
-            <p>Coming soon...</p>
+            <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}"></div>
 
-            <div class="no-data" th:if="${nodes.size == 0}">No Data</div>
+            <div class="no-data" th:if="${nodes == null}">No Data</div>
+
+            <div class="table-responsive" th:if="${nodes}">
+                <table class="table table-striped table-sm">
+                    <thead>
+                    <tr>
+                        <th>Id</th>
+                        <th>Role</th>
+                        <th>Address</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="node: ${nodes}">
+                        <td th:text="${node.id}"></td>
+                        <td th:text="${node.role}"></td>
+                        <td th:text="${node.address}"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
         </main>
     </div>
 </div>

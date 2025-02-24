@@ -30,12 +30,14 @@ public class RouteConfig {
     }
 
     @Bean
-    public RouteLocator inventoryRoute(RouteLocatorBuilder builder) {
+    public RouteLocator productsRoute(RouteLocatorBuilder builder) {
         return builder.routes()
-                .route("inventory", r -> r
-                        .path("/inventory/**")
+                .route("products", r -> r
+                        .path("/inventory/products/")
+                        .and()
+                        .method("GET")
                         .filters(f -> f
-                                        .rewritePath("/inventory/?(?<remaining>.*)", "/api/${remaining}")
+                                        .rewritePath("/inventory/products/", "/api/products/")
                                         /*.circuitBreaker(config -> config
                                                 .setName("inventory")
                                                 .setFallbackUri("forward:/fallback"))*/
@@ -52,7 +54,7 @@ public class RouteConfig {
     public RouteLocator ordersRoute(RouteLocatorBuilder builder) {
         return builder.routes()
                 .route("orders", r -> r
-                        .path("/orders/**")
+                        .path("/orders/query/**")
                         .filters(f -> f
                                         .rewritePath("/orders/?(?<remaining>.*)", "/api/orders/${remaining}")
                                         /*.circuitBreaker(config -> config
