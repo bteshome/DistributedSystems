@@ -3,17 +3,18 @@ appName: osadmindashboard
 
 replicaCount: 1
 
-image: bteshome/os-admin-dashboard:latest
+image: 868497626916.dkr.ecr.us-east-1.amazonaws.com/os-admin-dashboard:latest
 
 ports:
   - 81
   - 8108
 
 service:
-  type: LoadBalancer
   ports:
     - 81
     - 8108
 
 config_client_enabled: true
-
+memory: "256Mi"
+cpu: "0.2"
+cpuLimit: "0.2"

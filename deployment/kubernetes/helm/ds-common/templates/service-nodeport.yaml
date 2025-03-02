@@ -1,0 +1,17 @@
+{{- define "ds-common.service-nodeport" -}}
+{{- if .Values.ingress_enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.nodePortServiceName }}
+spec:
+  selector:
+    app.kubernetes.io/name: {{ .Values.serviceName }}
+  type: NodePort
+  ports:
+    - name: nodeport
+      port: {{ .Values.nodePortServicePort }}
+      targetPort: {{ .Values.nodePortServicePort }}
+      protocol: TCP
+{{- end }}
+{{- end -}}

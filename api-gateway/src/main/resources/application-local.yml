@@ -11,7 +11,7 @@ ordering-ui-url: http://localhost:4200
 keycloak-url: http://localhost:8080
 keycloak-realm: apigateway
 
-security-disabled: 'false'
+security-disabled: 'true'
 rate-limiter-disabled: 'true'
 rate-limiter-cache-servers: redis://localhost:6379
 rate-limiter-num-of-virtual-nodes: '3'

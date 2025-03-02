@@ -1,24 +1,3 @@
-spring:
-  cloud:
-    config:
-      import-check:
-        enabled: 'false'
-    stream:
-      bindings:
-        orderCreatedNotificationSent-in-0:
-          destination: order-created-notification-sent
-          group: ${spring.application.name}
-        orderCreated-out-0:
-          destination: order-created
-      kafka:
-        binder:
-          brokers: localhost:9092
-    function:
-      definition: orderCreated;orderCreatedNotificationSent
-    circuitbreaker:
-      resilience4j:
-        enabled: 'true'
-
 debug: 'false'
 
 server:
@@ -76,3 +55,11 @@ logging:
 storage-client:
   endpoints: localhost:9407,localhost:9607,localhost:9807
 
+spring:
+  cloud:
+    config:
+      import-check:
+        enabled: 'false'
+    circuitbreaker:
+      resilience4j:
+        enabled: 'true'

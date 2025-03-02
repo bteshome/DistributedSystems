@@ -3,17 +3,22 @@ appName: apigateway
 
 replicaCount: 1
 
-image: bteshome/api-gateway:latest
+image: 868497626916.dkr.ecr.us-east-1.amazonaws.com/api-gateway:latest
 
 ports:
   - 80
   - 8008
 
 service:
-  type: LoadBalancer
   ports:
     - 80
     - 8008
 
 config_client_enabled: true
 otel_enabled: true
+ingress_enabled: true
+nodePortServiceName: api-gateway-nodeport
+nodePortServicePort: 80
+memory: "1024Mi"
+cpu: "1"
+cpuLimit: "3"

@@ -5,8 +5,7 @@ metadata:
   name: {{ .Values.serviceName }}
 spec:
   selector:
-    app:
-      {{ .Values.serviceName }}
+    app.kubernetes.io/name: {{ .Values.serviceName }}
   {{- if .Values.service.type }}
   type: {{ .Values.service.type }}
   {{- end }}

@@ -3,17 +3,19 @@ appName: ratelimiterrulesdashboard
 
 replicaCount: 1
 
-image: bteshome/rate-limiter-rules-dashboard:latest
+image: 868497626916.dkr.ecr.us-east-1.amazonaws.com/rate-limiter-rules-dashboard:latest
 
 ports:
   - 9600
   - 9608
 
 service:
-  type: LoadBalancer
   ports:
     - 9600
     - 9608
 
 config_client_enabled: true
 
+memory: "256Mi"
+cpu: "0.2"
+cpuLimit: "0.5"

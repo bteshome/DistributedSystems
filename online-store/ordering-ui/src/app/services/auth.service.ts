@@ -1,5 +1,5 @@
 import { inject, Injectable, signal } from '@angular/core';
-import { TokeResponse } from '../model/TokenResponse.type';
+import { TokeResponse } from '../model/tokenResponse.type';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { User } from '../model/user.type';
 import { Router } from '@angular/router';

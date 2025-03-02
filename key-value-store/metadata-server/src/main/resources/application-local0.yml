@@ -14,7 +14,7 @@ metadata:
     - id: '0'
       host: localhost
       port: '9310'
-  storage-dir: /tmp/raft-server-0
+  storage-dir: /raft-server-0
 
 metadata-client:
   client-id: fd021564-2d47-4ef5-80f1-88f7077fdcdb

@@ -83,7 +83,11 @@
               "buildTarget": "ordering-ui:build:development"
             }
           },
-          "defaultConfiguration": "development"
+          "defaultConfiguration": "production",
+          "options": {
+            "host": "0.0.0.0",
+            "allowedHosts": ["bteshome.com"]
+          }
         },
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n"

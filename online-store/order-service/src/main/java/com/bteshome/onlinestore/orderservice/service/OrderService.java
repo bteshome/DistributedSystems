@@ -1,7 +1,5 @@
 package com.bteshome.onlinestore.orderservice.service;
 
-import com.bteshome.onlinestore.orderservice.InventoryClientException;
-import com.bteshome.onlinestore.orderservice.OrderException;
 import com.bteshome.onlinestore.orderservice.client.InventoryClient;
 import com.bteshome.onlinestore.orderservice.client.InventoryRequest;
 import com.bteshome.onlinestore.orderservice.config.AppSettings;
@@ -13,31 +11,28 @@ import com.bteshome.onlinestore.orderservice.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpClientErrorException;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
-@Transactional
 public class OrderService {
     @Autowired
     private final OrderRepository orderRepository;
     @Autowired
     private final InventoryClient inventoryClient;
     @Autowired
-    private final StreamBridge streamBridge;
-    @Autowired
     private final AppSettings appSettings;
+    @Autowired
+    private final NotificationService notificationService;
 
     public ResponseEntity<OrderCreateResponse> create(OrderRequest orderRequest) {
         try {
@@ -111,8 +106,7 @@ public class OrderService {
             return;
         }
 
-        var orderCreatedEvent = new OrderCreatedEvent(order.getOrderNumber(), order.getEmail());
-        streamBridge.send("orderCreated-out-0", orderCreatedEvent);
+        CompletableFuture.runAsync(() -> notificationService.send(order));
 
         log.debug("Created OrderCreatedEvent for order: {}", order.getOrderNumber());
     }

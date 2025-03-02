@@ -1,8 +1,8 @@
 export const environment = {
     production: true,
-    apiBaseUrl: 'http://apigateway.bteshome.com',
-    authBaseUrl: 'http://auth.bteshome.com',
+    apiBaseUrl: 'https://api.bteshome.com',
+    authBaseUrl: 'https://auth.bteshome.com',
     realm: "apigateway",
     clientId: 'OSOrderingUI',
-    clientSecret: ""
+    clientSecret: "O0osVhzeeU8ajKgBiaCDUSA61KvwCWxb"
 };

@@ -18,6 +18,8 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -40,9 +42,8 @@ public class Node implements CommandLineRunner {
     @PreDestroy
     private void stopServer() {
         try {
-            if (server != null) {
+            if (server != null)
                 server.close();
-            }
         } catch (IOException e) {
             log.info("Error stopping server", e);
         }
@@ -54,9 +55,6 @@ public class Node implements CommandLineRunner {
             log.info("Starting server ...");
             metadataSettings.print();
             metadataClientSettings.print();
-
-            // TODO - don't delete this everytime
-            Utils.deleteDirectoryIfItExists(metadataSettings.getStorageDir());
 
             RaftPeer node = buildPeer(metadataSettings.getNode());
             List<RaftPeer> peers = metadataSettings.getPeers().stream().map(this::buildPeer).toList();
@@ -75,15 +73,19 @@ public class Node implements CommandLineRunner {
             //properties.set("raft.server.snapshot.trigger-when-stop.enabled", "true");
 
             properties.set("raft.server.snapshot.auto.trigger.enabled ", "true");
-            properties.set("raft.server.snapshot.auto.trigger.interval", "600000");
-            properties.set("raft.server.snapshot.auto.trigger.threshold", "5");
+            properties.set("raft.server.snapshot.auto.trigger.interval", "5000");
+            properties.set("raft.server.snapshot.auto.trigger.threshold", "1");
+
+            RaftStorage.StartupOption startupOption = Files.exists(Path.of(metadataSettings.getStorageDir())) ?
+                    RaftStorage.StartupOption.RECOVER :
+                    RaftStorage.StartupOption.FORMAT;
 
             server = RaftServer.newBuilder()
                     .setProperties(properties)
                     .setServerId(node.getId())
                     .setGroup(group)
                     .setStateMachine(stateMachine)
-                    .setOption(RaftStorage.StartupOption.FORMAT)
+                    .setOption(startupOption)
                     .build();
 
             server.start();

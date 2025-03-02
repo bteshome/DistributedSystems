@@ -1,5 +1,7 @@
 debug: 'false'
 
+path-root: ""
+
 spring:
   cloud:
     config:

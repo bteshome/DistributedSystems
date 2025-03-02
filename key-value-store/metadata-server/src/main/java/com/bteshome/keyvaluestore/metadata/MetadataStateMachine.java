@@ -134,22 +134,26 @@ public class MetadataStateMachine extends BaseStateMachine {
     @Override
     public long takeSnapshot() {
         final TermIndex last;
-        final File snapshotFile;
+        final Map<EntityType, Map<String, Object>> stateCopy;
 
         try (AutoCloseableLock lock = readLock()) {
+            stateCopy = new HashMap<>(state);
             last = getLastAppliedTermIndex();
-            snapshotFile = storage.getSnapshotFile(last.getTerm(), last.getIndex());
-            log.info("Taking a snapshot to file {}", snapshotFile);
-            try (ObjectOutputStream out = new ObjectOutputStream(new BufferedOutputStream(FileUtils.newOutputStream(snapshotFile)))) {
-                out.writeObject(state);
-            } catch (IOException ioe) {
-                log.error("Failed to write snapshot file \"" + snapshotFile + "\", last applied index=" + last, ioe);
-            }
         }
 
-        final MD5Hash md5 = MD5FileUtil.computeAndSaveMd5ForFile(snapshotFile);
-        final FileInfo info = new FileInfo(snapshotFile.toPath(), md5);
-        storage.updateLatestSnapshot(new SingleFileSnapshotInfo(info, last));
+        final File snapshotFile = storage.getSnapshotFile(last.getTerm(), last.getIndex());
+
+        log.info("Taking a snapshot to file {}", snapshotFile);
+        try (ObjectOutputStream out = new ObjectOutputStream(new BufferedOutputStream(FileUtils.newOutputStream(snapshotFile)))) {
+            out.writeObject(stateCopy);
+            final MD5Hash md5 = MD5FileUtil.computeAndSaveMd5ForFile(snapshotFile);
+            final FileInfo info = new FileInfo(snapshotFile.toPath(), md5);
+            storage.updateLatestSnapshot(new SingleFileSnapshotInfo(info, last));
+            log.info("Snapshot saved.");
+        } catch (IOException ioe) {
+            log.error("Failed to write snapshot file \"" + snapshotFile + "\", last applied index=" + last, ioe);
+        }
+
         return last.getIndex();
     }
 

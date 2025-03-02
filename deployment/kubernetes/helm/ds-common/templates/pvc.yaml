@@ -1,0 +1,15 @@
+{{- define "ds-common.pvc" -}}
+{{- if .Values.pvc_enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.serviceName }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: auto-ebs-sc
+{{- end }}
+{{- end -}}

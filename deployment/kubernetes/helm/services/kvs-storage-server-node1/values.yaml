@@ -3,7 +3,7 @@ appName: kvsstorageservernode1
 
 replicaCount: 1
 
-image: bteshome/kvs-storage-server:latest
+image: 868497626916.dkr.ecr.us-east-1.amazonaws.com/kvs-storage-server:latest
 
 ports:
   - 94
@@ -16,3 +16,8 @@ service:
     - 9408
 
 config_client_enabled: true
+pvc_enabled: true
+pvc_mountPath: /var/lib/kvs-storage-server
+memory: "1024Mi"
+cpu: "3"
+cpuLimit: "4"

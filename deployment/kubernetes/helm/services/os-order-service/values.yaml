@@ -3,7 +3,7 @@ appName: orders
 
 replicaCount: 1
 
-image: bteshome/os-order-service:latest
+image: 868497626916.dkr.ecr.us-east-1.amazonaws.com/os-order-service:latest
 
 ports:
   - 83
@@ -16,4 +16,6 @@ service:
 
 config_client_enabled: true
 otel_enabled: true
-
+memory: "256Mi"
+cpu: "0.2"
+cpuLimit: "0.2"

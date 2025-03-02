@@ -3,16 +3,18 @@ appName: kvsadmindashboard
 
 replicaCount: 1
 
-image: bteshome/kvs-admin-dashboard:latest
+image: 868497626916.dkr.ecr.us-east-1.amazonaws.com/kvs-admin-dashboard:latest
 
 ports:
   - 9500
   - 9508
 
 service:
-  type: LoadBalancer
   ports:
     - 9500
     - 9508
 
 config_client_enabled: true
+memory: "512Mi"
+cpu: "1"
+cpuLimit: "3"

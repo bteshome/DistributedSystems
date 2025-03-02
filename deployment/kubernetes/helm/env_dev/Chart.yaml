@@ -9,43 +9,31 @@ dependencies:
   - name: ds-common
     version: "0.1.0"
     repository: file://../ds-common
-  - name: config-server
-    version: "0.1.0"
-    repository: file://../services/config-server
   - name: os-inventory-service
     version: "0.1.0"
     repository: file://../services/os-inventory-service
-  # - name: os-admin-dashboard
-  #   version: "0.1.0"
-  #   repository: file://../services/os-admin-dashboard
-
-
-  - name: kafka-node1
+  - name: os-admin-dashboard
     version: "0.1.0"
-    repository: file://../services/kafka-node1
+    repository: file://../services/os-admin-dashboard
+
+
   - name: os-order-service
     version: "0.1.0"
     repository: file://../services/os-order-service
-  # - name: os-notification-service
-  #   version: "0.1.0"
-  #   repository: file://../services/os-notification-service
-  - name: os-ordering-ui
-    version: "0.1.0"
-    repository: file://../services/os-ordering-ui
 
 
-  - name: rate-limiter-rules-dashboard
-    version: "0.1.0"
-    repository: file://../services/rate-limiter-rules-dashboard
+  #- name: rate-limiter-rules-dashboard
+  #  version: "0.1.0"
+  #  repository: file://../services/rate-limiter-rules-dashboard
   - name: keycloak
-    version: "24.3.1"
+    version: "0.1.0"
     repository: file://../services/keycloak
-  - name: rate-limiter-cache-node1
-    version: "0.1.0"
-    repository: file://../services/rate-limiter-cache-node1
-  - name: rate-limiter-cache-node2
-    version: "0.1.0"
-    repository: file://../services/rate-limiter-cache-node2
+  #- name: rate-limiter-cache-node1
+  #  version: "0.1.0"
+  #  repository: file://../services/rate-limiter-cache-node1
+  #- name: rate-limiter-cache-node2
+  #  version: "0.1.0"
+  #  repository: file://../services/rate-limiter-cache-node2
   - name: api-gateway
     version: "0.1.0"
     repository: file://../services/api-gateway
@@ -65,12 +53,27 @@ dependencies:
   #   repository: file://../observability/prometheus
 
 
-  # - name: kvs-metadata-server-node0
+  - name: kvs-metadata-server-node0
+    version: "0.1.0"
+    repository: file://../services/kvs-metadata-server-node0
+  # - name: kvs-metadata-server-node1
   #   version: "0.1.0"
-  #   repository: file://../services/kvs-metadata-server-node0
-  # - name: kvs-storage-server-node1
+  #   repository: file://../services/kvs-metadata-server-node1
+  # - name: kvs-metadata-server-node2
   #   version: "0.1.0"
-  #   repository: file://../services/kvs-storage-server-node1
-  # - name: kvs-admin-dashboard
+  #   repository: file://../services/kvs-metadata-server-node2
+  # - name: kvs-metadata-server-node3
   #   version: "0.1.0"
-  #   repository: file://../services/kvs-admin-dashboard
+  #   repository: file://../services/kvs-metadata-server-node3
+  - name: kvs-storage-server-node1
+    version: "0.1.0"
+    repository: file://../services/kvs-storage-server-node1
+  # - name: kvs-storage-server-node2
+  #   version: "0.1.0"
+  #   repository: file://../services/kvs-storage-server-node2
+  # - name: kvs-storage-server-node3
+  #   version: "0.1.0"
+  #   repository: file://../services/kvs-storage-server-node3
+  - name: kvs-admin-dashboard
+    version: "0.1.0"
+    repository: file://../services/kvs-admin-dashboard

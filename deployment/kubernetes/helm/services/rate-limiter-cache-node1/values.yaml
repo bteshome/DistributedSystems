@@ -11,3 +11,7 @@ service:
   clusterIP: None
   ports:
     - 6379
+
+memory: "512Mi"
+cpu: "0.4"
+cpuLimit: "1"
