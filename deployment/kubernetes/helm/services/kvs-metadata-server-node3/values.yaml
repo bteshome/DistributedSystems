@@ -2,6 +2,7 @@ serviceName: kvs-metadata-server-node3
 appName: kvsmetadataservernode3
 
 replicaCount: 1
+minAvailableReplicas: 1
 
 image: 868497626916.dkr.ecr.us-east-1.amazonaws.com/kvs-metadata-server:latest
 
@@ -20,6 +21,7 @@ service:
 config_client_enabled: true
 pvc_enabled: true
 pvc_mountPath: /var/lib/kvs-metadata-server
+pvc_size: "1Gi"
 memory: "512Mi"
 cpu: "1"
 cpuLimit: "2"

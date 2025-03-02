@@ -2,6 +2,7 @@ serviceName: kvs-storage-server-node2
 appName: kvsstorageservernode2
 
 replicaCount: 1
+minAvailableReplicas: 1
 
 image: 868497626916.dkr.ecr.us-east-1.amazonaws.com/kvs-storage-server:latest
 
@@ -18,6 +19,7 @@ service:
 config_client_enabled: true
 pvc_enabled: true
 pvc_mountPath: /var/lib/kvs-storage-server
+pvc_size: "1Gi"
 memory: "1024Mi"
 cpu: "3"
 cpuLimit: "4"

@@ -4,5 +4,5 @@ export const environment = {
     authBaseUrl: 'https://auth.bteshome.com',
     realm: "apigateway",
     clientId: 'OSOrderingUI',
-    clientSecret: "O0osVhzeeU8ajKgBiaCDUSA61KvwCWxb"
+    clientSecret: "EyrpSm7v7JuSWqZ29mQxV6DzqJTU0ziz"
 };

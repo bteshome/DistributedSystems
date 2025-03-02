@@ -1,0 +1,23 @@
+serviceName: keycloak-db
+
+replicaCount: 1
+minAvailableReplicas: 1
+
+image: postgres:latest
+
+ports:
+  - 5432
+
+service:
+  clusterIP: None
+  ports:
+    - 5432
+
+db_server_enabled: true
+db_name: keycloak
+pvc_enabled: true
+pvc_mountPath: /var/lib/postgresql/data
+pvc_size: "4Gi"
+memory: "512Mi"
+cpu: "0.2"
+cpuLimit: "0.5"

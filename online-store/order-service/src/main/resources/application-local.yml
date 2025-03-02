@@ -3,7 +3,7 @@ debug: 'false'
 server:
   port: '83'
 
-notification-disabled: true
+notification-disabled: false
 inventory-service-url: http://localhost:82
 
 management:

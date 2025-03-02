@@ -1,8 +1,8 @@
 export const environment = {
     production: false,
-    apiBaseUrl: 'http://localhost',
+    apiBaseUrl: 'http://localhost:88',
     authBaseUrl: 'http://localhost:8080',
     realm: "apigateway",
     clientId: 'OSOrderingUI',
-    clientSecret: "s0SHWoVLoG6OGZiG8v5zb3Nm1hcN8SYp"
+    clientSecret: "SpfYiSpEDMDsUXEjKkOq5bl8Z8TkaKd9"
 };

@@ -58,7 +58,7 @@ public class MetadataSettings {
 
     public void print() {
         log.info("MetadataSettings: groupId={}", groupId);
-        log.info("MetadataSettings: storageDir={}", groupId);
+        log.info("MetadataSettings: storageDir={}", storageDir);
         log.info("MetadataSettings: node={}", node);
         log.info("MetadataSettings: storageNodeHeartbeatMonitorIntervalMs={}", storageNodeHeartbeatMonitorIntervalMs);
         log.info("MetadataSettings: storageNodeHeartbeatExpectIntervalMs={}", storageNodeHeartbeatExpectIntervalMs);

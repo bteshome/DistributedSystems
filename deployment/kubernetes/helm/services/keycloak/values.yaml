@@ -12,11 +12,8 @@ service:
   ports:
     - 8080
 
-args: ["start-dev"]
+args: ["start"]
 keycloak_enabled: true
-# TODO - for some reason, the mount path is not working
-#pvc_enabled: true
-pvc_mountPath: /opt/keycloak/data
 ingress_enabled: true
 nodePortServiceName: keycloak-nodeport
 nodePortServicePort: 8080

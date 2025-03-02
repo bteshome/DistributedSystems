@@ -1,0 +1,11 @@
+{{- define "ds-common.pdb" -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Values.serviceName }}
+spec:
+  minAvailable: {{ .Values.minAvailableReplicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.serviceName }}
+{{- end -}}

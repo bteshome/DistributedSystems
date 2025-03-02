@@ -17,7 +17,7 @@ public class OrderController {
     @Autowired
     private OrderService orderService;
 
-    @PostMapping("/")
+    @PostMapping("/create/")
     public ResponseEntity<OrderCreateResponse> create(@RequestBody OrderRequest orderRequest) {
         return orderService.create(orderRequest);
     }

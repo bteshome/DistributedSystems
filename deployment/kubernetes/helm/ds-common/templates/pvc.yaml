@@ -9,7 +9,7 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 1Gi
+      storage: {{ .Values.pvc_size }}
   storageClassName: auto-ebs-sc
 {{- end }}
 {{- end -}}

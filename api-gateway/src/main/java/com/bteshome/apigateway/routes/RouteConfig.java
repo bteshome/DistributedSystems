@@ -51,12 +51,35 @@ public class RouteConfig {
     }
 
     @Bean
-    public RouteLocator ordersRoute(RouteLocatorBuilder builder) {
+    public RouteLocator ordersQueryRoute(RouteLocatorBuilder builder) {
         return builder.routes()
-                .route("orders", r -> r
+                .route("ordersQuery", r -> r
                         .path("/orders/query/**")
+                        .and()
+                        .method("GET")
                         .filters(f -> f
                                         .rewritePath("/orders/?(?<remaining>.*)", "/api/orders/${remaining}")
+                                        /*.circuitBreaker(config -> config
+                                                .setName("orders")
+                                                .setFallbackUri("forward:/fallback"))*/
+                                /*.retry(config -> config
+                                        .setRetries(3)
+                                        .setMethods(HttpMethod.GET)
+                                        .setStatuses(HttpStatus.BAD_GATEWAY, HttpStatus.GATEWAY_TIMEOUT)
+                                        .setBackoff(Duration.ofMillis(100), Duration.ofMillis(1000), 2, true))*/)
+                        .uri(appSettings.getOrderServiceUrl()))
+                .build();
+    }
+
+    @Bean
+    public RouteLocator ordersCreateRoute(RouteLocatorBuilder builder) {
+        return builder.routes()
+                .route("ordersCreate", r -> r
+                        .path("/orders/create/")
+                        .and()
+                        .method("POST")
+                        .filters(f -> f
+                                        .rewritePath("/orders/create/", "/api/orders/create/")
                                         /*.circuitBreaker(config -> config
                                                 .setName("orders")
                                                 .setFallbackUri("forward:/fallback"))*/

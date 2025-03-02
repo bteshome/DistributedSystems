@@ -14,7 +14,8 @@ import { AuthService } from './auth.service';
 export class ApiService {
   baseUrl = environment.apiBaseUrl;
   productsUrl: string = this.baseUrl + "/inventory/products/"
-  ordersUrl: string = this.baseUrl + "/orders/query/"
+  ordersQueryUrl: string = this.baseUrl + "/orders/query/"
+  ordersCreateUrl: string = this.baseUrl + "/orders/create/"
   http = inject(HttpClient);
   authService = inject(AuthService);
 
@@ -35,11 +36,11 @@ export class ApiService {
 
   getOrders(email: string) {
     const headers = this.createAuthHeader();
-    return this.http.get<Array<Order>>(this.ordersUrl + "?email=" + email, { headers })
+    return this.http.get<Array<Order>>(this.ordersQueryUrl + "?email=" + email, { headers })
   }
 
   createOrder(order: OrderCreateRequest) {
     const headers = this.createAuthHeader();
-    return this.http.post<OrderCreateResponse>(this.ordersUrl, order, { headers });
+    return this.http.post<OrderCreateResponse>(this.ordersCreateUrl, order, { headers });
   }
 }

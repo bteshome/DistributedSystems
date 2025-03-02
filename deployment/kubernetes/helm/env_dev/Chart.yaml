@@ -25,9 +25,12 @@ dependencies:
   #- name: rate-limiter-rules-dashboard
   #  version: "0.1.0"
   #  repository: file://../services/rate-limiter-rules-dashboard
-  - name: keycloak
-    version: "0.1.0"
-    repository: file://../services/keycloak
+  # - name: keycloak-db
+  #   version: "0.1.0"
+  #   repository: file://../services/keycloak-db
+  # - name: keycloak
+  #   version: "0.1.0"
+  #   repository: file://../services/keycloak
   #- name: rate-limiter-cache-node1
   #  version: "0.1.0"
   #  repository: file://../services/rate-limiter-cache-node1
