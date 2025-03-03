@@ -1,7 +1,16 @@
+spring:
+  cloud:
+    config:
+      import-check:
+        enabled: 'false'
+
 debug: 'false'
 
 server:
   port: '4201'
+
+secret-locations:
+  clientsecret: C:\code\DistributedSystems\online-store\clientsecret
 
 management:
   server:
