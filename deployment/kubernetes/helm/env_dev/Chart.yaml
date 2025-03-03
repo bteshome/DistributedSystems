@@ -15,22 +15,26 @@ dependencies:
   - name: os-admin-dashboard
     version: "0.1.0"
     repository: file://../services/os-admin-dashboard
-
-
   - name: os-order-service
     version: "0.1.0"
     repository: file://../services/os-order-service
+  - name: os-ordering-ui
+    version: "0.1.0"
+    repository: file://../services/os-ordering-ui
+  - name: os-ordering-ui-config
+    version: "0.1.0"
+    repository: file://../services/os-ordering-ui-config
 
 
   #- name: rate-limiter-rules-dashboard
   #  version: "0.1.0"
   #  repository: file://../services/rate-limiter-rules-dashboard
-  # - name: keycloak-db
-  #   version: "0.1.0"
-  #   repository: file://../services/keycloak-db
-  # - name: keycloak
-  #   version: "0.1.0"
-  #   repository: file://../services/keycloak
+  - name: keycloak-db
+    version: "0.1.0"
+    repository: file://../services/keycloak-db
+  - name: keycloak
+    version: "0.1.0"
+    repository: file://../services/keycloak
   #- name: rate-limiter-cache-node1
   #  version: "0.1.0"
   #  repository: file://../services/rate-limiter-cache-node1

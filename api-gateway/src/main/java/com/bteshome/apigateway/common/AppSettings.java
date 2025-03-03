@@ -23,6 +23,7 @@ public class AppSettings {
     private String keycloakUrl;
     private String keycloakRealm;
     private String orderingUiUrl;
+    private String orderingUiConfigUrl;
     private boolean securityDisabled;
     private boolean rateLimiterDisabled;
     private String rateLimiterCacheServers;

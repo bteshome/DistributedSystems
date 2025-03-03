@@ -35,6 +35,8 @@ public class SecurityConfig {
         return http
                 .authorizeExchange( authorize -> authorize
                     .pathMatchers("/inventory/products/").permitAll()
+                    .pathMatchers("/ordering-ui/config/").permitAll()
+                    .pathMatchers("/orders/create/").authenticated()
                     .pathMatchers("/orders/query/").authenticated()
                     .anyExchange().denyAll())
                 .oauth2ResourceServer(oAuth2ResourceServerSpec -> oAuth2ResourceServerSpec

@@ -1,10 +1,11 @@
-import { inject, Injectable, signal } from '@angular/core';
+import { inject, Injectable, OnInit, signal } from '@angular/core';
 import { TokeResponse } from '../model/tokenResponse.type';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { User } from '../model/user.type';
 import { Router } from '@angular/router';
 import { environment } from '../../environments/environment';
 import { CookieService } from '../services/cookie.service';
+import { ConfigService } from './config.service';
 
 @Injectable({
   providedIn: 'root'
@@ -18,18 +19,28 @@ export class AuthService {
   userInfoEndpoint = this.baseUrl + "/realms/" + this.realm + "/protocol/openid-connect/userinfo";
   endSessionEndpoint = this.baseUrl + "/realms/" + this.realm + "/protocol/openid-connect/logout";
   clientId = environment.clientId;
-  clientSecret = environment.clientSecret;
   redirectUri = window.location.origin + "/signedin";
   http = inject(HttpClient)
   router = inject(Router);
   cookieService = inject(CookieService);
+  configService = inject(ConfigService);
   tokenResponse = signal<TokeResponse | null>(null);
   user = signal<User | null>(null);
 
   signin() {
-    const redirectUriEncoced = encodeURIComponent(this.redirectUri);
-    const authUrl = `${this.authEndpoint}?response_type=code&redirect_uri=${redirectUriEncoced}&client_id=${this.clientId}&client_secret=${this.clientSecret}&scope=openid`;
-    window.location.href = authUrl;
+    this.configService.getClientSecret()
+      .subscribe((response) => {
+        if (response.httpStatus != 200) {
+          console.error("Config service call returned a status code of " + response.httpStatus);
+          console.error(response.errorMessage);
+        } else {
+          let clientSecret = response.value;
+          this.cookieService.setCookie('cs', clientSecret, 1, "/");
+          let redirectUriEncoced = encodeURIComponent(this.redirectUri);
+          let authUrl = `${this.authEndpoint}?response_type=code&redirect_uri=${redirectUriEncoced}&client_id=${this.clientId}&client_secret=${clientSecret}&scope=openid`;
+          window.location.href = authUrl;
+        }
+      });
   }
 
   exchangeCodeForTokens(code: string): void {
@@ -37,9 +48,16 @@ export class AuthService {
       'Content-Type': 'application/x-www-form-urlencoded'
     });
 
+    let clientSecret = this.cookieService.getCookie('cs')
+
+    if (clientSecret == null) {
+      console.error("Client secret not found in cookie.");
+      return;
+    }
+
     const body = new URLSearchParams();
     body.set('client_id', this.clientId);
-    body.set('client_secret', this.clientSecret);
+    body.set('client_secret', clientSecret);
     body.set('grant_type', 'authorization_code');
     body.set('code', code);
     body.set('redirect_uri', this.redirectUri);
@@ -63,15 +81,22 @@ export class AuthService {
       });
   }
 
-  // TODO - logout is being blocked by CORS, unlike the token endpoint
   signout() : void {
+    let clientSecret = this.cookieService.getCookie('cs')
+
+    if (clientSecret == null) {
+      console.error("Cannot sign out. Client secret not found in cookie.");
+      return;
+    }
+
     const headers = new HttpHeaders({
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Authorization': 'Bearer ' + this.tokenResponse()?.access_token
+      'Content-Type': 'application/x-www-form-urlencoded'
     });
 
-    const body = new URLSearchParams();
+    let body = new URLSearchParams();
+
     body.set('client_id', this.clientId);
+    body.set('client_secret', clientSecret);
 
     let tokenHolder = this.tokenResponse();
     if (tokenHolder) {
@@ -81,11 +106,11 @@ export class AuthService {
       }
     }
 
-    this.http.post(this.endSessionEndpoint, body.toString(), {  })
+    this.http.post(this.endSessionEndpoint, body.toString(), { headers })
       .subscribe((response: any) => {
-        console.log('i got this response: ' + response);
         this.tokenResponse.set(null);
         this.user.set(null);
+        this.cookieService.deleteCookie('cs');
         this.router.navigate(['/']);
       });
   }

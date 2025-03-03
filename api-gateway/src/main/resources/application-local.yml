@@ -8,6 +8,7 @@ order-service-name: orders
 inventory-service-url: http://localhost:82
 order-service-url: http://localhost:83
 ordering-ui-url: http://localhost:4200
+ordering-ui-config-url: http://localhost:4201
 keycloak-url: http://localhost:8080
 keycloak-realm: apigateway
 

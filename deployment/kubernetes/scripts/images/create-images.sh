@@ -1,4 +1,3 @@
-
 #!/bin/bash
 sudo echo "Creating images..."
 cd /mnt/c/code/DistributedSystems
@@ -65,6 +64,12 @@ echo " "
 
 
 cd ../order-service
+mvn clean compile jib:dockerBuild
+echo " "
+echo " "
+
+
+cd ../ordering-ui-config
 mvn clean compile jib:dockerBuild
 echo " "
 echo " "
