@@ -28,6 +28,12 @@ export class AuthService {
   user = signal<User | null>(null);
 
   signin() {
+    let redirectUriEncoced = encodeURIComponent(this.redirectUri);
+    let authUrl = `${this.authEndpoint}?response_type=code&redirect_uri=${redirectUriEncoced}&client_id=${this.clientId}&scope=openid`;
+    window.location.href = authUrl;
+  }
+
+  exchangeCodeForTokens(code: string): void {
     this.configService.getClientSecret()
       .subscribe((response) => {
         if (response.httpStatus != 200) {
@@ -36,38 +42,25 @@ export class AuthService {
         } else {
           let clientSecret = response.value;
           this.cookieService.setCookie('cs', clientSecret, 1, "/");
-          let redirectUriEncoced = encodeURIComponent(this.redirectUri);
-          let authUrl = `${this.authEndpoint}?response_type=code&redirect_uri=${redirectUriEncoced}&client_id=${this.clientId}&client_secret=${clientSecret}&scope=openid`;
-          window.location.href = authUrl;
-        }
-      });
-  }
 
-  exchangeCodeForTokens(code: string): void {
-    const headers = new HttpHeaders({
-      'Content-Type': 'application/x-www-form-urlencoded'
-    });
+          let headers = new HttpHeaders({
+            'Content-Type': 'application/x-www-form-urlencoded'
+          });
 
-    let clientSecret = this.cookieService.getCookie('cs')
+          let body = new URLSearchParams();
+          body.set('client_id', this.clientId);
+          body.set('client_secret', clientSecret);
+          body.set('grant_type', 'authorization_code');
+          body.set('code', code);
+          body.set('redirect_uri', this.redirectUri);
 
-    if (clientSecret == null) {
-      console.error("Client secret not found in cookie.");
-      return;
-    }
-
-    const body = new URLSearchParams();
-    body.set('client_id', this.clientId);
-    body.set('client_secret', clientSecret);
-    body.set('grant_type', 'authorization_code');
-    body.set('code', code);
-    body.set('redirect_uri', this.redirectUri);
-
-    this.http.post<TokeResponse>(this.tokenEndpoint, body.toString(), { headers })
-      .subscribe((response: TokeResponse) => {
-        this.tokenResponse.set(response);
-        this.getUserInfo();
-        this.router.navigate(['/']);
-      });
+          this.http.post<TokeResponse>(this.tokenEndpoint, body.toString(), { headers })
+            .subscribe((response: TokeResponse) => {
+              this.tokenResponse.set(response);
+              this.getUserInfo();
+              this.router.navigate(['/']);
+            });
+        }});
   }
 
   getUserInfo() {

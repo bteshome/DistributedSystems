@@ -65,23 +65,20 @@ services:
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.0
-    #command: "start"
+    command: "start"
     #command: [ "start-dev", "--import-realm" ]
-    command: "start-dev"
+    #command: "start-dev"
     #restart: unless-stopped
     environment:
       KC_DB: postgres
       KC_DB_USERNAME: postgres
       KC_DB_PASSWORD: password
       KC_DB_URL: jdbc:postgresql://keycloak_db:5432/keycloak
-      KC_METRICS_ENABLED: true
-      KC_HEALTH_ENABLED: true
       KC_LOG_LEVEL: info
-      KC_REALM_NAME: realm1
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-      #KC_HOSTNAME: localhost
-      KC_HOSTNAME_PORT: 8080
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_PORT: "8080"
       KC_HOSTNAME_STRICT: false
       KC_HOSTNAME_STRICT_HTTPS: false
       KC_HTTP_RESPONSE_HEADERS: "Access-Control-Allow-Origin:http://localhost:4200;Access-Control-Allow-Methods:GET,POST,OPTIONS,PUT,DELETE;Access-Control-Allow-Headers:Authorization,Content-Type"
