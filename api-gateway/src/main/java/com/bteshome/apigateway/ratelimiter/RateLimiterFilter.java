@@ -15,7 +15,7 @@ import reactor.core.publisher.Mono;
 @Slf4j
 @Component
 @ConditionalOnProperty(name = "rate-limiter-disabled", havingValue = "false", matchIfMissing = true)
-@Order(1)
+@Order(-100)
 public class RateLimiterFilter implements GlobalFilter {
     @Autowired
     RateLimiter limiter;
@@ -25,8 +25,11 @@ public class RateLimiterFilter implements GlobalFilter {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        var api = exchange.getRequest().getHeaders().getFirst("X-api");
-        var client = exchange.getRequest().getRemoteAddress().getAddress();
+        // TODO
+        String path = exchange.getRequest().getPath().toString();
+        String api = path.split("/")[1];
+        System.out.println(api);
+        /*var client = exchange.getRequest().getRemoteAddress().getAddress();
 
         if (limiter.tryAcquire(api, client.toString())) {
             log.debug("RateLimiter allowed caller: {}", exchange.getRequest().getRemoteAddress().getAddress());
@@ -35,6 +38,8 @@ public class RateLimiterFilter implements GlobalFilter {
             log.debug("RateLimiter blocked caller: {}", exchange.getRequest().getRemoteAddress().getAddress());
             exchange.getResponse().setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
             return exchange.getResponse().setComplete();
-        }
+        }*/
+
+        return chain.filter(exchange);
     }
 }

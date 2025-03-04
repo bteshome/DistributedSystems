@@ -13,6 +13,7 @@ ordering-ui-url: http://localhost:4200
 keycloak-url: http://localhost:8080
 
 keycloak-realm: apigateway
+index-page: index-local.html
 
 security-disabled: 'false'
 rate-limiter-disabled: 'false'
@@ -51,8 +52,6 @@ spring:
     config:
       import-check:
         enabled: 'false'
-  autoconfigure:
-    exclude: org.keycloak.adapters.springboot.KeycloakSpringBootConfiguration
 
 logging:
   pattern:

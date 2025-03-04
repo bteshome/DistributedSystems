@@ -6,7 +6,9 @@ import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.ServerResponse;
 
@@ -20,13 +22,23 @@ public class RouteConfig {
     @Bean
     public RouterFunction<ServerResponse> fallbackRoute() {
         return route()
-            .GET ("/fallback", request -> ServerResponse
-                .status(HttpStatus.SERVICE_UNAVAILABLE)
-                .bodyValue("Service unavailable, please try again later."))
-            .POST("/fallback", request -> ServerResponse
-                    .status(HttpStatus.SERVICE_UNAVAILABLE)
-                    .bodyValue("Service unavailable, please try again later."))
-            .build();
+                .GET("/fallback", request -> ServerResponse
+                        .status(HttpStatus.SERVICE_UNAVAILABLE)
+                        .bodyValue("Service unavailable, please try again later."))
+                .POST("/fallback", request -> ServerResponse
+                        .status(HttpStatus.SERVICE_UNAVAILABLE)
+                        .bodyValue("Service unavailable, please try again later."))
+                .build();
+    }
+
+    @Bean
+    public RouterFunction<ServerResponse> homeRoute() {
+        return route()
+                .GET("/", request -> ServerResponse
+                        .ok()
+                        .contentType(MediaType.TEXT_HTML)
+                        .bodyValue(new ClassPathResource("static/" + appSettings.getIndexPage())))
+                .build();
     }
 
     @Bean
@@ -37,15 +49,15 @@ public class RouteConfig {
                         .and()
                         .method("GET")
                         .filters(f -> f
-                                        .rewritePath("/inventory/products/", "/api/products/")
-                                        /*.circuitBreaker(config -> config
-                                                .setName("inventory")
-                                                .setFallbackUri("forward:/fallback"))*/
-                                /*.retry(config -> config
-                                        .setRetries(3)
-                                        .setMethods(HttpMethod.GET)
-                                        .setStatuses(HttpStatus.BAD_GATEWAY, HttpStatus.GATEWAY_TIMEOUT)
-                                        .setBackoff(Duration.ofMillis(100), Duration.ofMillis(1000), 2, true))*/)
+                                .rewritePath("/inventory/products/", "/api/products/")
+                                /*.circuitBreaker(config -> config
+                                        .setName("inventory")
+                                        .setFallbackUri("forward:/fallback"))*/
+                        /*.retry(config -> config
+                                .setRetries(3)
+                                .setMethods(HttpMethod.GET)
+                                .setStatuses(HttpStatus.BAD_GATEWAY, HttpStatus.GATEWAY_TIMEOUT)
+                                .setBackoff(Duration.ofMillis(100), Duration.ofMillis(1000), 2, true))*/)
                         .uri(appSettings.getInventoryServiceUrl()))
                 .build();
     }
@@ -58,15 +70,15 @@ public class RouteConfig {
                         .and()
                         .method("GET")
                         .filters(f -> f
-                                        .rewritePath("/orders/?(?<remaining>.*)", "/api/orders/${remaining}")
-                                        /*.circuitBreaker(config -> config
-                                                .setName("orders")
-                                                .setFallbackUri("forward:/fallback"))*/
-                                /*.retry(config -> config
-                                        .setRetries(3)
-                                        .setMethods(HttpMethod.GET)
-                                        .setStatuses(HttpStatus.BAD_GATEWAY, HttpStatus.GATEWAY_TIMEOUT)
-                                        .setBackoff(Duration.ofMillis(100), Duration.ofMillis(1000), 2, true))*/)
+                                .rewritePath("/orders/?(?<remaining>.*)", "/api/orders/${remaining}")
+                                /*.circuitBreaker(config -> config
+                                        .setName("orders")
+                                        .setFallbackUri("forward:/fallback"))*/
+                        /*.retry(config -> config
+                                .setRetries(3)
+                                .setMethods(HttpMethod.GET)
+                                .setStatuses(HttpStatus.BAD_GATEWAY, HttpStatus.GATEWAY_TIMEOUT)
+                                .setBackoff(Duration.ofMillis(100), Duration.ofMillis(1000), 2, true))*/)
                         .uri(appSettings.getOrderServiceUrl()))
                 .build();
     }
@@ -79,15 +91,10 @@ public class RouteConfig {
                         .and()
                         .method("POST")
                         .filters(f -> f
-                                        .rewritePath("/orders/create/", "/api/orders/create/")
-                                        /*.circuitBreaker(config -> config
-                                                .setName("orders")
-                                                .setFallbackUri("forward:/fallback"))*/
-                                /*.retry(config -> config
-                                        .setRetries(3)
-                                        .setMethods(HttpMethod.GET)
-                                        .setStatuses(HttpStatus.BAD_GATEWAY, HttpStatus.GATEWAY_TIMEOUT)
-                                        .setBackoff(Duration.ofMillis(100), Duration.ofMillis(1000), 2, true))*/)
+                                .rewritePath("/orders/create/", "/api/orders/create/")
+                                /*.circuitBreaker(config -> config
+                                        .setName("orders")
+                                        .setFallbackUri("forward:/fallback"))*/)
                         .uri(appSettings.getOrderServiceUrl()))
                 .build();
     }
@@ -99,16 +106,16 @@ public class RouteConfig {
                         .path("/ordering-ui/config/")
                         .and()
                         .method("POST")
-                        .filters(f -> f
-                                        .rewritePath("/ordering-ui/config/", "/api/")
-                                        /*.circuitBreaker(config -> config
+                        .filters(f ->
+                                f.rewritePath("/ordering-ui/config/", "/api/")
+                                /*.circuitBreaker(config -> config
                                                 .setName("orders")
                                                 .setFallbackUri("forward:/fallback"))*/
-                                /*.retry(config -> config
-                                        .setRetries(3)
-                                        .setMethods(HttpMethod.GET)
-                                        .setStatuses(HttpStatus.BAD_GATEWAY, HttpStatus.GATEWAY_TIMEOUT)
-                                        .setBackoff(Duration.ofMillis(100), Duration.ofMillis(1000), 2, true))*/)
+                        /*.retry(config -> config
+                                .setRetries(3)
+                                .setMethods(HttpMethod.GET)
+                                .setStatuses(HttpStatus.BAD_GATEWAY, HttpStatus.GATEWAY_TIMEOUT)
+                                .setBackoff(Duration.ofMillis(100), Duration.ofMillis(1000), 2, true))*/)
                         .uri(appSettings.getOrderingUiConfigServiceUrl()))
                 .build();
     }

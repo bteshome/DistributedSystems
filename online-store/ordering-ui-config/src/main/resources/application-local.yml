@@ -10,7 +10,7 @@ server:
   port: '4201'
 
 secret-locations:
-  clientsecret: C:\code\DistributedSystems\online-store\clientsecret
+  clientsecret: C:\code\clientsecret
 
 management:
   server:

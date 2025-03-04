@@ -34,10 +34,13 @@ public class SecurityConfig {
 
         return http
                 .authorizeExchange( authorize -> authorize
-                    .pathMatchers("/inventory/products/").permitAll()
-                    .pathMatchers("/ordering-ui/config/").permitAll()
                     .pathMatchers("/orders/create/").authenticated()
                     .pathMatchers("/orders/query/").authenticated()
+                    .pathMatchers("/inventory/products/").permitAll()
+                    .pathMatchers("/ordering-ui/config/").permitAll()
+                    .pathMatchers("/").permitAll()
+                    .pathMatchers("/public/**").permitAll()
+                    .pathMatchers("/favicon.ico").permitAll()
                     .anyExchange().denyAll())
                 .oauth2ResourceServer(oAuth2ResourceServerSpec -> oAuth2ResourceServerSpec
                         .jwt(jwtSpec -> jwtSpec.jwtAuthenticationConverter(keycloakRoleExtractor.grantedAuthoritiesExtractor())))

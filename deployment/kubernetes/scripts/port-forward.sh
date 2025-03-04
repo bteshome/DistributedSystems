@@ -10,6 +10,8 @@ kubectl port-forward svc/kvs-admin-dashboard 9500:9500
 
 kubectl port-forward svc/os-admin-dashboard 81:81
 
+kubectl port-forward svc/rate-limiter-rules-dashboard 9600:9600
+
 kubectl port-forward svc/dev-grafana 3000:3000
 
 kubectl port-forward svc/dev-prometheus-server 8088:80

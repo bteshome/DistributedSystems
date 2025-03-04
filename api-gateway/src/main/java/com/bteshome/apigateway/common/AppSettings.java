@@ -22,6 +22,7 @@ public class AppSettings {
     private String orderServiceUrl;
     private String keycloakUrl;
     private String keycloakRealm;
+    private String indexPage;
     private String orderingUiUrl;
     private String orderingUiConfigServiceUrl;
     private String keycloakHostName;
