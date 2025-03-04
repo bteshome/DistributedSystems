@@ -17,15 +17,9 @@ metadata:
   {{- end }}
 spec:
   accessModes:
-  {{- if not (empty .Values.persistence.accessModes) }}
-  {{- range .Values.persistence.accessModes }}
-    - {{ . | quote }}
-  {{- end }}
-  {{- else }}
-    - {{ .Values.persistence.accessMode | quote }}
-  {{- end }}
+    - ReadWriteOnce
   resources:
     requests:
-      storage: {{ .Values.persistence.size | quote }}
-  {{ include "grafana.storageClass" . }}
+      storage: 2Gi
+  storageClassName: auto-ebs-sc
 {{- end -}}

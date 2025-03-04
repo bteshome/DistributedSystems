@@ -10,20 +10,24 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 @Slf4j
 @Component
 @Order(-1)
 public class ClientMetadataRefresher implements GlobalFilter {
-    private long lastRefreshTime = 0;
+    private final AtomicLong lastRefreshTime = new AtomicLong(0);
     @Autowired
     private ClientMetadataFetcher clientMetadataFetcher;
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        if (System.currentTimeMillis() - lastRefreshTime > 10000) {
+        long now = System.currentTimeMillis();
+        long lastTime = lastRefreshTime.get();
+
+        if (now - lastTime > 10000 && lastRefreshTime.compareAndSet(lastTime, now))
             clientMetadataFetcher.fetch();
-            lastRefreshTime = System.currentTimeMillis();
-        }
+
         return chain.filter(exchange);
     }
 }

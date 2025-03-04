@@ -12,6 +12,6 @@ service:
   ports:
     - 6379
 
-memory: "512Mi"
-cpu: "0.4"
-cpuLimit: "1"
+memory: "256Mi"
+cpu: "0.25"
+cpuLimit: "0.5"

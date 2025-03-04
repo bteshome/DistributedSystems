@@ -301,21 +301,21 @@ datasources:
         editable: true
         jsonData:
           httpMethod: GET
-      - name: Tempo
-        type: tempo
-        uid: tempo
-        #url: http://dev-tempo-query-frontend:3200
-        url: http://dev-tempo:3100
-        access: proxy
-        orgId: 1
-        basicAuth: false
-        isDefault: false
-        version: 1
-        editable: true
-        jsonData:
-          httpMethod: GET
-          serviceMap:
-            datasourceUid: 'prometheus'
+#      - name: Tempo
+#        type: tempo
+#        uid: tempo
+#        #url: http://dev-tempo-query-frontend:3200
+#        url: http://dev-tempo:3100
+#        access: proxy
+#        orgId: 1
+#        basicAuth: false
+#        isDefault: false
+#        version: 1
+#        editable: true
+#        jsonData:
+#          httpMethod: GET
+#          serviceMap:
+#            datasourceUid: 'prometheus'
       - name: Loki
         type: loki
         uid: loki
@@ -689,13 +689,12 @@ serviceAccount:
 service:
   ## @param service.type Kubernetes Service type
   ##
-  #type: ClusterIP
-  type: LoadBalancer
+  type: ClusterIP
   ## @param service.clusterIP Grafana service Cluster IP
   ## e.g.:
   ## clusterIP: None
   ##
-  clusterIP: ""
+  #clusterIP: ""
   ## @param service.ports.grafana Grafana service port
   ##
   ports:

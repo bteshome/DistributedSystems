@@ -16,9 +16,12 @@ service:
 
 config_client_enabled: true
 otel_enabled: true
-ingress_enabled: true
 nodePortServiceName: api-gateway-nodeport
 nodePortServicePort: 80
+keycloak_nodePortServiceName: keycloak-nodeport
+keycloak_nodePortServicePort: 8080
+orderingUi_nodePortServiceName: os-ordering-ui-nodeport
+orderingUi_nodePortServicePort: 4200
 memory: "1024Mi"
 cpu: "1"
 cpuLimit: "3"

@@ -7,14 +7,8 @@ image: quay.io/keycloak/keycloak:26.0
 ports:
   - 8080
 
-service:
-  clusterIP: None
-  ports:
-    - 8080
-
 args: ["start"]
 keycloak_enabled: true
-ingress_enabled: true
 nodePortServiceName: keycloak-nodeport
 nodePortServicePort: 8080
 memory: "1024Mi"

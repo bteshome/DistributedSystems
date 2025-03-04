@@ -5,15 +5,17 @@ server:
 
 inventory-service-name: inventory
 order-service-name: orders
+
 inventory-service-url: http://localhost:82
 order-service-url: http://localhost:83
+ordering-ui-config-service-url: http://localhost:4201
 ordering-ui-url: http://localhost:4200
-ordering-ui-config-url: http://localhost:4201
 keycloak-url: http://localhost:8080
+
 keycloak-realm: apigateway
 
-security-disabled: 'true'
-rate-limiter-disabled: 'true'
+security-disabled: 'false'
+rate-limiter-disabled: 'false'
 rate-limiter-cache-servers: redis://localhost:6379
 rate-limiter-num-of-virtual-nodes: '3'
 rate-limiter-rules-sync-frequency-seconds: '60'

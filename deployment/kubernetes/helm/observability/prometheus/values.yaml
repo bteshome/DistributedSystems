@@ -717,8 +717,8 @@ server:
     servicePort: 80
     #servicePort: 89
     sessionAffinity: None
-    #type: ClusterIP
-    type: LoadBalancer
+    type: ClusterIP
+    #type: LoadBalancer
 
     ## Enable gRPC port on service to allow auto discovery with thanos-querier
     gRPC:
@@ -1284,7 +1284,7 @@ extraManifests: []
 alertmanager:
   ## If false, alertmanager will not be installed
   ##
-  enabled: true
+  enabled: false
 
   persistence:
     size: 2Gi

@@ -109,7 +109,7 @@ public class RouteConfig {
                                         .setMethods(HttpMethod.GET)
                                         .setStatuses(HttpStatus.BAD_GATEWAY, HttpStatus.GATEWAY_TIMEOUT)
                                         .setBackoff(Duration.ofMillis(100), Duration.ofMillis(1000), 2, true))*/)
-                        .uri(appSettings.getOrderingUiConfigUrl()))
+                        .uri(appSettings.getOrderingUiConfigServiceUrl()))
                 .build();
     }
 }

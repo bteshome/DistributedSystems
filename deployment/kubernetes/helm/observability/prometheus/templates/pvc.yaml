@@ -17,20 +17,11 @@ metadata:
   namespace: {{ include "prometheus.namespace" . }}
 spec:
   accessModes:
-{{ toYaml .Values.server.persistentVolume.accessModes | indent 4 }}
-{{- if .Values.server.persistentVolume.storageClass }}
-{{- if (eq "-" .Values.server.persistentVolume.storageClass) }}
-  storageClassName: ""
-{{- else }}
-  storageClassName: "{{ .Values.server.persistentVolume.storageClass }}"
-{{- end }}
-{{- end }}
-{{- if .Values.server.persistentVolume.volumeBindingMode }}
-  volumeBindingMode: "{{ .Values.server.persistentVolume.volumeBindingMode }}"
-{{- end }}
+    - ReadWriteOnce
   resources:
     requests:
-      storage: "{{ .Values.server.persistentVolume.size }}"
+      storage: "4Gi"
+  storageClassName: auto-ebs-sc
 {{- if .Values.server.persistentVolume.selector }}
   selector:
   {{- toYaml .Values.server.persistentVolume.selector | nindent 4 }}

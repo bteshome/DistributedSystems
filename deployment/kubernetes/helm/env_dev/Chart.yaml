@@ -26,61 +26,61 @@ dependencies:
     repository: file://../services/os-ordering-ui-config
 
 
-  #- name: rate-limiter-rules-dashboard
-  #  version: "0.1.0"
-  #  repository: file://../services/rate-limiter-rules-dashboard
+  - name: rate-limiter-rules-dashboard
+    version: "0.1.0"
+    repository: file://../services/rate-limiter-rules-dashboard
   - name: keycloak-db
     version: "0.1.0"
     repository: file://../services/keycloak-db
   - name: keycloak
     version: "0.1.0"
     repository: file://../services/keycloak
-  #- name: rate-limiter-cache-node1
-  #  version: "0.1.0"
-  #  repository: file://../services/rate-limiter-cache-node1
-  #- name: rate-limiter-cache-node2
-  #  version: "0.1.0"
-  #  repository: file://../services/rate-limiter-cache-node2
+  - name: rate-limiter-cache-node1
+    version: "0.1.0"
+    repository: file://../services/rate-limiter-cache-node1
+  - name: rate-limiter-cache-node2
+    version: "0.1.0"
+    repository: file://../services/rate-limiter-cache-node2
   - name: api-gateway
     version: "0.1.0"
     repository: file://../services/api-gateway
 
 
-  # - name: grafana
-  #   version: "11.4.2"
-  #   repository: file://../observability/grafana
-  # - name: grafana-loki
-  #   version: "4.7.1"
-  #   repository: file://../observability/grafana-loki
-  # - name: tempo
-  #   version: "1.16.0"
-  #   repository: file://../observability/tempo
-  # - name: prometheus
-  #   version: "26.0.1"
-  #   repository: file://../observability/prometheus
+  - name: grafana
+    version: "11.4.2"
+    repository: file://../observability/grafana
+  - name: grafana-loki
+    version: "4.7.1"
+    repository: file://../observability/grafana-loki
+  #- name: tempo
+  #  version: "1.16.0"
+  #  repository: file://../observability/tempo
+  - name: prometheus
+    version: "26.0.1"
+    repository: file://../observability/prometheus
+  
 
-
-  - name: kvs-metadata-server-node0
+  #- name: kvs-metadata-server-node0
+  #  version: "0.1.0"
+  #  repository: file://../services/kvs-metadata-server-node0
+  - name: kvs-metadata-server-node1
     version: "0.1.0"
-    repository: file://../services/kvs-metadata-server-node0
-  # - name: kvs-metadata-server-node1
-  #   version: "0.1.0"
-  #   repository: file://../services/kvs-metadata-server-node1
-  # - name: kvs-metadata-server-node2
-  #   version: "0.1.0"
-  #   repository: file://../services/kvs-metadata-server-node2
-  # - name: kvs-metadata-server-node3
-  #   version: "0.1.0"
-  #   repository: file://../services/kvs-metadata-server-node3
+    repository: file://../services/kvs-metadata-server-node1
+  - name: kvs-metadata-server-node2
+    version: "0.1.0"
+    repository: file://../services/kvs-metadata-server-node2
+  - name: kvs-metadata-server-node3
+    version: "0.1.0"
+    repository: file://../services/kvs-metadata-server-node3
   - name: kvs-storage-server-node1
     version: "0.1.0"
     repository: file://../services/kvs-storage-server-node1
-  # - name: kvs-storage-server-node2
-  #   version: "0.1.0"
-  #   repository: file://../services/kvs-storage-server-node2
-  # - name: kvs-storage-server-node3
-  #   version: "0.1.0"
-  #   repository: file://../services/kvs-storage-server-node3
+  - name: kvs-storage-server-node2
+    version: "0.1.0"
+    repository: file://../services/kvs-storage-server-node2
+  - name: kvs-storage-server-node3
+    version: "0.1.0"
+    repository: file://../services/kvs-storage-server-node3
   - name: kvs-admin-dashboard
     version: "0.1.0"
     repository: file://../services/kvs-admin-dashboard

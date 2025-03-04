@@ -16,13 +16,11 @@ metadata:
   {{- end }}
 spec:
   accessModes:
-  {{- range .Values.compactor.persistence.accessModes }}
-    - {{ . | quote }}
-  {{- end }}
+    - ReadWriteOnce
   resources:
     requests:
-      storage: {{ .Values.compactor.persistence.size | quote }}
-  {{- include "common.storage.class" (dict "persistence" .Values.compactor.persistence "global" .Values.global) | nindent 2 }}
+      storage: 2Gi
+  storageClassName: auto-ebs-sc
   {{- if .Values.compactor.persistence.dataSource }}
   dataSource: {{- include "common.tplvalues.render" (dict "value" .Values.compactor.persistence.dataSource "context" $) | nindent 4 }}
   {{- end }}

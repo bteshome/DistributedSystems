@@ -1,1 +1,49 @@
-{{- template "ds-common.ingress" . -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-gateway
+  labels:
+    app.kubernetes.io/name: api-gateway
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:868497626916:certificate/45db36cb-388b-428b-8922-0ae5a03525c5
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS": 443}]' 
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+spec:
+  ingressClassName: alb
+  rules:
+    - host: api.bteshome.com
+      http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: {{ .Values.nodePortServiceName }}
+              port:
+                number: {{ .Values.nodePortServicePort }}
+    {{- if .Values.keycloak_nodePortServiceName }}
+    - host: auth.bteshome.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.keycloak_nodePortServiceName }}
+                port:
+                  number: {{ .Values.keycloak_nodePortServicePort }}
+    {{- end }}
+    {{- if .Values.orderingUi_nodePortServiceName }}
+    - host: order.bteshome.com
+      http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: {{ .Values.orderingUi_nodePortServiceName }}
+              port:
+                number: {{ .Values.orderingUi_nodePortServicePort }}
+    {{- end }}
