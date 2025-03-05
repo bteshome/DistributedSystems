@@ -33,14 +33,10 @@
             ],
             "styles": [
               "src/styles.css",
-              "src/assets/bootstrap.min.css",
               "src/assets/dashboard.css",
-              "src/assets/osstyles.css",
-              "src/assets/bootstrap-icons.min.css"
+              "src/assets/osstyles.css"
             ],
             "scripts": [
-              "src/assets/popper.min.js",
-              "src/assets/bootstrap.min.js"
             ]
           },
           "configurations": {
