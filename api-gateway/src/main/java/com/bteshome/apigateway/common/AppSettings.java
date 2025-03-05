@@ -33,6 +33,7 @@ public class AppSettings {
     private String rateLimiterCacheServers;
     private String rateLimiterRulesSyncFrequencySeconds;
     private String rateLimiterNumOfVirtualNodes;
+    private String rateLimiterRulesTableName;
 
     public void print() {
         log.info("AppSettings: inventoryServiceName={}", inventoryServiceName);

@@ -8,6 +8,7 @@
           integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
     <link href="/public/styles.css" rel="stylesheet">
     <link href="/public/dashboard.css" rel="stylesheet">
+    <link rel="icon" href="/public/favicon.ico" type="image/x-icon">
 </head>
 <body>
 <header class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0 shadow">
@@ -32,44 +33,38 @@
             <tr>
                 <th>Service</th>
                 <th>Url</th>
-                <th>How to Access</th>
             </tr>
             </thead>
             <tbody>
             <tr>
                 <td>Key Value Store Admin Dashboard</td>
                 <td class="">
-                    <a href="http://localhost:9500/">http://localhost:9500/</a>
+                    <a href="http://localhost:9207/">http://localhost:9207/</a>
                 </td>
-                <td><code>kubectl port-forward svc/kvs-admin-dashboard 9500:9500</code></td>
             </tr>
             <tr>
                 <td>Online Store Admin Dashboard</td>
                 <td class="">
                     <a href="http://localhost:81/">http://localhost:81/</a>
                 </td>
-                <td><code>kubectl port-forward svc/os-admin-dashboard 81:81</code></td>
             </tr>
             <tr>
                 <td>Rate Limiter Rules Dashboard</td>
                 <td class="">
                     <a href="http://localhost:9600/">http://localhost:9600/</a>
                 </td>
-                <td><code>kubectl port-forward svc/rate-limiter-rules-dashboard 9600:9600</code></td>
             </tr>
             <tr>
                 <td>Auth Dashboard</td>
                 <td class="">
-                    <a href="https://auth.bteshome.com">https://auth.bteshome.com</a>
+                    <a href="http://localhost:8080/">http://localhost:8080/</a>
                 </td>
-                <td></td>
             </tr>
             <tr>
                 <td>Ordering UI</td>
                 <td class="">
-                    <a href="https://order.bteshome.com">https://order.bteshome.com</a>
+                    <a href="http://localhost:4200">http://localhost:4200</a>
                 </td>
-                <td></td>
             </tr>
             </tbody>
         </table>

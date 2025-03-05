@@ -1,6 +1,6 @@
 package com.bteshome.apigateway.ratelimiter;
 
-public enum Granularity {
-    SECOND,
-    MINUTE,
+public class Granularity {
+    public static final String SECOND = "SECOND";
+    public static final String MINUTE = "MINUTE";
 }

@@ -22,8 +22,8 @@ public class RateLimiter {
         try (var redisClient = new UnifiedJedis(server)) {
             for (var rule : rules) {
                 boolean allowed = switch (rule.getGranularity()) {
-                    case MINUTE -> tryAcquirePerMinute(rule, redisClient, client);
-                    case SECOND -> tryAcquirePerSecond(rule, redisClient, client);
+                    case Granularity.MINUTE -> tryAcquirePerMinute(rule, redisClient, client);
+                    case Granularity.SECOND -> tryAcquirePerSecond(rule, redisClient, client);
                     case null, default -> throw new RateLimiterException("Invalid rule granularity: " + rule.getGranularity());
                 };
                 if (!allowed) {

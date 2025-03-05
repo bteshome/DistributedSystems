@@ -40,7 +40,7 @@ public class SecurityConfig {
                     .pathMatchers("/ordering-ui/config/").permitAll()
                     .pathMatchers("/").permitAll()
                     .pathMatchers("/public/**").permitAll()
-                    .pathMatchers("/favicon.ico").permitAll()
+                    .pathMatchers("/actuator/**").permitAll()
                     .anyExchange().denyAll())
                 .oauth2ResourceServer(oAuth2ResourceServerSpec -> oAuth2ResourceServerSpec
                         .jwt(jwtSpec -> jwtSpec.jwtAuthenticationConverter(keycloakRoleExtractor.grantedAuthoritiesExtractor())))

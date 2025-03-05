@@ -15,11 +15,12 @@ keycloak-url: http://localhost:8080
 keycloak-realm: apigateway
 index-page: index-local.html
 
-security-disabled: 'false'
+security-disabled: 'true'
 rate-limiter-disabled: 'false'
-rate-limiter-cache-servers: redis://localhost:6379
+rate-limiter-cache-servers: redis://localhost:6379,redis://localhost:6380
 rate-limiter-num-of-virtual-nodes: '3'
 rate-limiter-rules-sync-frequency-seconds: '60'
+rate-limiter-rules-table-name: rate_limiter_rules
 
 storage-client:
   endpoints: localhost:9407,localhost:9607,localhost:9807

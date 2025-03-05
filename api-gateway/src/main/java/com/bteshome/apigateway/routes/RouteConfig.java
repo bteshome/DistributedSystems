@@ -37,7 +37,7 @@ public class RouteConfig {
                 .GET("/", request -> ServerResponse
                         .ok()
                         .contentType(MediaType.TEXT_HTML)
-                        .bodyValue(new ClassPathResource("static/" + appSettings.getIndexPage())))
+                        .bodyValue(new ClassPathResource("_static2/" + appSettings.getIndexPage())))
                 .build();
     }
 

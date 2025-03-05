@@ -10,6 +10,7 @@ import com.bteshome.keyvaluestore.client.writers.ItemWriter;
 import com.bteshome.ratelimiterrulesdashboard.common.RateLimiterRuleException;
 import com.bteshome.ratelimiterrulesdashboard.model.Rule;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Repository;
 
@@ -18,7 +19,8 @@ import java.util.stream.Stream;
 
 @Repository
 public class RuleRepository {
-    private final String tableName = "rate_limiter_rules";
+    @Value("${table-name}")
+    private String tableName;
     @Autowired
     private ItemWriter itemWriter;
     @Autowired

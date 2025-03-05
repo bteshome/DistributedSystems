@@ -41,7 +41,7 @@ logging:
   level:
     com:
       bteshome: INFO
-    root: ERROR
+    root: INFO
     org:
       apache:
         ratis: INFO

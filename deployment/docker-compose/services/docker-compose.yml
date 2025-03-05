@@ -97,13 +97,13 @@ services:
     networks:
       - ds
 
-#  rate-limiter-db-2:
-#    container_name: rate-limiter-db-2
-#    image: redis:latest
-#    ports:
-#      - "6380:6379"
-#    networks:
-#      - ds
+  rate-limiter-db-2:
+    container_name: rate-limiter-db-2
+    image: redis:latest
+    ports:
+      - "6380:6379"
+    networks:
+      - ds
 
   broker:
     image: confluentinc/cp-kafka:7.6.1

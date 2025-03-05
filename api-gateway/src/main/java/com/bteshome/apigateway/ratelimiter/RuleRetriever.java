@@ -1,32 +1,43 @@
 package com.bteshome.apigateway.ratelimiter;
 
+import com.bteshome.apigateway.common.AppSettings;
+import com.bteshome.keyvaluestore.client.ClientMetadataFetcher;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemList;
 import com.bteshome.keyvaluestore.client.readers.ItemLister;
 import com.bteshome.keyvaluestore.client.requests.IsolationLevel;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.stereotype.Component;
+import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Component
 @Slf4j
 public class RuleRetriever {
-    private final String tableName = "rate_limiter_rules";
     @Autowired
-    ItemLister itemLister;
+    private AppSettings appSettings;
+    @Autowired
+    private ItemLister itemLister;
+    @Autowired
+    private ClientMetadataFetcher clientMetadataFetcher;
 
     public void fetchRules() {
-        log.debug("Attempting to fetch rate limiter rules...");
-
         final HashMap<String, List<Rule>> rules = new HashMap<>();
 
         try {
+            clientMetadataFetcher.fetch();
+
+            log.debug("Attempting to fetch rate limiter rules...");
+
             ItemList listRequest = new ItemList();
-            listRequest.setTable(tableName);
+            listRequest.setTable(appSettings.getRateLimiterRulesTableName());
             listRequest.setLimit(10);
             listRequest.setIsolationLevel(IsolationLevel.READ_COMMITTED);
 
