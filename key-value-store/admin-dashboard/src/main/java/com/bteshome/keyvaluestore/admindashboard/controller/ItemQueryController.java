@@ -3,6 +3,7 @@ package com.bteshome.keyvaluestore.admindashboard.controller;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemQuery;
 import com.bteshome.keyvaluestore.client.readers.ItemQuerier;
 import com.bteshome.keyvaluestore.client.requests.IsolationLevel;
+import com.bteshome.keyvaluestore.common.Tuple3;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,7 +37,7 @@ public class ItemQueryController {
     @PostMapping("/")
     public String query(@ModelAttribute("queryRequest") @RequestBody ItemQuery queryRequest, Model model) {
         try {
-            List<Map.Entry<String, String>> response = itemQuerier
+            List<Tuple3<String, String, String>> response = itemQuerier
                     .queryForStrings(queryRequest)
                     .collectList()
                     .block();

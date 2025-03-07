@@ -37,7 +37,6 @@ public class SecurityConfig {
                     .pathMatchers("/orders/create/").authenticated()
                     .pathMatchers("/orders/query/").authenticated()
                     .pathMatchers("/inventory/products/").permitAll()
-                    .pathMatchers("/ordering-ui/config/").permitAll()
                     .pathMatchers("/").permitAll()
                     .pathMatchers("/public/**").permitAll()
                     .pathMatchers("/actuator/**").permitAll()

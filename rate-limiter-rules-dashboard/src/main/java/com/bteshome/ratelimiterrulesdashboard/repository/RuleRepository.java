@@ -7,6 +7,7 @@ import com.bteshome.keyvaluestore.client.requests.AckType;
 import com.bteshome.keyvaluestore.client.requests.IsolationLevel;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
 import com.bteshome.keyvaluestore.client.writers.ItemWriter;
+import com.bteshome.keyvaluestore.common.Tuple3;
 import com.bteshome.ratelimiterrulesdashboard.common.RateLimiterRuleException;
 import com.bteshome.ratelimiterrulesdashboard.model.Rule;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,6 +59,6 @@ public class RuleRepository {
                 .collectList()
                 .block()
                 .stream()
-                .map(Map.Entry::getValue);
+                .map(Tuple3::third);
     }
 }

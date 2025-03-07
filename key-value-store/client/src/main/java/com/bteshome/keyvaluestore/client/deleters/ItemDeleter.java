@@ -9,6 +9,7 @@ import com.bteshome.keyvaluestore.client.responses.ItemDeleteResponse;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.Validator;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
@@ -34,7 +35,11 @@ public class ItemDeleter {
         itemDeleteRequest.getKeys().add(request.getKey());
         itemDeleteRequest.setAck(request.getAck());
 
-        int partition = keyToPartitionMapper.map(request.getTable(), request.getKey());
+        String partitionKey = request.getPartitionKey();
+        if (Strings.isBlank(partitionKey))
+            partitionKey = request.getKey();
+
+        int partition = keyToPartitionMapper.map(request.getTable(), partitionKey);
         itemDeleteRequest.setPartition(partition);
 
         return delete(itemDeleteRequest, partition, request.getRetries());

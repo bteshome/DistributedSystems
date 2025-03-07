@@ -15,6 +15,7 @@ import java.util.Map;
 @AllArgsConstructor
 public class Item {
     private String key;
+    private String partitionKey;
     private byte[] value;
     private Map<String, String> indexKeys = new HashMap<>();
     private LogPosition previousVersion;

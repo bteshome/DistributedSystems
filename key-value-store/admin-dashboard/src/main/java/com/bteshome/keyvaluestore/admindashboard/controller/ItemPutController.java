@@ -55,6 +55,7 @@ public class ItemPutController {
             ItemWrite<Product> request = new ItemWrite<>();
             request.setTable(itemPutDto.getTable());
             request.setKey(itemPutDto.getKey());
+            request.setPartitionKey(itemPutDto.getPartitionKey());
             request.setAck(itemPutDto.getAck());
             request.setMaxRetries(itemPutDto.getMaxRetries());
             Product value = JsonSerDe.deserialize(itemPutDto.getValue(), Product.class);
@@ -75,7 +76,7 @@ public class ItemPutController {
                         response.getErrorMessage(),
                         response.getEndOffset()));
             }
-            request.setKey("");
+            itemPutDto.setKey("");
             model.addAttribute("info", "PUT succeeded.");
         } catch (Exception e) {
             model.addAttribute("error", e.getMessage());

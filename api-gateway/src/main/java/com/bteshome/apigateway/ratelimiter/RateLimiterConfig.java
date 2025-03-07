@@ -25,7 +25,6 @@ public class RateLimiterConfig implements WebFilter {
     private static final String API_NAME_API_GATEWAY = "api-gateway";
     private static final String API_NAME_INVENTORY = "inventory";
     private static final String API_NAME_ORDERS = "orders";
-    private static final String API_NAME_ORDERING_UI = "ordering-ui";
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
@@ -40,7 +39,6 @@ public class RateLimiterConfig implements WebFilter {
                 case "favicon.ico", "public", "actuator" -> api = API_NAME_API_GATEWAY;
                 case "inventory" -> api = API_NAME_INVENTORY;
                 case "orders" -> api = API_NAME_ORDERS;
-                case "ordering-ui" -> api = API_NAME_ORDERING_UI;
             }
         }
 

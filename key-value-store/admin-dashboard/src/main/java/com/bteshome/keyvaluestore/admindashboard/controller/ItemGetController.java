@@ -29,6 +29,7 @@ public class ItemGetController {
         ItemGet request = new ItemGet();
         request.setTable("products");
         request.setKey("p1");
+        request.setKey("p1");
         model.addAttribute("request", request);
         model.addAttribute("page", "items-get");
         return "items-get.html";

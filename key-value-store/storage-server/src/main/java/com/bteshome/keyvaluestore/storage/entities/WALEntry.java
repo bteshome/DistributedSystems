@@ -10,9 +10,11 @@ public record WALEntry(int leaderTerm,
                        byte operation,
                        long expiryTime,
                        byte keyLength,
+                       byte partitionKeyLength,
                        short valueLength,
                        short indexLength,
                        byte[] key,
+                       byte[] partitionKey,
                        byte[] value,
                        byte[] indexes) {
     public static WALEntry fromByteBuffer(ByteBuffer buffer) {
@@ -22,11 +24,16 @@ public record WALEntry(int leaderTerm,
         byte operationType = buffer.get();
         long expiryTime = buffer.getLong();
         byte keyLength = buffer.get();
+        byte partitionKeyLength = buffer.get();
         short valueLength = buffer.getShort();
         short indexLength = buffer.getShort();
 
         byte[] key = new byte[keyLength];
         buffer.get(key);
+
+        byte[] partitionKey = partitionKeyLength == 0 ? null : new byte[partitionKeyLength];
+        if (partitionKeyLength > 0)
+            buffer.get(partitionKey);
 
         byte[] value = valueLength == 0 ? null : new byte[valueLength];
         if (valueLength > 0)
@@ -42,9 +49,11 @@ public record WALEntry(int leaderTerm,
                             operationType,
                             expiryTime,
                             keyLength,
+                            partitionKeyLength,
                             valueLength,
                             indexLength,
                             key,
+                            partitionKey,
                             value,
                             indexes);
     }

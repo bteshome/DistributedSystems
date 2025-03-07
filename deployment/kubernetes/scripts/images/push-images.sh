@@ -43,10 +43,6 @@ docker push 868497626916.dkr.ecr.us-east-1.amazonaws.com/os-order-service:latest
 echo " "
 echo " "
 
-docker push 868497626916.dkr.ecr.us-east-1.amazonaws.com/os-ordering-ui-config:latest
-echo " "
-echo " "
-
 docker push 868497626916.dkr.ecr.us-east-1.amazonaws.com/os-ordering-ui:latest
 echo " "
 echo " "

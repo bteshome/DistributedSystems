@@ -57,6 +57,7 @@ public class LoadTestController {
             ItemWrite<byte[]> itemWrite = new ItemWrite<>(
                     request.getTable(),
                     key,
+                    key,
                     value.getBytes(),
                     null,
                     request.getAck(),

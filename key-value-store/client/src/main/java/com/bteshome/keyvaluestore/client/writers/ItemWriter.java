@@ -10,6 +10,7 @@ import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
 import com.bteshome.keyvaluestore.common.*;
 import com.bteshome.keyvaluestore.common.entities.Item;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
@@ -37,6 +38,7 @@ public class ItemWriter {
         request.setValue(Validator.notEmpty(request.getValue(), "Value"));
         byte[] valueBytes = request.getValue().getBytes();
         return put(request.getTable(),
+                request.getPartitionKey(),
                 request.getKey(),
                 request.getAck(),
                 valueBytes,
@@ -48,6 +50,7 @@ public class ItemWriter {
     public <T extends Serializable> Mono<ItemPutResponse> putObject(ItemWrite<T> request) {
         byte[] valueBytes = JsonSerDe.serializeToBytes(request.getValue());
         return put(request.getTable(),
+                request.getPartitionKey(),
                 request.getKey(),
                 request.getAck(),
                 valueBytes,
@@ -58,6 +61,7 @@ public class ItemWriter {
 
     public <T extends Serializable> Mono<ItemPutResponse> putBytes(ItemWrite<byte[]> request) {
         return put(request.getTable(),
+                request.getPartitionKey(),
                 request.getKey(),
                 request.getAck(),
                 request.getValue(),
@@ -67,21 +71,26 @@ public class ItemWriter {
     }
 
     private Mono<ItemPutResponse> put(String table,
+                                      String partitionKey,
                                       String key,
                                       AckType ack,
                                       byte[] valueBytes,
                                       Map<String, String> indexes,
                                       int maxRetries,
                                       LogPosition previousVersion) {
+        if (Strings.isBlank(partitionKey))
+            partitionKey = key;
+
         ItemPutRequest itemPutRequest = new ItemPutRequest();
         itemPutRequest.setTable(Validator.notEmpty(table, "Table name"));
         key = Validator.notEmpty(key, "Key");
-        itemPutRequest.getItems().add(new Item(key, valueBytes, indexes, previousVersion));
+        itemPutRequest.getItems().add(new Item(key, partitionKey, valueBytes, indexes, previousVersion));
         itemPutRequest.setAck(ack);
+
         if (previousVersion != null && !previousVersion.equals(LogPosition.ZERO))
             itemPutRequest.setWithVersionCheck(true);
 
-        int partition = keyToPartitionMapper.map(table, key);
+        int partition = keyToPartitionMapper.map(table, partitionKey);
         itemPutRequest.setPartition(partition);
 
         return put(itemPutRequest, partition, maxRetries);

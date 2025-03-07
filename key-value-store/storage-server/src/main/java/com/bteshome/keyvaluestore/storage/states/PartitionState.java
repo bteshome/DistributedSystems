@@ -221,7 +221,7 @@ public class PartitionState implements AutoCloseable {
 
                     data.compute(keyString, (key, value) -> {
                         if (value == null)
-                            value = new ItemEntry(new CopyOnWriteArrayList<>(), this.indexes == null ? null : new ConcurrentHashMap<>());
+                            value = new ItemEntry(item.getPartitionKey(), new CopyOnWriteArrayList<>(), this.indexes == null ? null : new ConcurrentHashMap<>());
                         value.valueVersions().add(itemValueVersion);
                         return value;
                     });
@@ -490,7 +490,7 @@ public class PartitionState implements AutoCloseable {
                         .build()));
             }
 
-            List<Map.Entry<String, byte[]>> items = null;
+            List<Tuple3<String, String, byte[]>> items = null;
 
             if (request.getIsolationLevel().equals(IsolationLevel.READ_COMMITTED)) {
                 LogPosition committedOffset = offsetState.getCommittedOffset();
@@ -506,7 +506,9 @@ public class PartitionState implements AutoCloseable {
                             byte[] latestCommittedVersion = null;
                             if (!committedVersions.isEmpty())
                                 latestCommittedVersion = committedVersions.getLast().bytes();
-                            return latestCommittedVersion == null ? null : Map.entry(e.getKey(), latestCommittedVersion);
+                            return latestCommittedVersion == null ?
+                                    null :
+                                    Tuple3.of(e.getKey(), e.getValue().partitionKey(), latestCommittedVersion);
                         })
                         .filter(Objects::nonNull)
                         .limit(request.getLimit())
@@ -517,7 +519,9 @@ public class PartitionState implements AutoCloseable {
                         .stream()
                         .map(e -> {
                             byte[] latestVersion = e.getValue().valueVersions().getLast().bytes();
-                            return latestVersion == null ? null : Map.entry(e.getKey(), latestVersion);
+                            return latestVersion == null ?
+                                    null :
+                                    Tuple3.of(e.getKey(), e.getValue().partitionKey(), latestVersion);
                         })
                         .filter(Objects::nonNull)
                         .limit(request.getLimit())
@@ -563,11 +567,12 @@ public class PartitionState implements AutoCloseable {
             }
 
             Set<String> itemKeys = index.get(request.getIndexKey());
-            List<Map.Entry<String, byte[]>> items = new ArrayList<>();
+            List<Tuple3<String, String, byte[]>> items = new ArrayList<>();
             LogPosition committedOffset = offsetState.getCommittedOffset();
 
             for (String key : itemKeys) {
-                List<ItemValueVersion> versions = data.get(key).valueVersions();
+                ItemEntry itemEntry = data.get(key);
+                List<ItemValueVersion> versions = itemEntry.valueVersions();
                 ItemValueVersion version = null;
 
                 if (request.getIsolationLevel().equals(IsolationLevel.READ_COMMITTED)) {
@@ -582,7 +587,7 @@ public class PartitionState implements AutoCloseable {
                 }
 
                 if (!(version == null || version.bytes() == null)) {
-                    items.add(Map.entry(key, version.bytes()));
+                    items.add(Tuple3.of(key, itemEntry.partitionKey(), version.bytes()));
                 }
             }
 
@@ -762,6 +767,9 @@ public class PartitionState implements AutoCloseable {
             List<WALEntry> logEntriesNotAppliedYet = wal.readLogs(currentCommitedOffset, commitedOffset);
             for (WALEntry walEntry : logEntriesNotAppliedYet) {
                 String keyString = new String(walEntry.key());
+                String partitionKeyString = walEntry.partitionKey() == null ?
+                        null :
+                        new String(walEntry.partitionKey());
                 Map<String, String> entryIndexKeys = walEntry.indexes() == null ?
                         null :
                         JsonSerDe.deserialize(walEntry.indexes(), new TypeReference<>(){});
@@ -771,19 +779,20 @@ public class PartitionState implements AutoCloseable {
                 switch (walEntry.operation()) {
                     case OperationType.PUT -> {
                         removeItemFromIndex(keyString);
+
                         data.compute(keyString, (key, value) -> {
                             if (value == null)
-                                value = new ItemEntry(new CopyOnWriteArrayList<>(), entryIndexKeys == null ? null : new ConcurrentHashMap<>());
+                                value = new ItemEntry(partitionKeyString, new CopyOnWriteArrayList<>(), entryIndexKeys == null ? null : new ConcurrentHashMap<>());
                             value.valueVersions().add(itemValueVersion);
-                            if (entryIndexKeys != null)
-                                value.indexKeys().putAll(entryIndexKeys);
                             return value;
                         });
+
+                        addItemToIndex(keyString, entryIndexKeys);
+
                         if (walEntry.expiryTime() != 0L) {
                             ItemExpiryKey itemExpiryKey = ItemExpiryKey.of(keyString, offset, walEntry.expiryTime());
                             dataExpiryTimes.offer(itemExpiryKey);
                         }
-                        addItemToIndex(keyString, entryIndexKeys);
                     }
                     case OperationType.DELETE -> {
                         data.compute(keyString, (key, value) -> {
@@ -807,6 +816,7 @@ public class PartitionState implements AutoCloseable {
 
             for (Map.Entry<String, ItemEntry> entry : dataSnapshot.getData().entrySet()) {
                 String keyString = entry.getKey();
+                String partitionKeyString = entry.getValue().partitionKey();
                 Map<String, String> entryIndexKeys = entry.getValue().indexKeys();
                 List<ItemValueVersion> valueVersions = entry.getValue().valueVersions();
 
@@ -814,12 +824,12 @@ public class PartitionState implements AutoCloseable {
 
                 data.compute(keyString, (key, value) -> {
                     if (value == null)
-                        value = new ItemEntry(new CopyOnWriteArrayList<>(), entryIndexKeys == null ? null : new ConcurrentHashMap<>());
+                        value = new ItemEntry(partitionKeyString, new CopyOnWriteArrayList<>(), entryIndexKeys == null ? null : new ConcurrentHashMap<>());
                     value.valueVersions().addAll(valueVersions);
-                    if (entryIndexKeys != null)
-                        value.indexKeys().putAll(entryIndexKeys);
                     return value;
                 });
+
+                addItemToIndex(keyString, entryIndexKeys);
 
                 for (ItemValueVersion itemValueVersion : valueVersions) {
                     if (itemValueVersion.expiryTime() != 0L) {
@@ -827,8 +837,6 @@ public class PartitionState implements AutoCloseable {
                         dataExpiryTimes.offer(itemExpiryKey);
                     }
                 }
-
-                addItemToIndex(keyString, entryIndexKeys);
             }
         }
     }
@@ -1013,12 +1021,12 @@ public class PartitionState implements AutoCloseable {
                         removeItemFromIndex(entry.getKey());
 
                         data.compute(entry.getKey(), (key, value) -> {
-                            value = new ItemEntry(new CopyOnWriteArrayList<>(), this.indexes == null ? null : new ConcurrentHashMap<>());
+                            value = new ItemEntry(entry.getValue().partitionKey(), new CopyOnWriteArrayList<>(), this.indexes == null ? null : new ConcurrentHashMap<>());
                             value.valueVersions().addAll(entry.getValue().valueVersions());
-                            if (this.indexes != null && entry.getValue().indexKeys() != null)
-                                value.indexKeys().putAll(entry.getValue().indexKeys());
                             return value;
                         });
+
+                        addItemToIndex(entry.getKey(), entry.getValue().indexKeys());
 
                         for (ItemValueVersion itemValueVersion : entry.getValue().valueVersions()) {
                             if (itemValueVersion.expiryTime() != 0L) {
@@ -1026,8 +1034,6 @@ public class PartitionState implements AutoCloseable {
                                 dataExpiryTimes.offer(itemExpiryKey);
                             }
                         }
-
-                        addItemToIndex(entry.getKey(), entry.getValue().indexKeys());
                     }
                     wal.setEndOffset(dataSnapshot.getLastCommittedOffset());
                     offsetState.setEndOffset(dataSnapshot.getLastCommittedOffset());
@@ -1046,6 +1052,9 @@ public class PartitionState implements AutoCloseable {
                     break;
 
                 String keyString = new String(walEntry.key());
+                String partitionKeyString = walEntry.partitionKey() == null ?
+                        null :
+                        new String(walEntry.partitionKey());
                 Map<String, String> entryIndexKeys = walEntry.indexes() == null ?
                         null :
                         JsonSerDe.deserialize(walEntry.indexes(), new TypeReference<>(){});
@@ -1056,17 +1065,15 @@ public class PartitionState implements AutoCloseable {
                         removeItemFromIndex(keyString);
                         data.compute(keyString, (key, value) -> {
                             if (value == null)
-                                value = new ItemEntry(new CopyOnWriteArrayList<>(), entryIndexKeys == null ? null : new ConcurrentHashMap<>());
+                                value = new ItemEntry(partitionKeyString, new CopyOnWriteArrayList<>(), entryIndexKeys == null ? null : new ConcurrentHashMap<>());
                             value.valueVersions().add(itemValueVersion);
-                            if (entryIndexKeys != null)
-                                value.indexKeys().putAll(entryIndexKeys);
                             return value;
                         });
+                        addItemToIndex(keyString, entryIndexKeys);
                         if (walEntry.expiryTime() != 0L) {
                             ItemExpiryKey itemExpiryKey = ItemExpiryKey.of(keyString, itemValueVersion.offset(), itemValueVersion.expiryTime());
                             dataExpiryTimes.offer(itemExpiryKey);
                         }
-                        addItemToIndex(keyString, entryIndexKeys);
                     }
                     case OperationType.DELETE -> {
                         data.compute(keyString, (key, value) -> {

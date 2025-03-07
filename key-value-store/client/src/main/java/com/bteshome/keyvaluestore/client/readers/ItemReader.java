@@ -9,6 +9,7 @@ import com.bteshome.keyvaluestore.client.responses.ItemGetResponse;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
 import com.bteshome.keyvaluestore.common.*;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
@@ -64,7 +65,11 @@ public class ItemReader {
         itemGetRequest.setKey(Validator.notEmpty(request.getKey(), "Key"));
         itemGetRequest.setIsolationLevel(request.getIsolationLevel());
 
-        int partition = keyToPartitionMapper.map(request.getTable(), request.getKey());
+        String partitionKey = !Strings.isBlank(request.getPartitionKey()) ?
+                request.getPartitionKey() :
+                request.getKey();
+
+        int partition = keyToPartitionMapper.map(request.getTable(), partitionKey);
         itemGetRequest.setPartition(partition);
 
         String endpoint = MetadataCache.getInstance().getLeaderEndpoint(request.getTable(), partition);

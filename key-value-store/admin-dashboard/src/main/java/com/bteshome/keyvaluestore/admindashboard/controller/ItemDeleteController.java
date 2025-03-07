@@ -23,8 +23,10 @@ public class ItemDeleteController {
     @PostMapping("/delete-item/")
     public String deleteItem(@ModelAttribute("itemDeleteRequest") @RequestBody ItemDelete itemDeleteRequest, Model model) {
         try {
-            model.addAttribute("promptItemDelete", "Are you sure you want to delete the item with key '%s' in table '%s'?".formatted(
+            model.addAttribute("promptItemDelete",
+                    "Are you sure you want to delete the item with key '%s' partition '%s' in table '%s'?".formatted(
                     itemDeleteRequest.getKey(),
+                    itemDeleteRequest.getPartitionKey(),
                     itemDeleteRequest.getTable()));
             model.addAttribute("itemDeleteRequest", itemDeleteRequest);
             model.addAttribute("page", "items-list");

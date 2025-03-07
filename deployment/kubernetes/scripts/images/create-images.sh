@@ -69,12 +69,6 @@ echo " "
 echo " "
 
 
-cd ../ordering-ui-config
-mvn clean compile jib:dockerBuild
-echo " "
-echo " "
-
-
 cd ../ordering-ui
 ng build --configuration=production
 sudo docker build --build-arg ENV=production -t bteshome/os-ordering-ui:latest .

@@ -17,5 +17,6 @@ public class BatchDelete {
     private String table;
     private AckType ack;
     private int maxRetries;
-    private List<String> keys = new ArrayList<>();
+    private final List<String> keys = new ArrayList<>();
+    private final List<String> partitionKeys = new ArrayList<>();
 }

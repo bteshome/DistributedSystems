@@ -6,6 +6,7 @@ import com.bteshome.keyvaluestore.client.requests.ItemQueryRequest;
 import com.bteshome.keyvaluestore.client.responses.ItemListResponse;
 import com.bteshome.keyvaluestore.common.JsonSerDe;
 import com.bteshome.keyvaluestore.common.MetadataCache;
+import com.bteshome.keyvaluestore.common.Tuple3;
 import com.bteshome.keyvaluestore.common.Validator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,21 +29,27 @@ public class ItemQuerier {
     @Autowired
     WebClient webClient;
 
-    public Flux<Map.Entry<String, String>> queryForStrings(ItemQuery request) {
+    public Flux<Tuple3<String, String, String>> queryForStrings(ItemQuery request) {
         return queryForBytes(request).map(item -> {
-            String stringValue = new String(item.getValue());
-            return Map.entry(item.getKey(), stringValue);
+            String key = item.first();
+            String partitionKey = item.second();
+            byte[] value = item.third();
+            String stringValue = new String(value);
+            return Tuple3.of(key, partitionKey, stringValue);
         });
     }
 
-    public <T> Flux<Map.Entry<String, T>> queryForObjects(ItemQuery request, Class<T> clazz) {
+    public <T> Flux<Tuple3<String, String, T>> queryForObjects(ItemQuery request, Class<T> clazz) {
         return queryForBytes(request).map(item -> {
-            T valueTyped = JsonSerDe.deserialize(item.getValue(), clazz);
-            return Map.entry(item.getKey(), valueTyped);
+            String key = item.first();
+            String partitionKey = item.second();
+            byte[] value = item.third();
+            T valueTyped = JsonSerDe.deserialize(value, clazz);
+            return Tuple3.of(key, partitionKey, valueTyped);
         });
     }
 
-    public Flux<Map.Entry<String, byte[]>> queryForBytes(ItemQuery request) {
+    public Flux<Tuple3<String, String, byte[]>> queryForBytes(ItemQuery request) {
         int numPartitions = MetadataCache.getInstance().getNumPartitions(request.getTable());
         final Map<Integer, List<Map.Entry<String, String>>> result = new ConcurrentHashMap<>();
 

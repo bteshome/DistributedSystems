@@ -16,8 +16,10 @@ import java.util.Map;
 @AllArgsConstructor
 public class BatchWrite<T> {
     private String table;
-    private List<Map.Entry<String, T>> items = new ArrayList<>();
-    private List<Map<String, String>> indexKeys = new ArrayList<>();
+    private final List<String> partitionKeys = new ArrayList<>();
+    private final List<String> keys = new ArrayList<>();
+    private final List<T> values = new ArrayList<>();
+    private final List<Map<String, String>> indexKeys = new ArrayList<>();
     private AckType ack;
     private int maxRetries;
 }

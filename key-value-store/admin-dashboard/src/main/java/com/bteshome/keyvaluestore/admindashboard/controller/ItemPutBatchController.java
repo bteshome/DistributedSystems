@@ -43,14 +43,16 @@ public class ItemPutBatchController {
             Random random = new Random();
             BatchWrite<String> batchWrite = new BatchWrite<>();
             batchWrite.setTable(request.getTable());
-            batchWrite.setIndexKeys(null);
             batchWrite.setAck(request.getAck());
             batchWrite.setMaxRetries(request.getMaxRetries());
             Instant now = Instant.now();
             for (int i = 0; i < request.getNumItems(); i++) {
                 String key = "key" + now.toEpochMilli() + "_" + i;
+                String partitionKey = "partitionKey" + now.toEpochMilli() + "_" + i;
                 String value = "value" + now.toEpochMilli() + "_" + i;
-                batchWrite.getItems().add(Map.entry(key, value));
+                batchWrite.getKeys().add(key);
+                batchWrite.getValues().add(value);
+                batchWrite.getPartitionKeys().add(partitionKey);
             }
 
             ItemPutResponse lastPartitionResponse = batchWriter.putStringBatch(batchWrite).blockLast();

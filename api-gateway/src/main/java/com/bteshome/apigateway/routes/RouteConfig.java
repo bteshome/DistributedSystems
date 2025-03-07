@@ -98,25 +98,4 @@ public class RouteConfig {
                         .uri(appSettings.getOrderServiceUrl()))
                 .build();
     }
-
-    @Bean
-    public RouteLocator orderingUiConfigRoute(RouteLocatorBuilder builder) {
-        return builder.routes()
-                .route("orderingUiConfig", r -> r
-                        .path("/ordering-ui/config/")
-                        .and()
-                        .method("POST")
-                        .filters(f ->
-                                f.rewritePath("/ordering-ui/config/", "/api/")
-                                /*.circuitBreaker(config -> config
-                                                .setName("orders")
-                                                .setFallbackUri("forward:/fallback"))*/
-                        /*.retry(config -> config
-                                .setRetries(3)
-                                .setMethods(HttpMethod.GET)
-                                .setStatuses(HttpStatus.BAD_GATEWAY, HttpStatus.GATEWAY_TIMEOUT)
-                                .setBackoff(Duration.ofMillis(100), Duration.ofMillis(1000), 2, true))*/)
-                        .uri(appSettings.getOrderingUiConfigServiceUrl()))
-                .build();
-    }
 }

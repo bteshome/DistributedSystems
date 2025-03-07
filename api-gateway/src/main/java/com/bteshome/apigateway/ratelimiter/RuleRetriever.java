@@ -5,6 +5,7 @@ import com.bteshome.keyvaluestore.client.ClientMetadataFetcher;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemList;
 import com.bteshome.keyvaluestore.client.readers.ItemLister;
 import com.bteshome.keyvaluestore.client.requests.IsolationLevel;
+import com.bteshome.keyvaluestore.common.Tuple3;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -46,7 +47,7 @@ public class RuleRetriever {
                     .collectList()
                     .block()
                     .stream()
-                    .map(Map.Entry::getValue).forEach(rule -> {
+                    .map(Tuple3::third).forEach(rule -> {
                         String api = rule.getApi();
 
                         if (!rules.containsKey(api))

@@ -1,5 +1,6 @@
 package com.bteshome.keyvaluestore.client.responses;
 
+import com.bteshome.keyvaluestore.common.Tuple3;
 import lombok.*;
 
 import java.util.AbstractMap;
@@ -15,5 +16,5 @@ public class ItemListResponse {
     private int httpStatusCode;
     private String errorMessage;
     private String leaderEndpoint;
-    private List<Map.Entry<String, byte[]>> items;
+    private List<Tuple3<String, String, byte[]>> items;
 }

@@ -8,7 +8,6 @@ order-service-name: orders
 
 inventory-service-url: http://localhost:82
 order-service-url: http://localhost:83
-ordering-ui-config-service-url: http://localhost:4201
 ordering-ui-url: http://localhost:4200
 keycloak-url: http://localhost:8080
 
@@ -16,8 +15,8 @@ keycloak-realm: apigateway
 index-page: index-local.html
 
 security-disabled: 'true'
-rate-limiter-disabled: 'false'
-rate-limiter-cache-servers: redis://localhost:6379,redis://localhost:6380
+rate-limiter-disabled: 'true'
+rate-limiter-cache-servers: redis://localhost:6379
 rate-limiter-num-of-virtual-nodes: '3'
 rate-limiter-rules-sync-frequency-seconds: '60'
 rate-limiter-rules-table-name: rate_limiter_rules

@@ -15,6 +15,7 @@ import java.util.Map;
 @AllArgsConstructor
 public class ItemWrite<T> {
     private String table;
+    private String partitionKey;
     private String key;
     private T value;
     private Map<String, String> indexKeys;

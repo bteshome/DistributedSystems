@@ -11,6 +11,7 @@ import com.bteshome.keyvaluestore.client.requests.AckType;
 import com.bteshome.keyvaluestore.client.requests.IsolationLevel;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
 import com.bteshome.keyvaluestore.client.writers.ItemWriter;
+import com.bteshome.keyvaluestore.common.Tuple3;
 import com.bteshome.onlinestore.orderservice.OrderException;
 import com.bteshome.onlinestore.orderservice.model.Order;
 import org.apache.logging.log4j.util.Strings;
@@ -83,7 +84,7 @@ public class OrderRepository {
                 .collectList()
                 .block()
                 .stream()
-                .map(Map.Entry::getValue);
+                .map(Tuple3::third);
     }
 
     public Stream<Order> getAll() {
@@ -97,6 +98,6 @@ public class OrderRepository {
                 .collectList()
                 .block()
                 .stream()
-                .map(Map.Entry::getValue);
+                .map(Tuple3::third);
     }
 }

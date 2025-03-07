@@ -35,15 +35,19 @@
             <div class="alert alert-info" role="alert" th:if="${info}" th:text="${info}"></div>
 
             <form class="row g-3" method="post" th:action="@{/items/list/}" th:object="${listRequest}" th:if="${listRequest}">
-                <div class="col-md-12">
+                <div class="col-md-6">
                     <label for="table" class="form-label">Table name</label>
                     <input type="text" class="form-control form-control-sm" id="table" th:field="*{table}">
                 </div>
-                <div class="col-md-12">
+                <div class="col-md-6">
+                    <label for="partitionKey" class="form-label">Partition Key (optional)</label>
+                    <input type="text" class="form-control form-control-sm" id="partitionKey" th:field="*{partitionKey}">
+                </div>
+                <div class="col-md-6">
                     <label for="limit" class="form-label">Limit</label>
                     <input type="text" class="form-control form-control-sm" id="limit" th:field="*{limit}">
                 </div>
-                <div class="col-md-12">
+                <div class="col-md-6">
                     <label for="isolationLevel" class="form-label">Isolation Level</label>
                     <select class="form-select" id="isolationLevel" th:field="*{isolationLevel}">
                         <option selected value="READ_COMMITTED">READ_COMMITTED</option>
@@ -86,12 +90,14 @@
                     <table class="table table-striped table-sm">
                         <thead>
                         <tr>
-                            <th>Key</th>
+                            <th>Partition Key</th>
+                            <th>Item Key</th>
                             <th>Value</th>
                             <th class="text-center">
                                 <form method="post" th:action="@{/items/delete-batch/}" th:object="${batchDeleteRequest}">
                                     <input type="hidden" th:field="*{table}">
                                     <input type="hidden" th:field="*{keys}">
+                                    <input type="hidden" th:field="*{partitionKeys}">
                                     <button type="submit" class="btn btn-danger btn-sm">
                                         <span data-feather="x-circle"></span>
                                         Delete All
@@ -102,12 +108,14 @@
                         </thead>
                         <tbody>
                         <tr th:each="item: ${items}" >
-                            <td th:text="${item.key}"></td>
-                            <td th:text="${item.value}"></td>
+                            <td th:text="${item.second}"></td>
+                            <td th:text="${item.first}"></td>
+                            <td th:text="${item.third}"></td>
                             <td class="text-center">
                                 <form method="post" th:action="@{/items/delete-item/}" th:object="${itemDeleteRequest}">
                                     <input type="hidden" th:field="*{table}">
-                                    <input type="hidden" name="key" th:value="${item.key}">
+                                    <input type="hidden" name="key" th:value="${item.first}">
+                                    <input type="hidden" name="partitionKey" th:value="${item.second}">
                                     <button type="submit" class="btn btn-sm">
                                         <span data-feather="x-circle"></span>
                                     </button>

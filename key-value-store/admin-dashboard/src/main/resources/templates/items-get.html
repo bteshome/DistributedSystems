@@ -33,20 +33,24 @@
             <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}"></div>
 
             <form class="row g-3" method="post" th:action="@{/items/get/}" th:object="${request}">
-                <div class="col-md-12">
+                <div class="col-md-6">
                     <label for="table" class="form-label">Table name</label>
                     <input type="text" class="form-control form-control-sm" id="table" th:field="*{table}">
                 </div>
-                <div class="col-md-12">
-                    <label for="key" class="form-label">Key</label>
-                    <input type="text" class="form-control form-control-sm" id="key" th:field="*{key}">
-                </div>
-                <div class="col-md-12">
+                <div class="col-md-6">
                     <label for="isolationLevel" class="form-label">Isolation Level</label>
                     <select class="form-select" id="isolationLevel" th:field="*{isolationLevel}">
                         <option selected value="READ_COMMITTED">READ_COMMITTED</option>
                         <option value="READ_UNCOMMITTED">READ_UNCOMMITTED</option>
                     </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="partitionKey" class="form-label">Partition Key (optional, defaults to item key)</label>
+                    <input type="text" class="form-control form-control-sm" id="partitionKey" th:field="*{partitionKey}">
+                </div>
+                <div class="col-md-6">
+                    <label for="key" class="form-label">Item Key</label>
+                    <input type="text" class="form-control form-control-sm" id="key" th:field="*{key}">
                 </div>
                 <div class="col-auto">
                     <button type="submit" class="btn btn-primary mb-3">Get</button>

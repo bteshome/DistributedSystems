@@ -11,6 +11,7 @@ import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
 import com.bteshome.keyvaluestore.client.writers.ItemWriter;
 import com.bteshome.keyvaluestore.common.LogPosition;
 import com.bteshome.keyvaluestore.common.Tuple;
+import com.bteshome.keyvaluestore.common.Tuple3;
 import com.bteshome.onlinestore.inventoryservice.InventoryException;
 import com.bteshome.onlinestore.inventoryservice.model.Product;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -84,6 +85,6 @@ public class ProductRepository {
                 .collectList()
                 .block()
                 .stream()
-                .map(Map.Entry::getValue);
+                .map(Tuple3::third);
     }
 }

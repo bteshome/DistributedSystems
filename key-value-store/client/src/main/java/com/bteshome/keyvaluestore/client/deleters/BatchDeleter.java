@@ -8,6 +8,7 @@ import com.bteshome.keyvaluestore.common.ConfigKeys;
 import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.Validator;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
@@ -23,14 +24,18 @@ public class BatchDeleter {
     ItemDeleter itemDeleter;
 
     public Flux<ItemDeleteResponse> deleteBatch(BatchDelete request) {
-        for (String key: request.getKeys())
-            Validator.notEmpty(key, "Key");
         String table = Validator.notEmpty(request.getTable(), "Table name");
-
         HashMap<Integer, ItemDeleteRequest> partitionRequests = new HashMap<>();
 
-        for (String key: request.getKeys()) {
-            int partition = keyToPartitionMapper.map(table, key);
+        for (int i = 0; i < request.getKeys().size(); i++) {
+            String key = request.getKeys().get(i);
+            key = Validator.notEmpty(key, "Key for item " + i);
+            String partitionKey = request.getPartitionKeys().get(i);
+
+            if (Strings.isBlank(partitionKey))
+                partitionKey = key;
+
+            int partition = keyToPartitionMapper.map(table, partitionKey);
 
             if (!partitionRequests.containsKey(partition)) {
                 partitionRequests.put(partition, new ItemDeleteRequest());

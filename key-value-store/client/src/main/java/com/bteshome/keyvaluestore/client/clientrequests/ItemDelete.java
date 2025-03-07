@@ -13,6 +13,7 @@ import lombok.Setter;
 public class ItemDelete {
     private String table;
     private String key;
+    private String partitionKey;
     private AckType ack;
     private int retries;
 }

@@ -4,6 +4,18 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 public class Validator {
+    public static <T> T notNull(T value) {
+        return notNull(value, "Value");
+    }
+
+    public static <T> T notNull(T value, String fieldName) {
+        if (value == null) {
+            throw new IllegalArgumentException(fieldName + " cannot be null.");
+        }
+
+        return value;
+    }
+
     public static String notEmpty(String value) {
         return notEmpty(value, "Value");
     }

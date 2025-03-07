@@ -12,6 +12,7 @@ import lombok.Setter;
 @AllArgsConstructor
 public class ItemGet {
     private String table;
+    private String partitionKey;
     private String key;
     private IsolationLevel isolationLevel;
 }

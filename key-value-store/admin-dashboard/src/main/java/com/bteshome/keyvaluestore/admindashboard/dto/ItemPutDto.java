@@ -16,6 +16,7 @@ import java.util.Map;
 public class ItemPutDto {
     private String table;
     private String key;
+    private String partitionKey;
     private String value;
     private AckType ack;
     private int maxRetries;
