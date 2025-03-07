@@ -21,9 +21,6 @@ dependencies:
   - name: os-ordering-ui
     version: "0.1.0"
     repository: file://../services/os-ordering-ui
-  - name: os-ordering-ui-config
-    version: "0.1.0"
-    repository: file://../services/os-ordering-ui-config
 
 
   - name: rate-limiter-rules-dashboard
