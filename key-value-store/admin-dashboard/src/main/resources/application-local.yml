@@ -1,6 +1,8 @@
 debug: 'false'
 
-path-root: ""
+keycloak-url: http://localhost:8080
+keycloak-realm: dashboards
+keycloak-client-id: default
 
 spring:
   cloud:
@@ -17,6 +19,21 @@ spring:
     mode: HTML
     cache: false
     enabled: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${keycloak-url}/realms/${keycloak-realm}
+          jwk-set-uri: ${keycloak-url}/realms/${keycloak-realm}/protocol/openid-connect/certs
+      client:
+        registration:
+          keycloak:
+            clientId: ${keycloak-client-id}
+            authorizationGrantType: authorization_code
+            scope: openid
+        provider:
+          keycloak:
+            issuer-uri: ${keycloak-url}/realms/${keycloak-realm}
 
 server:
   port: '9207'

@@ -47,3 +47,27 @@ spec:
               port:
                 number: {{ .Values.orderingUi_nodePortServicePort }}
     {{- end }}
+    {{- if .Values.kvsAdminDashboard_nodePortServiceName }}
+    - host: kvsadmin.bteshome.com
+      http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: {{ .Values.kvsAdminDashboard_nodePortServiceName }}
+              port:
+                number: {{ .Values.kvsAdminDashboard_nodePortServicePort }}
+    {{- end }}
+    {{- if .Values.osAdminDashboard_nodePortServiceName }}
+    - host: osadmin.bteshome.com
+      http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: {{ .Values.osAdminDashboard_nodePortServiceName }}
+              port:
+                number: {{ .Values.osAdminDashboard_nodePortServicePort }}
+    {{- end }}
