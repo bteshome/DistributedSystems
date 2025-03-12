@@ -64,6 +64,8 @@ public class ItemVersionsReader {
                         return get(response.getLeaderEndpoint(), request);
                     } else if (response.getHttpStatusCode() == HttpStatus.OK.value()) {
                         return Mono.just(response);
+                    } else if (response.getHttpStatusCode() == HttpStatus.NOT_FOUND.value()) {
+                        return Mono.empty();
                     } else {
                         return Mono.error(new ClientException("Unexpected status code: %s, %s".formatted(response.getHttpStatusCode(), response.getErrorMessage())));
                     }

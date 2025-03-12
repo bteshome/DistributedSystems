@@ -329,6 +329,10 @@ public class PartitionState implements AutoCloseable {
             log.debug("Expiring '{}' items.", itemsToRemove.size());
             deleteItems(itemsToRemove, null);
         }
+
+        Mono.delay(Duration.ofMinutes(1))
+                .then(Mono.fromRunnable(this::removeDeletedItems))
+                .subscribe();
     }
 
     private Mono<ResponseEntity<ItemDeleteResponse>> deleteItems(final List<String> itemKeys, AckType ack) {
@@ -1009,6 +1013,38 @@ public class PartitionState implements AutoCloseable {
                     dataCopy.size());
         } catch (Exception e) {
             String errorMessage = "Error taking a snapshot of data for table '%s' partition '%s'.".formatted(table, partition);
+            log.error(errorMessage, e);
+        }
+    }
+
+    private void removeDeletedItems() {
+        try (AutoCloseableLock l = writeLeaderLock();
+             AutoCloseableLock l2 = writeReplicaLock();) {
+            long count = 0;
+            LogPosition committedOffset = offsetState.getCommittedOffset();
+
+            for (Map.Entry<String, ItemEntry> item : data.entrySet()) {
+                String keyString = item.getKey();
+                ItemValueVersion latestVersion = item.getValue().valueVersions().getLast();
+                if (latestVersion.offset().isLessThanOrEquals(committedOffset)) {
+                    if (latestVersion.bytes() == null) {
+                        count++;
+                        removeItemFromIndexes(keyString);
+                        for (ItemValueVersion version : item.getValue().valueVersions()) {
+                            if (version.expiryTime() != 0) {
+                                ItemExpiryKey itemExpiryKey = ItemExpiryKey.of(keyString, version.offset(), version.expiryTime());
+                                dataExpiryTimes.remove(itemExpiryKey);
+                            }
+                        }
+                        data.remove(keyString);
+                    }
+                }
+            }
+
+            if (count > 0)
+                log.info("Removed {} deleted items for table '{}' partition '{}'.", count, table, partition);
+        } catch (Exception e) {
+            String errorMessage = "Error removing deleted items for table '%s' partition '%s'.".formatted(table, partition);
             log.error(errorMessage, e);
         }
     }
