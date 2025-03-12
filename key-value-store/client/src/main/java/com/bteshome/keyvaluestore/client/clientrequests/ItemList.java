@@ -13,6 +13,7 @@ import lombok.Setter;
 public class ItemList {
     private String table;
     private String partitionKey;
+    private String lastReadItemKey;
     private int limit;
     private IsolationLevel isolationLevel;
 }

@@ -11,8 +11,10 @@ import lombok.Setter;
 @AllArgsConstructor
 public class ItemQueryRequest {
     private String table;
+    private String lastReadItemKey;
     private int partition;
     private String indexName;
     private String indexKey;
+    private int limit;
     private IsolationLevel isolationLevel;
 }

@@ -26,6 +26,7 @@ public class ItemQueryController {
     public String query(Model model) {
         ItemQuery queryRequest = new ItemQuery();
         queryRequest.setTable("products");
+        queryRequest.setLimit(10);
         queryRequest.setIndexName("category");
         queryRequest.setIndexKey("electronics");
         queryRequest.setIsolationLevel(IsolationLevel.READ_COMMITTED);

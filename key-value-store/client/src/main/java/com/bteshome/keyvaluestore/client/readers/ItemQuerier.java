@@ -1,6 +1,7 @@
 package com.bteshome.keyvaluestore.client.readers;
 
 import com.bteshome.keyvaluestore.client.ClientException;
+import com.bteshome.keyvaluestore.client.KeyToPartitionMapper;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemQuery;
 import com.bteshome.keyvaluestore.client.requests.ItemQueryRequest;
 import com.bteshome.keyvaluestore.client.responses.ItemListResponse;
@@ -9,6 +10,7 @@ import com.bteshome.keyvaluestore.common.MetadataCache;
 import com.bteshome.keyvaluestore.common.Tuple3;
 import com.bteshome.keyvaluestore.common.Validator;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
@@ -18,16 +20,20 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.IntStream;
 
 @Component
 @Slf4j
 public class ItemQuerier {
     @Autowired
     WebClient webClient;
+    @Autowired
+    KeyToPartitionMapper keyToPartitionMapper;
 
     public Flux<Tuple3<String, String, String>> queryForStrings(ItemQuery request) {
         return queryForBytes(request).map(item -> {
@@ -55,13 +61,24 @@ public class ItemQuerier {
 
         HashMap<String, ItemQueryRequest> partitionRequests = new HashMap<>();
 
-        for (int partition = 1; partition <= numPartitions; partition++) {
+        List<Integer> partitionsToFetchFrom;
+        if (Strings.isBlank(request.getPartitionKey())) {
+            partitionsToFetchFrom = IntStream.rangeClosed(1, numPartitions).boxed().toList();
+        } else {
+            int partition = keyToPartitionMapper.map(request.getTable(), request.getPartitionKey());
+            partitionsToFetchFrom = Collections.singletonList(partition);
+        }
+
+        for (int partition : partitionsToFetchFrom) {
             final String endpoint = MetadataCache.getInstance().getLeaderEndpoint(request.getTable(), partition);
             ItemQueryRequest itemQueryRequest = new ItemQueryRequest();
             itemQueryRequest.setTable(Validator.notEmpty(request.getTable(), "Table name"));
             itemQueryRequest.setPartition(partition);
             itemQueryRequest.setIndexName(Validator.notEmpty(request.getIndexName(), "Index field"));
             itemQueryRequest.setIndexKey(Validator.notEmpty(request.getIndexKey(), "Index key"));
+            itemQueryRequest.setLimit(request.getLimit());
+            if (!Strings.isBlank(request.getPartitionKey()))
+                itemQueryRequest.setLastReadItemKey(request.getLastReadItemKey());
             itemQueryRequest.setIsolationLevel(request.getIsolationLevel());
             partitionRequests.put(endpoint, itemQueryRequest);
         }

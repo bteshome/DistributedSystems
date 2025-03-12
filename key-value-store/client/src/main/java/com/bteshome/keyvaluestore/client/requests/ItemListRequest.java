@@ -11,6 +11,7 @@ import lombok.Setter;
 @AllArgsConstructor
 public class ItemListRequest {
     private String table;
+    private String lastReadItemKey;
     private int partition;
     private int limit;
     private IsolationLevel isolationLevel;

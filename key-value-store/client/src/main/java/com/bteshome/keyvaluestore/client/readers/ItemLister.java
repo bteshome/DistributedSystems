@@ -5,10 +5,7 @@ import com.bteshome.keyvaluestore.client.KeyToPartitionMapper;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemList;
 import com.bteshome.keyvaluestore.client.requests.ItemListRequest;
 import com.bteshome.keyvaluestore.client.responses.ItemListResponse;
-import com.bteshome.keyvaluestore.common.JsonSerDe;
-import com.bteshome.keyvaluestore.common.MetadataCache;
-import com.bteshome.keyvaluestore.common.Tuple3;
-import com.bteshome.keyvaluestore.common.Validator;
+import com.bteshome.keyvaluestore.common.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +18,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.*;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.IntStream;
@@ -57,7 +55,7 @@ public class ItemLister {
         int numPartitions = MetadataCache.getInstance().getNumPartitions(request.getTable());
         final Map<Integer, List<Map.Entry<String, String>>> result = new ConcurrentHashMap<>();
 
-        HashMap<String, ItemListRequest> partitionRequests = new HashMap<>();
+        List<Tuple<String, ItemListRequest>> partitionRequests = new ArrayList<>();
 
         List<Integer> partitionsToFetchFrom;
         if (Strings.isBlank(request.getPartitionKey())) {
@@ -73,14 +71,16 @@ public class ItemLister {
             itemListRequest.setTable(Validator.notEmpty(request.getTable(), "Table name"));
             itemListRequest.setPartition(partition);
             itemListRequest.setLimit(request.getLimit());
+            if (!Strings.isBlank(request.getPartitionKey()))
+                itemListRequest.setLastReadItemKey(request.getLastReadItemKey());
             itemListRequest.setIsolationLevel(request.getIsolationLevel());
-            partitionRequests.put(endpoint, itemListRequest);
+            partitionRequests.add(Tuple.of(endpoint, itemListRequest));
         }
 
-        return Flux.fromIterable(partitionRequests.entrySet())
+        return Flux.fromIterable(partitionRequests)
                 .flatMap(partitionRequest -> list(
-                        partitionRequest.getKey(),
-                        partitionRequest.getValue()))
+                        partitionRequest.first(),
+                        partitionRequest.second()))
                 .map(ItemListResponse::getItems)
                 .flatMapIterable(r -> r);
     }
