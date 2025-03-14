@@ -15,7 +15,8 @@ service:
     - 9608
 
 config_client_enabled: true
-
+nodePortServiceName: rate-limiter-rules-dashboard-nodeport
+nodePortServicePort: 9600
 memory: "256Mi"
 cpu: "0.2"
 cpuLimit: "0.5"

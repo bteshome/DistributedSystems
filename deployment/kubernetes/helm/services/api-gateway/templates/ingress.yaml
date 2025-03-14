@@ -71,3 +71,15 @@ spec:
               port:
                 number: {{ .Values.osAdminDashboard_nodePortServicePort }}
     {{- end }}
+    {{- if .Values.rateLimiterRulesDashboard_nodePortServiceName }}
+    - host: ratelimiter.bteshome.com
+      http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: {{ .Values.rateLimiterRulesDashboard_nodePortServiceName }}
+              port:
+                number: {{ .Values.rateLimiterRulesDashboard_nodePortServicePort }}
+    {{- end }}

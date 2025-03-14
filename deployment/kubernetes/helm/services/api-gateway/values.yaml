@@ -26,6 +26,8 @@ kvsAdminDashboard_nodePortServiceName: kvs-admin-dashboard-nodeport
 kvsAdminDashboard_nodePortServicePort: 9500
 osAdminDashboard_nodePortServiceName: os-admin-dashboard-nodeport
 osAdminDashboard_nodePortServicePort: 81
+rateLimiterRulesDashboard_nodePortServiceName: rate-limiter-rules-dashboard-nodeport
+rateLimiterRulesDashboard_nodePortServicePort: 9600
 memory: "1024Mi"
 cpu: "1"
 cpuLimit: "3"
