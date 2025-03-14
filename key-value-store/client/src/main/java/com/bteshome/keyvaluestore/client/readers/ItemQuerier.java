@@ -4,11 +4,11 @@ import com.bteshome.keyvaluestore.client.ClientException;
 import com.bteshome.keyvaluestore.client.KeyToPartitionMapper;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemQuery;
 import com.bteshome.keyvaluestore.client.requests.ItemQueryRequest;
+import com.bteshome.keyvaluestore.client.responses.CursorPosition;
 import com.bteshome.keyvaluestore.client.responses.ItemListResponse;
-import com.bteshome.keyvaluestore.common.JsonSerDe;
-import com.bteshome.keyvaluestore.common.MetadataCache;
-import com.bteshome.keyvaluestore.common.Tuple3;
-import com.bteshome.keyvaluestore.common.Validator;
+import com.bteshome.keyvaluestore.client.responses.ItemListResponseFlattened;
+import com.bteshome.keyvaluestore.client.responses.ItemResponse;
+import com.bteshome.keyvaluestore.common.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,10 +20,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.IntStream;
 
@@ -35,31 +32,39 @@ public class ItemQuerier {
     @Autowired
     KeyToPartitionMapper keyToPartitionMapper;
 
-    public Flux<Tuple3<String, String, String>> queryForStrings(ItemQuery request) {
-        return queryForBytes(request).map(item -> {
-            String key = item.first();
-            String partitionKey = item.second();
-            byte[] value = item.third();
-            String stringValue = new String(value);
-            return Tuple3.of(key, partitionKey, stringValue);
+    public Mono<ItemListResponseFlattened<String>> queryForStrings(ItemQuery request) {
+        return queryForBytes(request).map(response -> {
+            Map<Integer, CursorPosition> cursorPositions = response.getCursorPositions();
+            List<ItemResponse<String>> items = response.getItems().stream().map(item -> {
+                String key = item.getItemKey();
+                String partitionKey = item.getPartitionKey();
+                byte[] value = item.getValue();
+                String stringValue = new String(value);
+                return new ItemResponse<>(key, partitionKey, stringValue);
+            }).toList();
+            return new ItemListResponseFlattened<>(items, cursorPositions);
         });
     }
 
-    public <T> Flux<Tuple3<String, String, T>> queryForObjects(ItemQuery request, Class<T> clazz) {
-        return queryForBytes(request).map(item -> {
-            String key = item.first();
-            String partitionKey = item.second();
-            byte[] value = item.third();
-            T valueTyped = JsonSerDe.deserialize(value, clazz);
-            return Tuple3.of(key, partitionKey, valueTyped);
+    public <T> Mono<ItemListResponseFlattened<T>> queryForObjects(ItemQuery request, Class<T> clazz) {
+        return queryForBytes(request).map(response -> {
+            Map<Integer, CursorPosition> cursorPositions = response.getCursorPositions();
+            List<ItemResponse<T>> items = response.getItems().stream().map(item -> {
+                String key = item.getItemKey();
+                String partitionKey = item.getPartitionKey();
+                byte[] value = item.getValue();
+                T valueTyped = JsonSerDe.deserialize(value, clazz);
+                return new ItemResponse<>(key, partitionKey, valueTyped);
+            }).toList();
+            return new ItemListResponseFlattened<>(items, cursorPositions);
         });
     }
 
-    public Flux<Tuple3<String, String, byte[]>> queryForBytes(ItemQuery request) {
+    public Mono<ItemListResponseFlattened<byte[]>> queryForBytes(ItemQuery request) {
         int numPartitions = MetadataCache.getInstance().getNumPartitions(request.getTable());
         final Map<Integer, List<Map.Entry<String, String>>> result = new ConcurrentHashMap<>();
 
-        HashMap<String, ItemQueryRequest> partitionRequests = new HashMap<>();
+        List<Tuple<String, ItemQueryRequest>> partitionRequests = new ArrayList<>();
 
         List<Integer> partitionsToFetchFrom;
         if (Strings.isBlank(request.getPartitionKey())) {
@@ -70,25 +75,40 @@ public class ItemQuerier {
         }
 
         for (int partition : partitionsToFetchFrom) {
-            final String endpoint = MetadataCache.getInstance().getLeaderEndpoint(request.getTable(), partition);
             ItemQueryRequest itemQueryRequest = new ItemQueryRequest();
+
+            if (request.getCursorPositions() != null && request.getCursorPositions().containsKey(partition)) {
+                CursorPosition cursorPosition = request.getCursorPositions().get(partition);
+                if (!cursorPosition.isHasMore())
+                    continue;
+                itemQueryRequest.setLastReadItemKey(cursorPosition.getLastReadItemKey());
+            }
+
+            final String endpoint = MetadataCache.getInstance().getLeaderEndpoint(request.getTable(), partition);
             itemQueryRequest.setTable(Validator.notEmpty(request.getTable(), "Table name"));
             itemQueryRequest.setPartition(partition);
             itemQueryRequest.setIndexName(Validator.notEmpty(request.getIndexName(), "Index field"));
             itemQueryRequest.setIndexKey(Validator.notEmpty(request.getIndexKey(), "Index key"));
             itemQueryRequest.setLimit(request.getLimit());
-            if (!Strings.isBlank(request.getPartitionKey()))
-                itemQueryRequest.setLastReadItemKey(request.getLastReadItemKey());
             itemQueryRequest.setIsolationLevel(request.getIsolationLevel());
-            partitionRequests.put(endpoint, itemQueryRequest);
+            partitionRequests.add(Tuple.of(endpoint, itemQueryRequest));
         }
 
-        return Flux.fromIterable(partitionRequests.entrySet())
+        return Flux.fromIterable(partitionRequests)
                 .flatMap(partitionRequest -> query(
-                        partitionRequest.getKey(),
-                        partitionRequest.getValue()))
-                .map(ItemListResponse::getItems)
-                .flatMapIterable(r -> r);
+                        partitionRequest.first(),
+                        partitionRequest.second()))
+                .collectList()
+                .map(r -> {
+                    List<ItemResponse<byte[]>> items = new ArrayList<>();
+                    Map<Integer, CursorPosition> cursorPositions = new HashMap<>();
+                    for (ItemListResponse response : r) {
+                        items.addAll(response.getItems());
+                        if (response.getCursorPosition() != null)
+                            cursorPositions.put(response.getCursorPosition().getPartition(), response.getCursorPosition());
+                    }
+                    return new ItemListResponseFlattened<byte[]>(items, cursorPositions);
+                });
     }
 
     private Mono<ItemListResponse> query(String endpoint, ItemQueryRequest request) {

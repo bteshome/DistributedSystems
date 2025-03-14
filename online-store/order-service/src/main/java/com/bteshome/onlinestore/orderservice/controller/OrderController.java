@@ -28,7 +28,7 @@ public class OrderController {
     }
 
     @GetMapping("/query/")
-    public ResponseEntity<?> queryByEmail(@RequestParam("email") String email) {
-        return orderService.queryByEmail(email);
+    public ResponseEntity<?> queryByEmail(@RequestParam("username") String username) {
+        return orderService.queryByUsername(username);
     }
 }

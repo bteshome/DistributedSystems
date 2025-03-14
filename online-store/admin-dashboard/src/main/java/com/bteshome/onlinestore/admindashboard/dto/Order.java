@@ -12,8 +12,12 @@ import java.util.List;
 @Builder
 public class Order {
     private String orderNumber;
+    private String orderDatetime;
+    private String username;
+    private String firstName;
+    private String lastName;
     private String email;
-    private String notificationStatus;
+    private String status;
     private List<LineItem> lineItems;
 
     public double getTotalPrice() {

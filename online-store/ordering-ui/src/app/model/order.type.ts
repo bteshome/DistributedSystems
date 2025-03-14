@@ -1,6 +1,8 @@
 import { LineItem } from "./lineItem.type"
 
 export type Order = {
-    orderNumber: string,
-    lineItems: LineItem[]
+  orderNumber: string,
+  orderDatetime: Date,
+  status: string,
+  lineItems: LineItem[]
 }

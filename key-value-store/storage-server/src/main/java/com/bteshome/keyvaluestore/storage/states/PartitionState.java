@@ -507,10 +507,19 @@ public class PartitionState implements AutoCloseable {
                         .build()));
             }
 
-            List<Tuple3<String, String, byte[]>> items = new ArrayList<>();
+            if (request.getLimit() == 0) {
+                return Mono.just(ResponseEntity.ok(ItemListResponse.builder()
+                        .httpStatusCode(HttpStatus.BAD_REQUEST.value())
+                        .errorMessage("Limit cannot be zero.")
+                        .build()));
+            }
+
+            List<ItemResponse<byte[]>> items = new ArrayList<>();
             SortedSet<String> subset = primaryIndex;
-            Set<String> cursorKeys = new HashSet<>(request.getLimit());
+            List<String> cursorKeys = new ArrayList<>(request.getLimit());
             LogPosition committedOffset = offsetState.getCommittedOffset();
+            LogPosition endOffset = offsetState.getEndOffset();
+            boolean hasMore = false;
 
             if (request.getLastReadItemKey() != null) {
                 String lastReadItemKey = request.getLastReadItemKey().strip();
@@ -519,8 +528,10 @@ public class PartitionState implements AutoCloseable {
             }
 
             for (String key : subset) {
-                if (cursorKeys.size() >= request.getLimit())
+                if (cursorKeys.size() >= request.getLimit()) {
+                    hasMore = primaryIndex.tailSet(cursorKeys.getLast()).size() > 1;
                     break;
+                }
                 if (key.equalsIgnoreCase(request.getLastReadItemKey()))
                     continue;
                 cursorKeys.add(key);
@@ -543,13 +554,21 @@ public class PartitionState implements AutoCloseable {
                 }
 
                 if (!(version == null || version.bytes() == null)) {
-                    items.add(Tuple3.of(key, itemEntry.partitionKey(), version.bytes()));
+                    items.add(new ItemResponse<>(key, itemEntry.partitionKey(), version.bytes()));
                 }
+            }
+
+            CursorPosition cursorPosition = new CursorPosition();
+            if (!items.isEmpty()) {
+                cursorPosition.setLastReadItemKey(items.getLast().getItemKey());
+                cursorPosition.setPartition(partition);
+                cursorPosition.setHasMore(hasMore);
             }
 
             return Mono.just(ResponseEntity.ok(ItemListResponse.builder()
                     .httpStatusCode(HttpStatus.OK.value())
                     .items(items)
+                    .cursorPosition(cursorPosition)
                     .build()));
         } catch (Exception e) {
             return Mono.just(ResponseEntity.ok(ItemListResponse.builder()
@@ -576,6 +595,13 @@ public class PartitionState implements AutoCloseable {
                         .build()));
             }
 
+            if (request.getLimit() == 0) {
+                return Mono.just(ResponseEntity.ok(ItemListResponse.builder()
+                        .httpStatusCode(HttpStatus.BAD_REQUEST.value())
+                        .errorMessage("Limit cannot be zero.")
+                        .build()));
+            }
+
             Map<String, NavigableSet<String>> index = this.secondaryIndexes.get(request.getIndexName());
 
             if (!index.containsKey(request.getIndexKey())) {
@@ -586,9 +612,11 @@ public class PartitionState implements AutoCloseable {
             }
 
             SortedSet<String> itemKeys = index.get(request.getIndexKey());
-            Set<String> cursorKeys = new HashSet<>(request.getLimit());
-            List<Tuple3<String, String, byte[]>> items = new ArrayList<>();
+            List<String> cursorKeys = new ArrayList<>(request.getLimit());
+            List<ItemResponse<byte[]>> items = new ArrayList<>();
             LogPosition committedOffset = offsetState.getCommittedOffset();
+            LogPosition endOffset = offsetState.getEndOffset();
+            boolean hasMore = false;
 
             if (request.getLastReadItemKey() != null) {
                 String lastReadItemKey = request.getLastReadItemKey().strip();
@@ -597,8 +625,10 @@ public class PartitionState implements AutoCloseable {
             }
 
             for (String key : itemKeys) {
-                if (cursorKeys.size() >= request.getLimit())
+                if (cursorKeys.size() >= request.getLimit()) {
+                    hasMore = primaryIndex.tailSet(cursorKeys.getLast()).size() > 1;
                     break;
+                }
                 if (key.equalsIgnoreCase(request.getLastReadItemKey()))
                     continue;
                 cursorKeys.add(key);
@@ -621,13 +651,20 @@ public class PartitionState implements AutoCloseable {
                 }
 
                 if (!(version == null || version.bytes() == null)) {
-                    items.add(Tuple3.of(key, itemEntry.partitionKey(), version.bytes()));
+                    items.add(new ItemResponse<>(key, itemEntry.partitionKey(), version.bytes()));
                 }
             }
 
+            CursorPosition cursorPosition = new CursorPosition();
+            if (!items.isEmpty()) {
+                cursorPosition.setLastReadItemKey(items.getLast().getItemKey());
+                cursorPosition.setPartition(partition);
+                cursorPosition.setHasMore(hasMore);
+            }
             return Mono.just(ResponseEntity.ok(ItemListResponse.builder()
                     .httpStatusCode(HttpStatus.OK.value())
                     .items(items)
+                    .cursorPosition(cursorPosition)
                     .build()));
         } catch (Exception e) {
             return Mono.just(ResponseEntity.ok(ItemListResponse.builder()

@@ -1,21 +1,27 @@
 package com.bteshome.onlinestore.orderservice.service;
 
+import com.bteshome.onlinestore.orderservice.OrderException;
 import com.bteshome.onlinestore.orderservice.client.InventoryClient;
 import com.bteshome.onlinestore.orderservice.client.InventoryRequest;
 import com.bteshome.onlinestore.orderservice.config.AppSettings;
 import com.bteshome.onlinestore.orderservice.dto.*;
 import com.bteshome.onlinestore.orderservice.model.LineItem;
-import com.bteshome.onlinestore.orderservice.model.NotificationStatus;
+import com.bteshome.onlinestore.orderservice.model.OrderStatus;
 import com.bteshome.onlinestore.orderservice.model.Order;
 import com.bteshome.onlinestore.orderservice.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -36,6 +42,8 @@ public class OrderService {
 
     public ResponseEntity<OrderCreateResponse> create(OrderRequest orderRequest) {
         try {
+            validateOrderRequest(orderRequest);
+
             Order order = mapToOrder(orderRequest);
 
             log.debug("Creating order {}.", order.getOrderNumber());
@@ -60,9 +68,15 @@ public class OrderService {
 
             return ResponseEntity.status(HttpStatus.OK).body(
                     OrderCreateResponse.builder()
-                        .httpStatus(HttpStatus.OK.value())
-                        .infoMessage("Order placed successfully.")
-                        .build());
+                            .httpStatus(HttpStatus.OK.value())
+                            .infoMessage("Order placed successfully.")
+                            .build());
+        } catch (OrderException e) {
+            return ResponseEntity.status(HttpStatus.OK).body(
+                    OrderCreateResponse.builder()
+                            .httpStatus(HttpStatus.BAD_REQUEST.value())
+                            .errorMessage(e.getMessage())
+                            .build());
         } catch (HttpClientErrorException e) {
             log.error(e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.OK).body(
@@ -80,9 +94,9 @@ public class OrderService {
         }
     }
 
-    public ResponseEntity<?> queryByEmail(String email) {
+    public ResponseEntity<?> queryByUsername(String username) {
         try {
-            List<OrderResponse> orders = orderRepository.queryByEmail(email).map(this::mapToOrderResponse).toList();
+            List<OrderResponse> orders = orderRepository.queryByUsername(username).map(this::mapToOrderResponse).toList();
             return ResponseEntity.ok(orders);
         } catch (Exception e) {
             log.error(e.getMessage(), e);
@@ -100,6 +114,23 @@ public class OrderService {
         }
     }
 
+    private void validateOrderRequest(OrderRequest orderRequest) {
+        if (Strings.isBlank(orderRequest.getEmail()))
+            throw new OrderException("Email is required.");
+
+        if (Strings.isBlank(orderRequest.getUsername()))
+            throw new OrderException("Username is required.");
+
+        if (Strings.isBlank(orderRequest.getFirstName()))
+            throw new OrderException("First Name is required.");
+
+        if (Strings.isBlank(orderRequest.getLastName()))
+            throw new OrderException("Last Name is required.");
+
+        if (orderRequest.getLineItems() == null || orderRequest.getLineItems().isEmpty())
+            throw new OrderException("At least one line item is required.");
+    }
+
     private void createOrderCreatedEvent(Order order) {
         if (appSettings.isNotificationDisabled()) {
             log.debug("Notification is disabled. Skipping OrderCreatedEvent event creation for order: {}", order.getOrderNumber());
@@ -114,8 +145,12 @@ public class OrderService {
     private Order mapToOrder(OrderRequest orderRequest) {
         var order = Order.builder()
                 .orderNumber(UUID.randomUUID().toString())
+                .orderTimestamp(System.currentTimeMillis())
+                .username(orderRequest.getUsername())
+                .firstName(orderRequest.getFirstName())
+                .lastName(orderRequest.getLastName())
                 .email(orderRequest.getEmail())
-                .notificationStatus(NotificationStatus.PENDING)
+                .status(OrderStatus.PENDING)
                 .build();
         var lineItems = orderRequest.getLineItems().stream().map(this::mapToLineItem).toList();
         order.setLineItems(lineItems);
@@ -131,12 +166,19 @@ public class OrderService {
     }
 
     private OrderResponse mapToOrderResponse(Order order) {
-        var lineItems = order.getLineItems().stream().map(this::mapToLineItemResponse).toList();
+        List<LineItemResponse> lineItems = order.getLineItems().stream().map(this::mapToLineItemResponse).toList();
+        String orderDatetime = Instant.ofEpochMilli(order.getOrderTimestamp())
+                .atZone(ZoneId.systemDefault())
+                .format(DateTimeFormatter.ofPattern("MM/dd/yy h:mm a"));
 
         return OrderResponse.builder()
                 .orderNumber(order.getOrderNumber())
+                .orderDatetime(orderDatetime)
+                .username(order.getUsername())
+                .firstName(order.getFirstName())
+                .lastName(order.getLastName())
                 .email(order.getEmail())
-                .notificationStatus(order.getNotificationStatus())
+                .status(order.getStatus().toString())
                 .lineItems(lineItems)
                 .build();
     }

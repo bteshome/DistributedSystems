@@ -31,11 +31,11 @@ export class OrderListComponent implements OnInit {
       this.errorMessage.set("");
       this.orders.set([]);
 
-      this.apiService.getOrders(userObject.email)
+      this.apiService.getOrders(userObject.preferred_username)
         .pipe(
           catchError(error => {
             this.loading.set(false);
-            this.errorMessage.set(error);
+            this.errorMessage.set(error.error.error);
             return [];
           })
         )

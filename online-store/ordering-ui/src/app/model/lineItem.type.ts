@@ -1,4 +1,5 @@
 export type LineItem = {
     skuCode: string,
-    quantity: number
+    quantity: number,
+    price: number
 }

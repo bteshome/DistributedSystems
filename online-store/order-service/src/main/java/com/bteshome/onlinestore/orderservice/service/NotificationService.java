@@ -1,6 +1,5 @@
 package com.bteshome.onlinestore.orderservice.service;
 
-import com.bteshome.onlinestore.orderservice.model.NotificationStatus;
 import com.bteshome.onlinestore.orderservice.model.Order;
 import com.bteshome.onlinestore.orderservice.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
@@ -18,8 +17,6 @@ public class NotificationService {
     public void send(Order order) {
         try {
             // TODO - send notification to customer
-            order.setNotificationStatus(NotificationStatus.SENT);
-            orderRepository.put(order);
             log.debug("Updated notification status for order: {}", order.getOrderNumber());
         } catch (Exception e) {
             log.error("Failed to update notification status for order: {}.", order.getOrderNumber(), e);

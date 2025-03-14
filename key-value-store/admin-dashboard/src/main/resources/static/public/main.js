@@ -7,7 +7,6 @@
     new bootstrap.Tooltip(tooltipTriggerEl)
   });*/
   feather.replace();
-  toggleLastReadItemKey();
 })()
 
 function toggleTTL() {
@@ -19,14 +18,3 @@ function toggleTTL() {
   }
 }
 
-function toggleLastReadItemKey() {
-  let partitionKey = document.getElementById("partitionKey");
-  let lastItemKeyContainer = document.getElementById("lastReadItemKeyContainer");
-  if (partitionKey && lastItemKeyContainer) {
-      if (partitionKey.value.trim() === "") {
-          lastItemKeyContainer.style.display = "none";
-      } else {
-          lastItemKeyContainer.style.display = "block";
-      }
-  }
-}

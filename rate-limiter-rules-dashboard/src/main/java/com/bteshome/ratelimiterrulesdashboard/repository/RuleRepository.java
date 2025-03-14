@@ -5,7 +5,10 @@ import com.bteshome.keyvaluestore.client.clientrequests.ItemWrite;
 import com.bteshome.keyvaluestore.client.readers.ItemLister;
 import com.bteshome.keyvaluestore.client.requests.AckType;
 import com.bteshome.keyvaluestore.client.requests.IsolationLevel;
+import com.bteshome.keyvaluestore.client.responses.CursorPosition;
+import com.bteshome.keyvaluestore.client.responses.ItemListResponseFlattened;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
+import com.bteshome.keyvaluestore.client.responses.ItemResponse;
 import com.bteshome.keyvaluestore.client.writers.ItemWriter;
 import com.bteshome.keyvaluestore.common.Tuple3;
 import com.bteshome.ratelimiterrulesdashboard.common.RateLimiterRuleException;
@@ -15,6 +18,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Repository;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -54,11 +60,26 @@ public class RuleRepository {
         listRequest.setLimit(10);
         listRequest.setIsolationLevel(IsolationLevel.READ_COMMITTED);
 
-        return itemLister
-                .listObjects(listRequest, Rule.class)
-                .collectList()
-                .block()
-                .stream()
-                .map(Tuple3::third);
+        boolean hasMore = true;
+        List<Rule> rules = new ArrayList<>();
+        Map<Integer, CursorPosition> cursorPositions = new HashMap<>();
+
+        while (hasMore) {
+            listRequest.setCursorPositions(cursorPositions);
+            ItemListResponseFlattened<Rule> response = itemLister
+                    .listObjects(listRequest, Rule.class)
+                    .block();
+
+            if (response != null) {
+                for (ItemResponse<Rule> item : response.getItems())
+                    rules.add(item.getValue());
+                cursorPositions = response.getCursorPositions();
+                hasMore = response.hasMore();
+            } else {
+                break;
+            }
+        }
+
+        return rules.stream();
     }
 }

@@ -5,6 +5,9 @@ import com.bteshome.keyvaluestore.client.ClientMetadataFetcher;
 import com.bteshome.keyvaluestore.client.clientrequests.ItemList;
 import com.bteshome.keyvaluestore.client.readers.ItemLister;
 import com.bteshome.keyvaluestore.client.requests.IsolationLevel;
+import com.bteshome.keyvaluestore.client.responses.CursorPosition;
+import com.bteshome.keyvaluestore.client.responses.ItemListResponseFlattened;
+import com.bteshome.keyvaluestore.client.responses.ItemResponse;
 import com.bteshome.keyvaluestore.common.Tuple3;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,12 +45,18 @@ public class RuleRetriever {
             listRequest.setLimit(10);
             listRequest.setIsolationLevel(IsolationLevel.READ_COMMITTED);
 
-            itemLister
-                    .listObjects(listRequest, Rule.class)
-                    .collectList()
-                    .block()
-                    .stream()
-                    .map(Tuple3::third).forEach(rule -> {
+            boolean hasMore = true;
+            Map<Integer, CursorPosition> cursorPositions = new HashMap<>();
+
+            while (hasMore) {
+                listRequest.setCursorPositions(cursorPositions);
+                ItemListResponseFlattened<Rule> response = itemLister
+                        .listObjects(listRequest, Rule.class)
+                        .block();
+
+                if (response != null) {
+                    response.getItems().forEach(item -> {
+                        Rule rule = item.getValue();
                         String api = rule.getApi();
 
                         if (!rules.containsKey(api))
@@ -55,6 +64,12 @@ public class RuleRetriever {
 
                         rules.get(api).add(rule);
                     });
+                    cursorPositions = response.getCursorPositions();
+                    hasMore = response.hasMore();
+                } else {
+                    break;
+                }
+            }
 
             RuleCache.setRules(rules);
 

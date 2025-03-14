@@ -57,7 +57,7 @@ export class ProductsComponent implements OnInit {
       .pipe(
         catchError(error => {
           this.loading.set(false);
-          this.errorMessage.set(error);
+          this.errorMessage.set(error.error);
           return [];
         })
       )

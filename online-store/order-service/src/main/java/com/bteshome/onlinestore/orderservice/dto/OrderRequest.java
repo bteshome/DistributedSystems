@@ -10,6 +10,9 @@ import java.util.List;
 @Setter
 @Builder
 public class OrderRequest {
+    private String username;
+    private String firstName;
+    private String lastName;
     private String email;
     private List<LineItemRequest> lineItems;
 }

@@ -24,7 +24,7 @@ public class ItemDeleteController {
     public String deleteItem(@ModelAttribute("itemDeleteRequest") @RequestBody ItemDelete itemDeleteRequest, Model model) {
         try {
             model.addAttribute("promptItemDelete",
-                    "Are you sure you want to delete the item with key '%s' partition '%s' in table '%s'?".formatted(
+                    "Are you sure you want to delete the item with partition key '%s' and item key '%s' in table '%s'?".formatted(
                     itemDeleteRequest.getKey(),
                     itemDeleteRequest.getPartitionKey(),
                     itemDeleteRequest.getTable()));

@@ -35,6 +35,7 @@
             <div class="alert alert-info" role="alert" th:if="${info}" th:text="${info}"></div>
 
             <form class="row g-3" method="post" th:action="@{/items/list/}" th:object="${listRequest}" th:if="${listRequest}">
+                <input type="hidden" name="cursorPositionsString" th:value="${cursorPositionsString}">
                 <div class="col-md-6">
                     <label for="table" class="form-label">Table Name</label>
                     <input type="text" class="form-control" id="table" th:field="*{table}">
@@ -52,15 +53,16 @@
                 </div>
                 <div class="col-md-6">
                     <label for="partitionKey" class="form-label">Partition Key (Optional)</label>
-                    <input type="text" class="form-control" id="partitionKey" th:field="*{partitionKey}" onchange="toggleLastReadItemKey()">
-                </div>
-                <div class="col-md-6" id="lastReadItemKeyContainer">
-                    <label for="lastReadItemKey" class="form-label">Last Read Item Key (Optional)</label>
-                    <input type="text" class="form-control" id="lastReadItemKey" th:field="*{lastReadItemKey}">
+                    <input type="text" class="form-control" id="partitionKey" th:field="*{partitionKey}">
                 </div>
                 <div class="row g-3">
                     <div class="col-auto">
                         <button type="submit" class="btn btn-primary mb-3">List</button>
+                    </div>
+                    <div class="col-auto" th:if="${hasMore}">
+                        <button type="submit" class="btn btn-secondary mb-3" th:formaction="@{/items/list/next/}">
+                            <span data-feather="skip-forward"></span>
+                        </button>
                     </div>
                     <div class="col-auto">
                         <a class="btn btn-secondary" href="/items/put/">
@@ -71,27 +73,20 @@
                 </div>
             </form>
 
-            <form method="post" th:action="@{/items/delete-batch-confirmed/}" th:object="${batchDeleteRequest}" th:if="${promptBatchDelete}">
-                <input type="hidden" th:field="*{table}">
-                <input type="hidden" th:field="*{keys}">
-                <p th:text="${promptBatchDelete}"></p>
-                <div class="col-auto">
-                    <button type="submit" class="btn btn-primary mb-3">Delete</button>
-                </div>
-            </form>
-
-            <form method="post" th:action="@{/items/delete-item-confirmed/}" th:object="${itemDeleteRequest}" th:if="${promptItemDelete}">
+            <form method="post" th:action="@{/items/delete-item-confirmed/}" th:object="${itemDeleteRequest}"
+                  th:if="${promptItemDelete}">
                 <input type="hidden" th:field="*{table}">
                 <input type="hidden" th:field="*{key}">
+                <input type="hidden" th:field="*{partitionKey}">
                 <p th:text="${promptItemDelete}"></p>
                 <div class="col-auto">
                     <button type="submit" class="btn btn-primary mb-3">Delete</button>
                 </div>
             </form>
 
-            <div class="no-data" th:if="${(items == null || itemsCount == 0) && promptBatchDelete == null && promptItemDelete == null}">No Data</div>
+            <div class="no-data" th:if="${(response == null) && promptItemDelete == null}">No Data</div>
 
-            <div th:if="${items}">
+            <div th:if="${response}">
                 <div class="table-responsive">
                     <table class="table table-striped table-sm">
                         <thead>
@@ -99,29 +94,19 @@
                             <th>Partition Key</th>
                             <th>Item Key</th>
                             <th>Value</th>
-                            <th class="text-center">
-                                <form method="post" th:action="@{/items/delete-batch/}" th:object="${batchDeleteRequest}">
-                                    <input type="hidden" th:field="*{table}">
-                                    <input type="hidden" th:field="*{keys}">
-                                    <input type="hidden" th:field="*{partitionKeys}">
-                                    <button type="submit" class="btn btn-danger btn-sm">
-                                        <span data-feather="x-circle"></span>
-                                        Delete All
-                                    </button>
-                                </form>
-                            </th>
+                            <th></th>
                         </tr>
                         </thead>
                         <tbody>
-                        <tr th:each="item: ${items}" >
-                            <td th:text="${item.second}"></td>
-                            <td th:text="${item.first}"></td>
-                            <td th:text="${item.third}"></td>
+                        <tr th:each="item: ${response.items}">
+                            <td th:text="${item.partitionKey}"></td>
+                            <td th:text="${item.itemKey}"></td>
+                            <td th:text="${item.value}"></td>
                             <td class="text-center">
                                 <form method="post" th:action="@{/items/delete-item/}" th:object="${itemDeleteRequest}">
                                     <input type="hidden" th:field="*{table}">
-                                    <input type="hidden" name="key" th:value="${item.first}">
-                                    <input type="hidden" name="partitionKey" th:value="${item.second}">
+                                    <input type="hidden" name="key" th:value="${item.itemKey}">
+                                    <input type="hidden" name="partitionKey" th:value="${item.partitionKey}">
                                     <button type="submit" class="btn btn-sm">
                                         <span data-feather="x-circle"></span>
                                     </button>

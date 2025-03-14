@@ -9,9 +9,11 @@ import com.bteshome.keyvaluestore.client.readers.ItemQuerier;
 import com.bteshome.keyvaluestore.client.readers.ItemReader;
 import com.bteshome.keyvaluestore.client.requests.AckType;
 import com.bteshome.keyvaluestore.client.requests.IsolationLevel;
+import com.bteshome.keyvaluestore.client.responses.CursorPosition;
+import com.bteshome.keyvaluestore.client.responses.ItemListResponseFlattened;
 import com.bteshome.keyvaluestore.client.responses.ItemPutResponse;
+import com.bteshome.keyvaluestore.client.responses.ItemResponse;
 import com.bteshome.keyvaluestore.client.writers.ItemWriter;
-import com.bteshome.keyvaluestore.common.Tuple3;
 import com.bteshome.onlinestore.orderservice.OrderException;
 import com.bteshome.onlinestore.orderservice.model.Order;
 import org.apache.logging.log4j.util.Strings;
@@ -19,7 +21,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Repository;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -36,12 +40,6 @@ public class OrderRepository {
     private ItemQuerier itemQuerier;
 
     public void put(Order order) {
-        if (Strings.isBlank(order.getEmail())) {
-            String errorMessage = "Failed to place order %s. Email is required.".formatted(
-                    order.getOrderNumber());
-            throw new OrderException(errorMessage);
-        }
-
         ItemWrite<Order> request = new ItemWrite<>();
         request.setTable(tableName);
         request.setKey(order.getOrderNumber());
@@ -49,7 +47,7 @@ public class OrderRepository {
         request.setMaxRetries(0);
         request.setValue(order);
         HashMap<String, String> indexes = new HashMap<>();
-        indexes.put("email", order.getEmail());
+        indexes.put("username", order.getUsername());
         request.setIndexKeys(indexes);
 
         ItemPutResponse itemPutResponse = itemWriter.putObject(request).block();
@@ -72,19 +70,35 @@ public class OrderRepository {
         return itemReader.getObject(request, Order.class).block();
     }
 
-    public Stream<Order> queryByEmail(String email) {
+    public Stream<Order> queryByUsername(String username) {
         ItemQuery queryRequest = new ItemQuery();
         queryRequest.setTable(tableName);
-        queryRequest.setIndexName("email");
-        queryRequest.setIndexKey(email);
+        queryRequest.setLimit(10);
+        queryRequest.setIndexName("username");
+        queryRequest.setIndexKey(username);
         queryRequest.setIsolationLevel(IsolationLevel.READ_COMMITTED);
 
-        return itemQuerier
-                .queryForObjects(queryRequest, Order.class)
-                .collectList()
-                .block()
-                .stream()
-                .map(Tuple3::third);
+        boolean hasMore = true;
+        List<Order> orders = new ArrayList<>();
+        Map<Integer, CursorPosition> cursorPositions = new HashMap<>();
+
+        while (hasMore) {
+            queryRequest.setCursorPositions(cursorPositions);
+            ItemListResponseFlattened<Order> response = itemQuerier
+                    .queryForObjects(queryRequest, Order.class)
+                    .block();
+
+            if (response != null) {
+                for (ItemResponse<Order> item : response.getItems())
+                    orders.add(item.getValue());
+                cursorPositions = response.getCursorPositions();
+                hasMore = response.hasMore();
+            } else {
+                break;
+            }
+        }
+
+        return orders.stream();
     }
 
     public Stream<Order> getAll() {
@@ -93,11 +107,26 @@ public class OrderRepository {
         listRequest.setLimit(10);
         listRequest.setIsolationLevel(IsolationLevel.READ_COMMITTED);
 
-        return itemLister
-                .listObjects(listRequest, Order.class)
-                .collectList()
-                .block()
-                .stream()
-                .map(Tuple3::third);
+        boolean hasMore = true;
+        List<Order> orders = new ArrayList<>();
+        Map<Integer, CursorPosition> cursorPositions = new HashMap<>();
+
+        while (hasMore) {
+            listRequest.setCursorPositions(cursorPositions);
+            ItemListResponseFlattened<Order> response = itemLister
+                    .listObjects(listRequest, Order.class)
+                    .block();
+
+            if (response != null) {
+                for (ItemResponse<Order> item : response.getItems())
+                    orders.add(item.getValue());
+                cursorPositions = response.getCursorPositions();
+                hasMore = response.hasMore();
+            } else {
+                break;
+            }
+        }
+
+        return orders.stream();
     }
 }

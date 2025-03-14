@@ -1,6 +1,9 @@
 import { CartItem } from "./cartItem.type"
 
 export type OrderCreateRequest = {
-    email: string,
-    lineItems: CartItem[]
+  username: string,
+  firstName: string,
+  lastName: string,
+  email: string,
+  lineItems: CartItem[]
 }

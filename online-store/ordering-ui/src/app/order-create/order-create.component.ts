@@ -48,6 +48,9 @@ export class OrderCreateComponent implements OnInit {
       this.infoMessage.set("");
 
       let orderCreateRequest: OrderCreateRequest = {
+        username: userObject.preferred_username,
+        firstName: userObject.given_name,
+        lastName: userObject.family_name,
         email: userObject.email,
         lineItems: this.cart()
       }
@@ -56,13 +59,13 @@ export class OrderCreateComponent implements OnInit {
         .pipe(
           catchError((error, response) => {
             this.processing.set(false);
-            this.errorMessage.set(error);
+            this.errorMessage.set(error.error.error);
             return response;
           })
         )
         .subscribe((response) => {
           this.processing.set(false);
-          if (response.httpStatus = 200) {
+          if (response.httpStatus == 200) {
             this.infoMessage.set(response?.infoMessage);
             this.cart.set([]);
             this.cookieService.setCookie('cart', "", -1, "/"); 

@@ -34,9 +34,9 @@ export class ApiService {
     return this.http.get<Array<Product>>(this.productsUrl)
   }
 
-  getOrders(email: string) {
+  getOrders(username: string) {
     const headers = this.createAuthHeader();
-    return this.http.get<Array<Order>>(this.ordersQueryUrl + "?email=" + email, { headers })
+    return this.http.get<Array<Order>>(this.ordersQueryUrl + "?username=" + username, { headers })
   }
 
   createOrder(order: OrderCreateRequest) {

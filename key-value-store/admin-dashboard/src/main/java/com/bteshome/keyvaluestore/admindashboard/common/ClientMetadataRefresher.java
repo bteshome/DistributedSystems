@@ -15,7 +15,7 @@ public class ClientMetadataRefresher implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        if (System.currentTimeMillis() - lastRefreshTime > 10000) {
+        if (System.currentTimeMillis() - lastRefreshTime > 5000) {
             clientMetadataFetcher.fetch();
             lastRefreshTime = System.currentTimeMillis();
         }
