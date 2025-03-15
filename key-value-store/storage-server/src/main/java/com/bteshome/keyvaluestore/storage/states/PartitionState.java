@@ -306,7 +306,31 @@ public class PartitionState implements AutoCloseable {
                 partition,
                 request.getAck());
 
-        return deleteItems(request.getKeys(), request.getAck());
+        List<String> itemsToRemove = new ArrayList<>();
+        LogPosition committedOffset = offsetState.getCommittedOffset();
+
+        for (String key : request.getKeys()) {
+            if (!data.containsKey(key))
+                continue;
+
+            ItemValueVersion latestVersion = data.get(key).valueVersions().getLast();
+
+            if (latestVersion.offset().isGreaterThan(committedOffset))
+                continue;
+
+            if (latestVersion.bytes() == null)
+                continue;
+
+            itemsToRemove.add(key);
+        }
+
+        if (itemsToRemove.isEmpty()) {
+            return Mono.just(ResponseEntity.ok(ItemDeleteResponse.builder()
+                    .httpStatusCode(HttpStatus.OK.value())
+                    .build()));
+        }
+
+        return deleteItems(itemsToRemove, request.getAck());
     }
 
     public void deleteExpiredItems() {
