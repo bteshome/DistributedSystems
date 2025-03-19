@@ -76,6 +76,8 @@ public class WalFetcherGrpc {
             }
         });
 
+        log.info("Started gRPC WAL fetcher for table {} partition {}.", table, partition);
+
         sendOffsets();
     }
 
@@ -85,9 +87,9 @@ public class WalFetcherGrpc {
                 requestObserver.onCompleted();
             if (client != null)
                 client.shutdown();
-            log.info("Shut down WAL fetcher for table {} partition {}.", table, partition);
+            log.info("Shut down gRPC WAL fetcher for table {} partition {}.", table, partition);
         } catch (Exception e) {
-            log.error("Error shutting down WAL fetcher for table {} partition {}.", table, partition, e);
+            log.error("Error shutting down gRPC WAL fetcher for table {} partition {}.", table, partition, e);
         }
     }
 

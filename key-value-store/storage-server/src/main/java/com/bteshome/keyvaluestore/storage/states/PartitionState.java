@@ -36,6 +36,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Schedulers;
@@ -1179,62 +1180,70 @@ public class PartitionState implements AutoCloseable {
                 WALGetReplicaEndOffsetRequest walGetReplicaEndOffsetRequest = new WALGetReplicaEndOffsetRequest(
                         request.getTableName(),
                         request.getPartitionId());
-                LogPosition thisReplicaEndOffset = offsetState.getEndOffset();
+                final LogPosition thisReplicaEndOffset = offsetState.getEndOffset();
                 LogPosition thisReplicaCommittedOffset = offsetState.getCommittedOffset();
-                LogPosition earliestISREndOffset = thisReplicaEndOffset;
 
-                for (String isrEndpoint : isrEndpoints) {
-                    try {
-                        Mono<ResponseEntity<WALGetReplicaEndOffsetResponse>> mono = WebClient
+                Mono<LogPosition> earliestISREndOffsetMono = Flux.fromIterable(isrEndpoints)
+                        .flatMap(isrEndpoint -> WebClient
                                 .create("http://%s/api/wal/get-end-offset/".formatted(isrEndpoint))
                                 .post()
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .accept(MediaType.APPLICATION_JSON)
                                 .bodyValue(walGetReplicaEndOffsetRequest)
                                 .retrieve()
-                                .toEntity(WALGetReplicaEndOffsetResponse.class);
+                                .toEntity(WALGetReplicaEndOffsetResponse.class)
+                                .map(ResponseEntity::getBody)
+                                .onErrorResume(e -> {
+                                    log.warn("Log synchronization request to endpoint '{}' failed.", isrEndpoint, e);
+                                    return Mono.empty();
+                                })
+                        )
+                        .filter(Objects::nonNull)
+                        .map(WALGetReplicaEndOffsetResponse::getEndOffset)
+                        .reduce((offset1, offset2) -> offset1.isLessThan(offset2) ? offset1 : offset2);
 
-                        WALGetReplicaEndOffsetResponse response = mono.map(HttpEntity::getBody).block();
+                earliestISREndOffsetMono.subscribe(isrEndOffset -> {
+                    LogPosition earliestISREndOffset = thisReplicaEndOffset;
 
-                        if (response.getEndOffset().isLessThan(earliestISREndOffset))
-                            earliestISREndOffset = response.getEndOffset();
-                    } catch (Exception e) {
-                        log.warn("Log synchronization request to endpoint '{}' failed.", isrEndpoint, e);
-                    }
-                }
+                    if (isrEndOffset != null) {
+                        if (isrEndOffset.isLessThan(thisReplicaEndOffset)) {
+                            earliestISREndOffset = isrEndOffset;
+                            log.info("Earliest ISR end offset is {} while this replica's end offset is {}.", earliestISREndOffset, thisReplicaEndOffset);
+                            log.info("Detected uncommitted offsets from the previous leader. Truncating WAL to before offset {}.", earliestISREndOffset);
+                            wal.truncateToBeforeInclusive(earliestISREndOffset);
 
-                if (earliestISREndOffset.isLessThan(thisReplicaEndOffset)) {
-                    log.info("Detected uncommitted offsets from the previous leader. Truncating WAL to before offset {}.", earliestISREndOffset);
-                    wal.truncateToBeforeInclusive(earliestISREndOffset);
-
-                    for (Map.Entry<String, ItemEntry> entry : data.entrySet()) {
-                        while (!entry.getValue().valueVersions().isEmpty()) {
-                            ItemValueVersion latestVersion = entry.getValue().valueVersions().getLast();
-                            if (latestVersion.offset().isGreaterThan(earliestISREndOffset)) {
-                                entry.getValue().valueVersions().removeLast();
-                                ItemExpiryKey itemExpiryKey = ItemExpiryKey.of(entry.getKey(), latestVersion.offset(), latestVersion.expiryTime());
-                                dataExpiryTimes.remove(itemExpiryKey);
-                            } else {
-                                break;
-                            }
-                        }
-                        if (entry.getValue().valueVersions().isEmpty()) {
-                            String keyString = entry.getKey();
-                            if (entry.getValue().indexKeys() != null) {
-                                for (Map.Entry<String, String> indexKey : entry.getValue().indexKeys().entrySet()) {
-                                    Map<String, NavigableSet<String>> index = this.secondaryIndexes.get(indexKey.getKey());
-                                    index.get(indexKey.getValue()).remove(keyString);
+                            for (Map.Entry<String, ItemEntry> entry : data.entrySet()) {
+                                while (!entry.getValue().valueVersions().isEmpty()) {
+                                    ItemValueVersion latestVersion = entry.getValue().valueVersions().getLast();
+                                    if (latestVersion.offset().isGreaterThan(earliestISREndOffset)) {
+                                        entry.getValue().valueVersions().removeLast();
+                                        ItemExpiryKey itemExpiryKey = ItemExpiryKey.of(entry.getKey(), latestVersion.offset(), latestVersion.expiryTime());
+                                        dataExpiryTimes.remove(itemExpiryKey);
+                                    } else {
+                                        break;
+                                    }
+                                }
+                                if (entry.getValue().valueVersions().isEmpty()) {
+                                    String keyString = entry.getKey();
+                                    if (entry.getValue().indexKeys() != null) {
+                                        for (Map.Entry<String, String> indexKey : entry.getValue().indexKeys().entrySet()) {
+                                            Map<String, NavigableSet<String>> index = this.secondaryIndexes.get(indexKey.getKey());
+                                            index.get(indexKey.getValue()).remove(keyString);
+                                        }
+                                    }
+                                    data.remove(keyString);
                                 }
                             }
-                            data.remove(keyString);
                         }
+                    } else {
+                        log.warn("No valid ISR earliest offset responses received. Continuing with existing end offset.");
                     }
-                }
 
-                if (earliestISREndOffset.isGreaterThan(thisReplicaCommittedOffset))
-                    offsetState.setCommittedOffset(earliestISREndOffset);
+                    if (earliestISREndOffset.isGreaterThan(thisReplicaCommittedOffset))
+                        offsetState.setCommittedOffset(earliestISREndOffset);
 
-                offsetState.setPreviousLeaderEndOffset(earliestISREndOffset);
+                    offsetState.setPreviousLeaderEndOffset(earliestISREndOffset);
+                });
             } else {
                 this.isLeader = false;
                 this.leaderTerm = request.getNewLeaderTerm();
@@ -1254,6 +1263,7 @@ public class PartitionState implements AutoCloseable {
     public void close() {
         if (wal != null)
             wal.close();
+        stopWalFetcherGrpc();
     }
 
     public void takeDataSnapshot() {
