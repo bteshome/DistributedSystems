@@ -215,14 +215,18 @@ public class MetadataStateMachine extends BaseStateMachine {
                         StorageNode existingNodeInfo = (StorageNode) state.get(EntityType.STORAGE_NODE).get(request.getId());
 
                         if (!(request.getHost().equals(existingNodeInfo.getHost()) && request.getPort() == existingNodeInfo.getPort())) {
-                            log.warn("{} failed. {}.", MetadataRequestType.STORAGE_NODE_JOIN, "Node info does not match what is registered.");
-                            yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.UNAUTHORIZED.value()));
+                            String errorMessage = "Node info does not match what is registered.";
+                            log.warn("{} failed. {}.", MetadataRequestType.STORAGE_NODE_JOIN, errorMessage);
+                            yield CompletableFuture.completedFuture(new GenericResponse(
+                                    HttpStatus.UNAUTHORIZED.value(),
+                                    errorMessage));
                         }
 
                         switch (existingNodeInfo.getStatus()) {
                             case ACTIVE -> {
-                                log.warn("{}: {}.", MetadataRequestType.STORAGE_NODE_JOIN, "Node is already active.");
-                                yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.OK.value()));
+                                String infoMessage = "Node is already active.";
+                                log.warn("{}: {}.", MetadataRequestType.STORAGE_NODE_JOIN, infoMessage);
+                                yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.OK.value(), infoMessage));
                             }
                             case INACTIVE -> {
                                 String infoMessage = "Node '%s' has rejoined the cluster.".formatted(request.getId());
@@ -230,8 +234,9 @@ public class MetadataStateMachine extends BaseStateMachine {
                                 yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.OK.value(), infoMessage));
                             }
                             case REMOVED -> {
-                                log.warn("{}: {}.", MetadataRequestType.STORAGE_NODE_JOIN, "Node is already removed.");
-                                yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.UNAUTHORIZED.value()));
+                                String errorMessage = "Node is already removed.";
+                                log.warn("{}: {}.", MetadataRequestType.STORAGE_NODE_JOIN, errorMessage);
+                                yield CompletableFuture.completedFuture(new GenericResponse(HttpStatus.UNAUTHORIZED.value(), errorMessage));
                             }
                         }
                     }

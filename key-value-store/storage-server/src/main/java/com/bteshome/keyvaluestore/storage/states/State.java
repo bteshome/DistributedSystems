@@ -3,6 +3,8 @@ package com.bteshome.keyvaluestore.storage.states;
 import com.bteshome.keyvaluestore.common.*;
 import com.bteshome.keyvaluestore.common.entities.Partition;
 import com.bteshome.keyvaluestore.common.entities.Table;
+import com.bteshome.keyvaluestore.storage.api.grpc.server.GrpcServer;
+import com.bteshome.keyvaluestore.storage.api.grpc.server.WalService;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
 import com.bteshome.keyvaluestore.storage.core.ISRSynchronizer;
@@ -41,6 +43,8 @@ public class State implements ApplicationListener<ContextClosedEvent> {
     @Autowired
     private StorageNodeMetadataRefresher storageNodeMetadataRefresher;
     private boolean closed = false;
+    private GrpcServer grpcServer;
+    private WalService walService;
 
     @PostConstruct
     public void postConstruct() {
@@ -54,6 +58,7 @@ public class State implements ApplicationListener<ContextClosedEvent> {
         scheduleWalFetcher();
         scheduleDataSnapshots();
         scheduleDataExpirationMonitor();
+        initGrpcServer();
     }
 
     @Override
@@ -65,6 +70,8 @@ public class State implements ApplicationListener<ContextClosedEvent> {
                     for (PartitionState partitionState : tableState.values())
                         partitionState.close();
                 }
+                if (grpcServer != null)
+                    grpcServer.close();
                 closed = true;
             } catch (Exception e) {
                 log.error("Error closing state.", e);
@@ -93,6 +100,16 @@ public class State implements ApplicationListener<ContextClosedEvent> {
         } catch (Exception e) {
             String errorMessage = "Error handling TABLE CREATED notification for table '%s'.".formatted(table.getName());
             log.error(errorMessage, e);
+        }
+    }
+
+    private void initGrpcServer() {
+        if (storageSettings.isGrpcEnabled()) {
+            walService = new WalService(this);
+            grpcServer = GrpcServer.create(
+                    storageSettings.getNode().getGrpcPort(),
+                    walService);
+            grpcServer.start();
         }
     }
 
@@ -207,14 +224,18 @@ public class State implements ApplicationListener<ContextClosedEvent> {
     }
 
     private void fetchWal(long tick) {
-        Flux.fromIterable(partitionStates.values())
-                .flatMap(tableState -> Flux.fromIterable(tableState.values()))
-                .doOnNext(partitionState -> {
-                    Mono.fromRunnable(partitionState::fetchWal)
-                            .subscribeOn(Schedulers.boundedElastic())
-                            .subscribe();
-                })
-                .subscribe();
+        if (storageSettings.isGrpcEnabled()) {
+            walService.send();
+        } else {
+            Flux.fromIterable(partitionStates.values())
+                    .flatMap(tableState -> Flux.fromIterable(tableState.values()))
+                    .doOnNext(partitionState -> {
+                        Mono.fromRunnable(partitionState::fetchWal)
+                                .subscribeOn(Schedulers.boundedElastic())
+                                .subscribe();
+                    })
+                    .subscribe();
+        }
     }
 
     private void takeDataSnapshots(long tick) {

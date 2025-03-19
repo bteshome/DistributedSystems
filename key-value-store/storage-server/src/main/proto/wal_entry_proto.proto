@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+option java_package = "com.bteshome.keyvaluestore.storage.proto";
+option java_multiple_files = true;
+
+message WalEntryProto {
+  int32 term = 1;
+  int64 index = 2;
+  int64 timestamp = 3;
+  int32 operationType = 4;
+  int64 expiryTime = 5;
+  int32 keyLength = 6;
+  int32 partitionKeyLength = 7;
+  int32 valueLength = 8;
+  int32 indexLength = 9;
+  bytes key = 10;
+  bytes partitionKey = 11;
+  bytes value = 12;
+  bytes indexes = 13;
+}

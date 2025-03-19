@@ -1,0 +1,14 @@
+syntax = "proto3";
+import "log_position_proto.proto";
+
+option java_package = "com.bteshome.keyvaluestore.storage.proto";
+option java_multiple_files = true;
+
+message WalFetchRequestProto {
+  string id = 1;
+  string table = 2;
+  int32 partition = 3;
+  LogPositionProto last_fetch_offset = 4;
+  LogPositionProto committed_offset = 5;
+  int32 max_num_records = 6;
+}

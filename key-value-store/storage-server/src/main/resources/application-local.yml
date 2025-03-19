@@ -7,6 +7,8 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
+  codec:
+    max-in-memory-size: 10MB
 
 debug: 'false'
 
@@ -44,7 +46,7 @@ endpoints:
 logging:
   level:
     com:
-      bteshome: INFO
+      bteshome: TRACE
     root: INFO
     org:
       apache:

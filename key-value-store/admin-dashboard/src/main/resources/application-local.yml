@@ -3,6 +3,7 @@ debug: 'false'
 keycloak-url: http://localhost:8080
 keycloak-realm: dashboards
 keycloak-client-id: default
+security-disabled: true
 
 spring:
   cloud:
@@ -19,21 +20,21 @@ spring:
     mode: HTML
     cache: false
     enabled: true
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: ${keycloak-url}/realms/${keycloak-realm}
-          jwk-set-uri: ${keycloak-url}/realms/${keycloak-realm}/protocol/openid-connect/certs
-      client:
-        registration:
-          keycloak:
-            clientId: ${keycloak-client-id}
-            authorizationGrantType: authorization_code
-            scope: openid
-        provider:
-          keycloak:
-            issuer-uri: ${keycloak-url}/realms/${keycloak-realm}
+#  security:
+#    oauth2:
+#      resourceserver:
+#        jwt:
+#          issuer-uri: ${keycloak-url}/realms/${keycloak-realm}
+#          jwk-set-uri: ${keycloak-url}/realms/${keycloak-realm}/protocol/openid-connect/certs
+#      client:
+#        registration:
+#          keycloak:
+#            clientId: ${keycloak-client-id}
+#            authorizationGrantType: authorization_code
+#            scope: openid
+#        provider:
+#          keycloak:
+#            issuer-uri: ${keycloak-url}/realms/${keycloak-realm}
 
 server:
   port: '9207'
@@ -100,4 +101,4 @@ metadata-client:
       port: '9313'
 
 storage-client:
-  endpoints: "localhost:9407,localhost:9607,localhost:9807"
+  endpoints: "localhost:9406,localhost:9506,localhost:9606"

@@ -9,6 +9,7 @@ import com.bteshome.keyvaluestore.common.*;
 import com.bteshome.keyvaluestore.common.entities.Item;
 import com.bteshome.keyvaluestore.common.requests.ISRListChangedRequest;
 import com.bteshome.keyvaluestore.common.requests.NewLeaderElectedRequest;
+import com.bteshome.keyvaluestore.storage.api.grpc.client.WalFetcherGrpc;
 import com.bteshome.keyvaluestore.storage.common.ChecksumUtil;
 import com.bteshome.keyvaluestore.storage.common.CompressionUtil;
 import com.bteshome.keyvaluestore.storage.common.StorageSettings;
@@ -17,11 +18,16 @@ import com.bteshome.keyvaluestore.storage.core.ISRSynchronizer;
 import com.bteshome.keyvaluestore.storage.core.ReplicationMonitor;
 import com.bteshome.keyvaluestore.storage.core.WALFetcher;
 import com.bteshome.keyvaluestore.storage.entities.*;
+import com.bteshome.keyvaluestore.storage.proto.LogPositionProto;
+import com.bteshome.keyvaluestore.storage.proto.WalEntryProto;
+import com.bteshome.keyvaluestore.storage.proto.WalFetchPayloadTypeProto;
+import com.bteshome.keyvaluestore.storage.proto.WalFetchResponseProto;
 import com.bteshome.keyvaluestore.storage.requests.WALGetReplicaEndOffsetRequest;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchPayloadType;
 import com.bteshome.keyvaluestore.storage.responses.WALFetchResponse;
 import com.bteshome.keyvaluestore.storage.responses.WALGetReplicaEndOffsetResponse;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.google.protobuf.ByteString;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.util.AutoCloseableLock;
@@ -75,9 +81,11 @@ public class PartitionState implements AutoCloseable {
     private final int minISRCount;
     private final Set<String> allReplicaIds;
     private String leaderEndpoint;
+    private Tuple<String, Integer> leaderGrpcEndpoint;
     private boolean isLeader;
     private int leaderTerm;
     private Set<String> inSyncReplicas;
+    private WalFetcherGrpc walFetcherGrpc;
 
     public PartitionState(String table,
                           int partition,
@@ -97,9 +105,6 @@ public class PartitionState implements AutoCloseable {
         this.allReplicaIds = MetadataCache.getInstance().getReplicaNodeIds(table, partition);
         this.isLeader = this.nodeId.equals(MetadataCache.getInstance().getLeaderNodeId(table, partition));
         this.leaderTerm = MetadataCache.getInstance().getLeaderTerm(table, partition);
-        this.leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
-        if (isLeader)
-            this.inSyncReplicas = MetadataCache.getInstance().getInSyncReplicas(table, partition);
         this.storageSettings = storageSettings;
         this.isrSynchronizer = isrSynchronizer;
         this.webClient = webClient;
@@ -122,6 +127,13 @@ public class PartitionState implements AutoCloseable {
         dataSnapshotFile = "%s/%s-%s/data.ser.snappy".formatted(storageSettings.getNode().getStorageDir(), table, partition);
         offsetState = new OffsetState(table, partition, storageSettings);
         loadFromDataSnapshotAndWALFile();
+        if (isLeader) {
+            this.inSyncReplicas = MetadataCache.getInstance().getInSyncReplicas(table, partition);
+        } else {
+            this.leaderEndpoint = MetadataCache.getInstance().getLeaderEndpoint(table, partition);
+            this.leaderGrpcEndpoint = MetadataCache.getInstance().getLeaderGrpcEndpoint(table, partition);
+            startWalFetcherGrpc();
+        }
     }
 
     /**
@@ -778,6 +790,92 @@ public class PartitionState implements AutoCloseable {
         }
     }
 
+    public WalFetchResponseProto getLogEntriesProto(LogPosition lastFetchOffset,
+                                                    LogPosition replicaCommittedOffset,
+                                                    int maxNumRecords,
+                                                    String replicaId) {
+        if (!isLeader) {
+            return WalFetchResponseProto.newBuilder()
+                    .setHttpStatusCode(HttpStatus.MOVED_PERMANENTLY.value())
+                    .build();
+        }
+
+        offsetState.setReplicaEndOffset(replicaId, lastFetchOffset);
+
+        try (AutoCloseableLock l = readLeaderLock()) {
+            LogPosition walStartOffset = wal.getStartOffset();
+            LogPosition endOffset = offsetState.getEndOffset();
+            LogPosition commitedOffset = offsetState.getCommittedOffset();
+            LogPosition previousLeaderEndOffset = offsetState.getPreviousLeaderEndOffset();
+            maxNumRecords = Math.min(maxNumRecords, this.fetchMaxNumRecords);
+
+            LogPositionProto commitedOffsetProto = LogPositionProto.newBuilder()
+                    .setTerm(commitedOffset.leaderTerm())
+                    .setIndex(commitedOffset.index())
+                    .build();
+
+            LogPositionProto previousLeaderEndOffsetProto = LogPositionProto.newBuilder()
+                    .setTerm(previousLeaderEndOffset.leaderTerm())
+                    .setIndex(previousLeaderEndOffset.index())
+                    .build();
+
+            log.trace("Received WAL fetch request from replica '{}' for table '{}' partition '{}'. Last fetch offset = {}, " +
+                            "leader end offset = {}, replica committed offset = {}, leader committed offset = {}.",
+                    replicaId,
+                    table,
+                    partition,
+                    lastFetchOffset,
+                    endOffset,
+                    replicaCommittedOffset,
+                    commitedOffset);
+
+            if (endOffset.equals(LogPosition.ZERO))
+                return WalFetchResponseProto.getDefaultInstance();
+
+            if (lastFetchOffset.equals(endOffset)) {
+                if (replicaCommittedOffset.equals(commitedOffset))
+                    return WalFetchResponseProto.getDefaultInstance();
+                return WalFetchResponseProto.newBuilder()
+                        .setHttpStatusCode(HttpStatus.OK.value())
+                        .setCommitedOffset(commitedOffsetProto)
+                        .build();
+            }
+
+            if (lastFetchOffset.equals(LogPosition.ZERO)) {
+                if (walStartOffset.equals(LogPosition.ZERO))
+                    return getSnapshotProto(lastFetchOffset, walStartOffset, endOffset);
+                return getLogsProto(lastFetchOffset, maxNumRecords, commitedOffsetProto);
+            } else if (lastFetchOffset.leaderTerm() == leaderTerm) {
+                if (walStartOffset.equals(LogPosition.ZERO) || lastFetchOffset.index() < walStartOffset.index() - 1)
+                    return getSnapshotProto(lastFetchOffset, walStartOffset, endOffset);
+                return getLogsProto(lastFetchOffset, maxNumRecords, commitedOffsetProto);
+            } else if (lastFetchOffset.leaderTerm() == leaderTerm - 1) {
+                if (lastFetchOffset.isGreaterThan(previousLeaderEndOffset)) {
+                    return WalFetchResponseProto.newBuilder()
+                            .setHttpStatusCode(HttpStatus.CONFLICT.value())
+                            .setTruncateToOffset(previousLeaderEndOffsetProto)
+                            .build();
+                }
+                if (walStartOffset.equals(LogPosition.ZERO) || walStartOffset.leaderTerm() > lastFetchOffset.leaderTerm())
+                    return getSnapshotProto(lastFetchOffset, walStartOffset, endOffset);
+                return getLogsProto(lastFetchOffset, maxNumRecords, commitedOffsetProto);
+            } else {
+                log.warn("Replica '{}' requested log entries with a last fetch leader term {} but current leader term is {}.",
+                        replicaId,
+                        lastFetchOffset.leaderTerm(),
+                        leaderTerm);
+                if (walStartOffset.equals(LogPosition.ZERO) || walStartOffset.leaderTerm() > lastFetchOffset.leaderTerm())
+                    return getSnapshotProto(lastFetchOffset, walStartOffset, endOffset);
+                return getLogsProto(lastFetchOffset, maxNumRecords, commitedOffsetProto);
+            }
+        } catch (Exception e) {
+            return WalFetchResponseProto.newBuilder()
+                    .setHttpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .setErrorMessage(e.getMessage())
+                    .build();
+        }
+    }
+
     private Mono<ResponseEntity<WALFetchResponse>> getLogs(LogPosition lastFetchOffset, int maxNumRecords, LogPosition commitedOffset) {
         List<WALEntry> entries = wal.readLogs(lastFetchOffset, maxNumRecords);
 
@@ -787,6 +885,17 @@ public class PartitionState implements AutoCloseable {
                 .commitedOffset(commitedOffset)
                 .payloadType(WALFetchPayloadType.LOG)
                 .build()));
+    }
+
+    private WalFetchResponseProto getLogsProto(LogPosition lastFetchOffset, int maxNumRecords, LogPositionProto commitedOffsetProto) {
+        List<WalEntryProto> entries = wal.readLogsProto(lastFetchOffset, maxNumRecords);
+
+        return WalFetchResponseProto.newBuilder()
+                .setHttpStatusCode(HttpStatus.OK.value())
+                .addAllEntries(entries)
+                .setCommitedOffset(commitedOffsetProto)
+                .setPayloadType(WalFetchPayloadTypeProto.LOG)
+                .build();
     }
 
     private Mono<ResponseEntity<WALFetchResponse>> getSnapshot(LogPosition lastFetchOffset, LogPosition walStartOffset, LogPosition endOffset) {
@@ -808,6 +917,27 @@ public class PartitionState implements AutoCloseable {
                 .payloadType(WALFetchPayloadType.SNAPSHOT)
                 .dataSnapshotBytes(dataSnapshotBytes)
                 .build()));
+    }
+
+    private WalFetchResponseProto getSnapshotProto(LogPosition lastFetchOffset, LogPosition walStartOffset, LogPosition endOffset) {
+        byte[] dataSnapshotBytes = readDataSnapshotBytes();
+
+        if (dataSnapshotBytes == null) {
+            String errorMessage = "No WAL or data snapshot found after the requested offset %s. Current wal start offset is %s: and leader end offset is: %s".formatted(
+                    lastFetchOffset,
+                    walStartOffset,
+                    endOffset);
+            return WalFetchResponseProto.newBuilder()
+                    .setHttpStatusCode(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                    .setErrorMessage(errorMessage)
+                    .build();
+        }
+
+        return WalFetchResponseProto.newBuilder()
+                .setHttpStatusCode(HttpStatus.OK.value())
+                .setPayloadType(WalFetchPayloadTypeProto.SNAPSHOT)
+                .setDataSnapshotBytes(ByteString.copyFrom(dataSnapshotBytes))
+                .build();
     }
 
     public void isrListChanged(ISRListChangedRequest request) {
@@ -849,18 +979,12 @@ public class PartitionState implements AutoCloseable {
 
     public void appendLogEntries(List<WALEntry> logEntries, LogPosition commitedOffset) {
         try (AutoCloseableLock l = writeReplicaLock()) {
-            LogPosition currentCommitedOffset = offsetState.getCommittedOffset();
-
             if (!logEntries.isEmpty()) {
                 wal.appendLogs(logEntries);
                 offsetState.setEndOffset(logEntries.getLast().getOffset());
             }
 
-            if (commitedOffset.equals(LogPosition.ZERO) || commitedOffset.equals(currentCommitedOffset))
-                return;
-
-            List<WALEntry> logEntriesNotAppliedYet = wal.readLogs(currentCommitedOffset, commitedOffset);
-            for (WALEntry walEntry : logEntriesNotAppliedYet) {
+            for (WALEntry walEntry : logEntries) {
                 String keyString = new String(walEntry.key());
                 String partitionKeyString = walEntry.partitionKey() == null ?
                         null :
@@ -900,6 +1024,71 @@ public class PartitionState implements AutoCloseable {
                 }
             }
 
+            LogPosition currentCommitedOffset = offsetState.getCommittedOffset();
+
+            if (commitedOffset.equals(LogPosition.ZERO) || commitedOffset.equals(currentCommitedOffset))
+                return;
+
+            offsetState.setCommittedOffset(commitedOffset);
+        }
+    }
+
+    public void appendLogEntriesProto(List<WalEntryProto> logEntries, LogPosition commitedOffset) {
+        try (AutoCloseableLock l = writeReplicaLock()) {
+            if (!logEntries.isEmpty()) {
+                wal.appendLogsProto(logEntries);
+                LogPosition endOffset = LogPosition.of(logEntries.getLast().getTerm(), logEntries.getLast().getIndex());
+                offsetState.setEndOffset(endOffset);
+            }
+
+            for (WalEntryProto walEntry : logEntries) {
+                String keyString = new String(walEntry.getKey().toByteArray());
+                String partitionKeyString = walEntry.getPartitionKey().isEmpty() ?
+                        null :
+                        new String(walEntry.getPartitionKey().toByteArray());
+                Map<String, String> entryIndexKeys = walEntry.getIndexes().isEmpty() ?
+                        null :
+                        JsonSerDe.deserialize(walEntry.getIndexes().toByteArray(), new TypeReference<>(){});
+                LogPosition offset = LogPosition.of(walEntry.getTerm(), walEntry.getIndex());
+                byte[] valueBytes = walEntry.getValue().isEmpty() ?
+                        null :
+                        walEntry.getValue().toByteArray();
+                ItemValueVersion itemValueVersion = ItemValueVersion.of(offset, valueBytes, walEntry.getExpiryTime());
+
+                switch ((byte)walEntry.getOperationType()) {
+                    case OperationType.PUT -> {
+                        removeItemFromIndexes(keyString);
+
+                        data.compute(keyString, (key, value) -> {
+                            if (value == null)
+                                value = new ItemEntry(partitionKeyString, new CopyOnWriteArrayList<>(), entryIndexKeys == null ? null : new ConcurrentHashMap<>());
+                            value.valueVersions().add(itemValueVersion);
+                            return value;
+                        });
+
+                        addItemToIndexes(keyString, entryIndexKeys);
+
+                        if (walEntry.getExpiryTime() != 0L) {
+                            ItemExpiryKey itemExpiryKey = ItemExpiryKey.of(keyString, offset, walEntry.getExpiryTime());
+                            dataExpiryTimes.offer(itemExpiryKey);
+                        }
+                    }
+                    case OperationType.DELETE -> {
+                        data.compute(keyString, (key, value) -> {
+                            if (value == null)
+                                return null;
+                            value.valueVersions().add(itemValueVersion);
+                            return value;
+                        });
+                    }
+                }
+            }
+
+            LogPosition currentCommitedOffset = offsetState.getCommittedOffset();
+
+            if (commitedOffset.equals(LogPosition.ZERO) || commitedOffset.equals(currentCommitedOffset))
+                return;
+
             offsetState.setCommittedOffset(commitedOffset);
         }
     }
@@ -936,6 +1125,26 @@ public class PartitionState implements AutoCloseable {
         }
     }
 
+    private void startWalFetcherGrpc() {
+        if (storageSettings.isGrpcEnabled()) {
+            walFetcherGrpc = new WalFetcherGrpc(
+                    this,
+                    nodeId,
+                    table,
+                    partition,
+                    leaderGrpcEndpoint,
+                    fetchMaxNumRecords);
+            walFetcherGrpc.start();
+        }
+    }
+
+    private void stopWalFetcherGrpc() {
+        if (walFetcherGrpc != null) {
+            walFetcherGrpc.stop();
+            walFetcherGrpc = null;
+        }
+    }
+
     /**
      * The code below this point applies to both leaders and replicas.
      * */
@@ -951,10 +1160,13 @@ public class PartitionState implements AutoCloseable {
     public void newLeaderElected(NewLeaderElectedRequest request) {
         try (AutoCloseableLock l = writeLeaderLock();
              AutoCloseableLock l2 = writeReplicaLock()) {
+            this.stopWalFetcherGrpc();
+
             if (nodeId.equals(request.getNewLeaderId())) {
                 this.isLeader = true;
                 this.leaderTerm = request.getNewLeaderTerm();
                 this.leaderEndpoint = null;
+                this.leaderGrpcEndpoint = null;
                 this.inSyncReplicas = request.getInSyncReplicas();
 
                 log.info("This node elected as the new leader for table '{}' partition '{}'. Now performing offset synchronization and truncation.",
@@ -1027,7 +1239,9 @@ public class PartitionState implements AutoCloseable {
                 this.isLeader = false;
                 this.leaderTerm = request.getNewLeaderTerm();
                 this.leaderEndpoint = MetadataCache.getInstance().getEndpoint(request.getNewLeaderId());
+                this.leaderGrpcEndpoint = MetadataCache.getInstance().getGrpcEndpoint(request.getNewLeaderId());
                 this.inSyncReplicas = null;
+                this.startWalFetcherGrpc();
                 offsetState.clearPreviousLeaderEndOffset();
             }
         } catch (Exception e) {

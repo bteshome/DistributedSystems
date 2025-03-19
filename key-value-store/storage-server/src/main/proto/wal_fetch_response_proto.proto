@@ -1,0 +1,17 @@
+syntax = "proto3";
+import "wal_entry_proto.proto";
+import "log_position_proto.proto";
+import "wal_fetch_payload_type_proto.proto";
+
+option java_package = "com.bteshome.keyvaluestore.storage.proto";
+option java_multiple_files = true;
+
+message WalFetchResponseProto {
+  int32 httpStatusCode = 1;
+  string errorMessage = 2;
+  repeated WalEntryProto entries = 3;
+  LogPositionProto commitedOffset = 4;
+  LogPositionProto truncateToOffset = 5;
+  bytes dataSnapshotBytes = 6;
+  WalFetchPayloadTypeProto payloadType = 7;
+}

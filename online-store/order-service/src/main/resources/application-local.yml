@@ -53,7 +53,7 @@ logging:
     level: "%5p [${spring.application.name},%X{trace_id},%X{span_id}]"
 
 storage-client:
-  endpoints: localhost:9407,localhost:9607,localhost:9807
+  endpoints: "localhost:9406,localhost:9506,localhost:9606"
 
 spring:
   cloud:

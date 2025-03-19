@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class StorageSettings {
     private NodeInfo node;
+    private boolean grpcEnabled;
 
     @Getter
     @Setter
@@ -27,18 +28,18 @@ public class StorageSettings {
         private String id;
         private String host;
         private int port;
+        private int grpcPort;
         private int managementPort;
         private String rack;
         private String storageDir;
-
 
         public void print() {
             log.info("StorageSettings: id={}", id);
             log.info("StorageSettings: host={}", host);
             log.info("StorageSettings: port={}", port);
+            log.info("StorageSettings: grpcPort={}", grpcPort);
             log.info("StorageSettings: managementPort={}", managementPort);
             log.info("StorageSettings: rack={}", rack);
-            log.info("StorageSettings: storageDir={}", storageDir);
         }
     }
 
@@ -47,5 +48,6 @@ public class StorageSettings {
             node.print();
         else
             log.info("StorageSettings: node=null");
+        log.info("StorageSettings: grpcEnabled={}", grpcEnabled);
     }
 }

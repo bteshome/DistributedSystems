@@ -27,6 +27,7 @@ public class WALController {
     State state;
 
     @PostMapping("/fetch/")
+
     public Mono<ResponseEntity<WALFetchResponse>> fetch(@RequestBody WALFetchRequest request) {
         try {
             PartitionState partitionState = state.getPartitionState(request.getTable(),

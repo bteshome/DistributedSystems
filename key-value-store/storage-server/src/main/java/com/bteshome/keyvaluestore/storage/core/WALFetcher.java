@@ -84,11 +84,11 @@ public class WALFetcher {
                                 response.getEntries(),
                                 response.getCommitedOffset());
 
-                        log.trace("Fetched WAL for table '{}' partition '{}' lastFetchedOffset '{}'. entries={}, commited offset={}.",
+                        log.trace("Fetched WAL for table '{}' partition '{}' lastFetchedOffset '{}'. entries size={}, commited offset={}.",
                                 table,
                                 partition,
                                 lastFetchOffset,
-                                response.getEntries(),
+                                response.getEntries().size(),
                                 response.getCommitedOffset());
                     } else {
                         byte[] dataSnapshotBytes = response.getDataSnapshotBytes();

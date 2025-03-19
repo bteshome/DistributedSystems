@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+option java_package = "com.bteshome.keyvaluestore.storage.proto";
+option java_multiple_files = true;
+
+enum WalFetchPayloadTypeProto {
+  NONE = 0;
+  LOG = 1;
+  SNAPSHOT = 2;
+}

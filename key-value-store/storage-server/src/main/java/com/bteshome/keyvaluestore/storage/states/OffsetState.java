@@ -25,6 +25,7 @@ public class OffsetState {
     private final int partition;
     private final String nodeId;
     private final Map<String, Tuple<LogPosition, Long>> replicaEndOffsets;
+    private final Map<String, LogPosition> replicaCommittedOffsets;
     private LogPosition committedOffset;
     private LogPosition endOffset;
     private LogPosition previousLeaderEndOffset;
@@ -41,6 +42,7 @@ public class OffsetState {
         endOffset = LogPosition.ZERO;
         previousLeaderEndOffset = LogPosition.ZERO;
         replicaEndOffsets = new ConcurrentHashMap<>();
+        replicaCommittedOffsets = new ConcurrentHashMap<>();
         lock = new ReentrantReadWriteLock(true);
         committedOffsetSnapshotFile = "%s/%s-%s/committedOffset.ser".formatted(storageSettings.getNode().getStorageDir(), table, partition);
         endOffsetSnapshotFile = "%s/%s-%s/endOffset.ser".formatted(storageSettings.getNode().getStorageDir(), table, partition);
@@ -56,10 +58,6 @@ public class OffsetState {
         }
     }
 
-    public Map<String, Tuple<LogPosition, Long>> getReplicaEndOffsets() {
-        return new HashMap<>(replicaEndOffsets);
-    }
-
     public void setEndOffset(LogPosition offset) {
         try (AutoCloseableLock l = writeLock()) {
             this.endOffset = offset;
@@ -73,8 +71,26 @@ public class OffsetState {
         }
     }
 
+    public Map<String, Tuple<LogPosition, Long>> getReplicaEndOffsets() {
+        return new HashMap<>(replicaEndOffsets);
+    }
+
+    public LogPosition getReplicaEndOffset(String replicaId) {
+        if (!replicaEndOffsets.containsKey(replicaId))
+            return null;
+        return replicaEndOffsets.get(replicaId).first();
+    }
+
     public void setReplicaEndOffset(String replicaId, LogPosition offset) {
         replicaEndOffsets.put(replicaId, Tuple.of(offset, System.currentTimeMillis()));
+    }
+
+    public LogPosition getReplicaCommittedOffset(String replicaId) {
+        return replicaCommittedOffsets.getOrDefault(replicaId, null);
+    }
+
+    public void setReplicaCommittedOffset(String replicaId, LogPosition offset) {
+        replicaCommittedOffsets.put(replicaId, offset);
     }
 
     public LogPosition getCommittedOffset() {

@@ -95,6 +95,17 @@ public class MetadataCache {
         return "%s:%s".formatted(leaderNode.getHost(), leaderNode.getPort());
     }
 
+    public Tuple<String, Integer> getLeaderGrpcEndpoint(String tableName, int partition) {
+        Table table = (Table)state.get(EntityType.TABLE).getOrDefault(tableName, null);
+        if (table == null)
+            return null;
+        String leaderNodeId = table.getPartitions().get(partition).getLeader();
+        if (leaderNodeId == null)
+            return null;
+        StorageNode leaderNode = (StorageNode)state.get(EntityType.STORAGE_NODE).get(leaderNodeId);
+        return Tuple.of(leaderNode.getHost(), leaderNode.getGrpcPort());
+    }
+
     public int getLeaderTerm(String tableName, int partition) {
         Table table = (Table)state.get(EntityType.TABLE).get(tableName);
         return table.getPartitions().get(partition).getLeaderTerm();
@@ -103,6 +114,11 @@ public class MetadataCache {
     public String getEndpoint(String nodeId) {
         StorageNode node = (StorageNode)state.get(EntityType.STORAGE_NODE).get(nodeId);
         return "%s:%s".formatted(node.getHost(), node.getPort());
+    }
+
+    public Tuple<String, Integer> getGrpcEndpoint(String nodeId) {
+        StorageNode node = (StorageNode)state.get(EntityType.STORAGE_NODE).get(nodeId);
+        return Tuple.of(node.getHost(), node.getGrpcPort());
     }
 
     public Set<String> getISREndpoints(String tableName, int partition, String excludedNodeId) {

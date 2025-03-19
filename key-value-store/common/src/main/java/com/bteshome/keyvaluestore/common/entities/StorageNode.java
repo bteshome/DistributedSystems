@@ -20,6 +20,7 @@ public class StorageNode implements Serializable {
     private String id;
     private String host;
     private int port;
+    private int grpcPort;
     private int managementPort;
     private String rack;
     private String storageDir;
@@ -32,6 +33,7 @@ public class StorageNode implements Serializable {
         return new StorageNode( request.getId(),
                                 request.getHost(),
                                 request.getPort(),
+                                request.getGrpcPort(),
                                 request.getManagementPort(),
                                 request.getRack(),
                                 request.getStorageDir(),
@@ -68,7 +70,8 @@ public class StorageNode implements Serializable {
         return new StorageNode( id,
                                 host,
                                 port,
-                managementPort,
+                                grpcPort,
+                                managementPort,
                                 rack,
                                 storageDir,
                                 status,

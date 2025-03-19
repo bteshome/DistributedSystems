@@ -1,18 +1,20 @@
 server:
-  port: '9807'
+  port: '9606'
 
 management:
   server:
-    port: '9907'
+    port: '9608'
 
 storage:
   node:
     id: '3'
     host: localhost
     port: ${server.port}
+    grpc-port: 9607
     management-port: ${management.server.port}
     rack: ""
     storage-dir: storage-server-3
+  grpc-enabled: 'true'
 
 metadata-client:
   client-id: 2ac5a91b-b439-4c52-9617-bdc4f3683c97

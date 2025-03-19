@@ -3,10 +3,12 @@ package com.bteshome.keyvaluestore.storage.states;
 import com.bteshome.keyvaluestore.common.JsonSerDe;
 import com.bteshome.keyvaluestore.common.LogPosition;
 import com.bteshome.keyvaluestore.common.entities.Item;
+import com.bteshome.keyvaluestore.storage.api.grpc.WalEntryProtoUtils;
 import com.bteshome.keyvaluestore.storage.common.ChecksumUtil;
 import com.bteshome.keyvaluestore.storage.common.StorageServerException;
 import com.bteshome.keyvaluestore.storage.entities.OperationType;
 import com.bteshome.keyvaluestore.storage.entities.WALEntry;
+import com.bteshome.keyvaluestore.storage.proto.WalEntryProto;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ratis.util.AutoCloseableLock;
 
@@ -343,6 +345,63 @@ public class WAL implements AutoCloseable {
         }
     }
 
+    public void appendLogsProto(List<WalEntryProto> logEntries) {
+        try (AutoCloseableLock l = writeLock()) {
+            ByteBuffer buffer = getByteBuffer();
+
+            for (WalEntryProto logEntry : logEntries) {
+                byte[] keyBytes = logEntry.getKey().toByteArray();
+                byte[] partitionKeyBytes = logEntry.getPartitionKey().isEmpty() ? null : logEntry.getPartitionKey().toByteArray();
+                byte[] valueBytes = logEntry.getValue().isEmpty() ? null : logEntry.getValue().toByteArray();
+                byte[] indexBytes = logEntry.getIndexes().isEmpty() ? null : logEntry.getIndexes().toByteArray();
+
+                int entrySize = HEADER_SIZE + keyBytes.length;
+
+                if (partitionKeyBytes != null)
+                    entrySize += partitionKeyBytes.length;
+                if (valueBytes != null)
+                    entrySize += valueBytes.length;
+                if (indexBytes != null)
+                    entrySize += indexBytes.length;
+
+                buffer.clear();
+                buffer.position(0);
+                buffer.limit(entrySize);
+
+                buffer.putInt(logEntry.getTerm());
+                buffer.putLong(logEntry.getIndex());
+                buffer.putLong(logEntry.getTimestamp());
+                buffer.put((byte)logEntry.getOperationType());
+                buffer.putLong(logEntry.getExpiryTime());
+                buffer.put((byte)keyBytes.length);
+                buffer.put((byte)(partitionKeyBytes == null ? 0 : partitionKeyBytes.length));
+                buffer.putShort((short)(valueBytes == null ? 0 : valueBytes.length));
+                buffer.putShort((short)(indexBytes == null ? 0 : indexBytes.length));
+
+                buffer.put(keyBytes);
+                if (partitionKeyBytes != null)
+                    buffer.put(partitionKeyBytes);
+                if (valueBytes != null)
+                    buffer.put(valueBytes);
+                if (indexBytes != null)
+                    buffer.put(indexBytes);
+
+                buffer.flip();
+                writerChannel.write(buffer);
+            }
+
+            writerChannel.force(true);
+            if (startLeaderTerm == 0 && startIndex == 0)
+                setStartOffset(logEntries.getFirst().getTerm(), logEntries.getFirst().getIndex());
+            setEndOffset(logEntries.getLast().getTerm(), logEntries.getLast().getIndex());
+            log.trace("'{}' log entries appended for table '{}' partition '{}'.", logEntries.size(), tableName, partition);
+        } catch (IOException e) {
+            String errorMessage = "Error appending entries to WAL for table '%s' partition '%s'.".formatted(tableName, partition);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }
+
     public List<WALEntry> readLogs(LogPosition afterOffset, int limit) {
         try (AutoCloseableLock l = readLock();
             FileChannel readerChannel = createReaderChannel()) {
@@ -364,10 +423,55 @@ public class WAL implements AutoCloseable {
                 buffer.limit(bytesRead);
 
                 WALEntry walEntry = WALEntry.fromByteBuffer(buffer);
-                int entryLength = HEADER_SIZE + walEntry.keyLength() + walEntry.partitionKeyLength() + walEntry.valueLength() + walEntry.indexLength();
+                int entryLength = HEADER_SIZE +
+                        walEntry.keyLength() +
+                        walEntry.partitionKeyLength() +
+                        walEntry.valueLength() +
+                        walEntry.indexLength();
                 readerChannel.position(readerChannel.position() - bytesRead + entryLength);
 
                 if (walEntry.isLessThanOrEquals(afterOffset))
+                    continue;
+                entries.add(walEntry);
+            }
+
+            return entries;
+        } catch (IOException e) {
+            String errorMessage = "Error reading WAL for table '%s' partition '%s'.".formatted(tableName, partition);
+            log.error(errorMessage, e);
+            throw new StorageServerException(errorMessage, e);
+        }
+    }
+
+    public List<WalEntryProto> readLogsProto(LogPosition afterOffset, int limit) {
+        try (AutoCloseableLock l = readLock();
+             FileChannel readerChannel = createReaderChannel()) {
+            ByteBuffer buffer = getByteBuffer();
+            List<WalEntryProto> entries = new ArrayList<>();
+
+            buffer.clear();
+            buffer.position(0);
+
+            while (entries.size() < limit) {
+                buffer.clear();
+                buffer.position(0);
+
+                int bytesRead = readerChannel.read(buffer);
+                if (bytesRead <= 0)
+                    break;
+
+                buffer.flip();
+                buffer.limit(bytesRead);
+
+                WalEntryProto walEntry = WalEntryProtoUtils.fromByteBuffer(buffer);
+                int entryLength = HEADER_SIZE +
+                        walEntry.getKeyLength() +
+                        walEntry.getPartitionKeyLength() +
+                        walEntry.getValueLength() +
+                        walEntry.getIndexLength();
+                readerChannel.position(readerChannel.position() - bytesRead + entryLength);
+
+                if (WalEntryProtoUtils.isLessThanOrEquals(walEntry, afterOffset.leaderTerm(), afterOffset.index()))
                     continue;
                 entries.add(walEntry);
             }

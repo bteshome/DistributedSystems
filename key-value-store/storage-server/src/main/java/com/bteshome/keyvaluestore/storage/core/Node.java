@@ -45,6 +45,7 @@ public class Node implements CommandLineRunner {
                     storageSettings.getNode().getId(),
                     storageSettings.getNode().getHost(),
                     storageSettings.getNode().getPort(),
+                    storageSettings.getNode().getGrpcPort(),
                     storageSettings.getNode().getManagementPort(),
                     storageSettings.getNode().getRack(),
                     storageSettings.getNode().getStorageDir());
