@@ -7,25 +7,28 @@ import com.bteshome.keyvaluestore.storage.proto.WalServiceProtoGrpc;
 import com.bteshome.keyvaluestore.storage.states.PartitionState;
 import com.bteshome.keyvaluestore.storage.states.State;
 import io.grpc.stub.StreamObserver;
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 @Slf4j
 public class WalService extends WalServiceProtoGrpc.WalServiceProtoImplBase {
     private final State state;
-    private final Map<String, ReplicaRegistration> replicas;
+    private final Set<ReplicaRegistration> replicas;
 
     public WalService(State state) {
         this.state = state;
-        this.replicas = new ConcurrentHashMap<>();
+        this.replicas = new CopyOnWriteArraySet<>();
     }
 
     @Override
     public StreamObserver<WalFetchRequestProto> fetch(StreamObserver<WalFetchResponseProto> responseObserver) {
         return new StreamObserver<WalFetchRequestProto>() {
-            private String replicaId = null;
+            private ReplicaRegistration replicaRegistration;
 
             @Override
             public void onNext(WalFetchRequestProto request) {
@@ -36,17 +39,17 @@ public class WalService extends WalServiceProtoGrpc.WalServiceProtoImplBase {
                 if (partitionState == null)
                     return;
 
-                if (replicaId == null) {
-                    this.replicaId = request.getId();
-                    ReplicaRegistration replicaRegistration = new ReplicaRegistration(
+                if (replicaRegistration == null) {
+                    replicaRegistration = new ReplicaRegistration(
+                            request.getId(),
                             request.getTable(),
                             request.getPartition(),
                             request.getMaxNumRecords(),
                             responseObserver
                     );
-                    replicas.put(request.getId(), replicaRegistration);
+                    replicas.add(replicaRegistration);
                     log.info("Replica {} connected to leader gRPC WAL service for table {} partition {}.",
-                            replicaId,
+                            request.getId(),
                             request.getTable(),
                             request.getPartition());
                 }
@@ -65,27 +68,26 @@ public class WalService extends WalServiceProtoGrpc.WalServiceProtoImplBase {
             @Override
             public void onError(Throwable throwable) {
                 log.error("Replica {} gRPC WAL service stream error for table {} partition {}.",
-                        replicaId,
-                        replicas.get(replicaId).getTable(),
-                        replicas.get(replicaId).getPartition());
+                        replicaRegistration.getReplicaId(),
+                        replicaRegistration.getTable(),
+                        replicaRegistration.getPartition());
             }
 
             @Override
             public void onCompleted() {
+                replicas.remove(replicaRegistration);
                 responseObserver.onCompleted();
-                replicas.remove(replicaId);
                 log.info("Replica {} gRPC WAL service stream completed for table {} partition {}.",
-                        replicaId,
-                        replicas.get(replicaId).getTable(),
-                        replicas.get(replicaId).getPartition());
+                        replicaRegistration.getReplicaId(),
+                        replicaRegistration.getTable(),
+                        replicaRegistration.getPartition());
             }
         };
     }
 
     public void send() {
-        for (Map.Entry<String, ReplicaRegistration> follower : replicas.entrySet()) {
-            String replicaId = follower.getKey();
-            ReplicaRegistration replicaRegistration = follower.getValue();
+        for (ReplicaRegistration replicaRegistration : replicas) {
+            String replicaId = replicaRegistration.getReplicaId();
             String table = replicaRegistration.getTable();
             int partition = replicaRegistration.getPartition();
             int maxNumRecords = replicaRegistration.getMaxNumRecords();
