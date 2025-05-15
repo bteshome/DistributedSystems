@@ -6,7 +6,7 @@
 | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **1. Key Value Store** | Distributed, durable, in-memory key-value database with replication, leader election, and snapshotting. Includes: metadata server (RAFT), storage server, dashboard, and client library. |
 | **2. Online Store**                | A mock e-commerce system built for testing, with its modules (product service, order service, ordering UI, and orders dashboard) storing data in the key value store.                        |
-| **3. Config Server**        | Centralized configuration management service for all components. Reads config data from another GitHub repo.                               |
+| **3. Config Server**        | Centralized configuration management service for all components. Reads config data from another GitHub repo (config-repo).                               |
 | **4. Api Gateway**        | A gateway which api calls from the ordering UI of the online store pass through. Has a rate limiter and light security.                                           |
 | **5. Consistent Hashing Layer**    | Implements a ring-based consistent hashing algorithm used in the KVS and rate limiter.                                                                 |
 | **6. Deployment Automation**       | Scripts to automate deployment. Has kubernetes (Helm) and docker compose versions.                                                 |
@@ -17,7 +17,7 @@
 *A distributed, durable, in-memory key-value store built from scratch.*
 
 
-| ✅ Module            | Description                                                                                                                                                                             |
+| Module            | Description                                                                                                                                                                             |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Metadata Server** | Coordinates metadata (storage nodes, tables, partitions, partition leaders etc.) and performs RAFT-based leader election and replication.                                                                                                           |
 | **Storage Server**  | Handles in-memory daata storage, with leader-follower replication using gRPC or REST (configurable). The leader is elected by the active metadata server.                                                                                |
