@@ -1,4 +1,4 @@
-# 📚 Distributed Systems
+# 📖 Distributed Systems
 ### Table of Contents
 
 
